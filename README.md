@@ -1,2 +1,2 @@
 # Poolr
-The digital home for your Ajo, Susu, or Esusu circle. Automated contributions, scheduled payouts, and KYC-verified members — saving together, made simple.
+Digital savings circles for modern communities. Pool contributions, automate rotating payouts, and manage your Ajo group — built for Nigeria and the diaspora.
