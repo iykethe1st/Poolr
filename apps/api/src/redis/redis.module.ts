@@ -15,7 +15,7 @@ import { RedisService } from './redis.service';
           maxRetriesPerRequest: null,
         });
         redis.on('connect', () => logger.log('Redis connected'));
-        redis.on('error', (err: Error) => logger.error(`Redis error: ${err.message}`));
+        redis.on('error', (err: Error) => logger.error(`Redis error: ${err.message || String(err)}`));
         return redis;
       },
       inject: [ConfigService],
