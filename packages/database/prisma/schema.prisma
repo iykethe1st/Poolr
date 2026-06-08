@@ -4,13 +4,307 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum KycStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum GroupStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum Frequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum Currency {
+  NGN
+}
+
+enum MemberStatus {
+  INVITED
+  ACTIVE
+  LEFT
+  REMOVED
+}
+
+enum CycleStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  OVERDUE
+}
+
+enum ContribStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum PayoutStatus {
+  PENDING
+  INITIATED
+  COMPLETED
+  FAILED
+}
+
+enum PenaltyStatus {
+  PENDING
+  APPLIED
+  WAIVED
+}
+
+enum PenaltyReason {
+  LATE_PAYMENT
+  MISSED_PAYMENT
+  INSUFFICIENT_FUNDS
+}
+
+enum TxDirection {
+  CREDIT
+  DEBIT
+}
+
+enum TxType {
+  CONTRIBUTION
+  PAYOUT
+  PENALTY
+  TOPUP
+  WITHDRAWAL
+  REVERSAL
+}
+
+enum NotifChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotifStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  fullName     String     @map("full_name")
+  email        String     @unique
+  phone        String     @unique
+  passwordHash String     @map("password_hash")
+  role         Role       @default(USER)
+  status       UserStatus @default(PENDING_VERIFICATION)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  kycProfile        KycProfile?
+  groupsAdminOf     Group[]        @relation("GroupAdmin")
+  groupMemberships  GroupMember[]
+  cyclesAsRecipient Cycle[]        @relation("CycleRecipient")
+  payoutsReceived   Payout[]       @relation("PayoutRecipient")
+  wallet            Wallet?
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model KycProfile {
+  id         String    @id @default(cuid())
+  userId     String    @unique @map("user_id")
+  bvn        String?
+  nin        String?
+  selfieUrl  String?   @map("selfie_url")
+  idDocUrl   String?   @map("id_doc_url")
+  kycStatus  KycStatus @default(PENDING) @map("kyc_status")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("kyc_profiles")
+}
+
+model Group {
+  id                 String      @id @default(cuid())
+  adminId            String      @map("admin_id")
+  name               String
+  contributionAmount Decimal     @map("contribution_amount") @db.Decimal(12, 2)
+  currency           Currency    @default(NGN)
+  frequency          Frequency
+  maxMembers         Int         @map("max_members")
+  status             GroupStatus @default(DRAFT)
+  startDate          DateTime?   @map("start_date")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  admin   User          @relation("GroupAdmin", fields: [adminId], references: [id])
+  members GroupMember[]
+  cycles  Cycle[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id               String       @id @default(cuid())
+  groupId          String       @map("group_id")
+  userId           String       @map("user_id")
+  rotationPosition Int          @map("rotation_position")
+  memberStatus     MemberStatus @default(INVITED) @map("member_status")
+  joinedAt         DateTime     @default(now()) @map("joined_at")
+
+  group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions Contribution[]
+  penalties     Penalty[]
+
+  @@unique([groupId, userId])
+  @@unique([groupId, rotationPosition])
+  @@map("group_members")
+}
+
+model Cycle {
+  id          String      @id @default(cuid())
+  groupId     String      @map("group_id")
+  recipientId String      @map("recipient_id")
+  cycleNumber Int         @map("cycle_number")
+  dueDate     DateTime    @map("due_date")
+  payoutDate  DateTime?   @map("payout_date")
+  status      CycleStatus @default(PENDING)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  recipient     User           @relation("CycleRecipient", fields: [recipientId], references: [id])
+  contributions Contribution[]
+  payouts       Payout[]
+
+  @@unique([groupId, cycleNumber])
+  @@map("cycles")
+}
+
+model Contribution {
+  id          String        @id @default(cuid())
+  cycleId     String        @map("cycle_id")
+  memberId    String        @map("member_id")
+  amount      Decimal       @db.Decimal(12, 2)
+  status      ContribStatus @default(PENDING)
+  paystackRef String?       @map("paystack_ref")
+  paidAt      DateTime?     @map("paid_at")
+  dueAt       DateTime      @map("due_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  cycle     Cycle         @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  member    GroupMember   @relation(fields: [memberId], references: [id])
+  penalties Penalty[]
+
+  @@unique([cycleId, memberId])
+  @@map("contributions")
+}
+
+model Payout {
+  id                   String       @id @default(cuid())
+  cycleId              String       @map("cycle_id")
+  recipientId          String       @map("recipient_id")
+  amount               Decimal      @db.Decimal(12, 2)
+  status               PayoutStatus @default(PENDING)
+  paystackTransferCode String?      @map("paystack_transfer_code")
+  initiatedAt          DateTime?    @map("initiated_at")
+  completedAt          DateTime?    @map("completed_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  cycle     Cycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  recipient User  @relation("PayoutRecipient", fields: [recipientId], references: [id])
+
+  @@map("payouts")
+}
+
+model Penalty {
+  id             String        @id @default(cuid())
+  contributionId String        @map("contribution_id")
+  memberId       String        @map("member_id")
+  penaltyAmount  Decimal       @map("penalty_amount") @db.Decimal(12, 2)
+  reason         PenaltyReason
+  status         PenaltyStatus @default(PENDING)
+  appliedAt      DateTime?     @map("applied_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  contribution Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  member       GroupMember  @relation(fields: [memberId], references: [id])
+
+  @@map("penalties")
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  balance   Decimal  @default(0) @db.Decimal(12, 2)
+  currency  Currency @default(NGN)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id        String      @id @default(cuid())
+  walletId  String      @map("wallet_id")
+  amount    Decimal     @db.Decimal(12, 2)
+  type      TxType
+  direction TxDirection
+  reference String      @unique
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@map("wallet_transactions")
+}
+
+model Notification {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  title     String
+  body      String
+  channel   NotifChannel
+  status    NotifStatus  @default(PENDING)
+  sentAt    DateTime?    @map("sent_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }
