@@ -121,6 +121,7 @@ model User {
   email        String     @unique
   phone        String     @unique
   passwordHash String     @map("password_hash")
+  avatarUrl    String?    @map("avatar_url")
   role         Role       @default(USER)
   status       UserStatus @default(PENDING_VERIFICATION)
   createdAt    DateTime   @default(now()) @map("created_at")
@@ -140,10 +141,11 @@ model User {
 model KycProfile {
   id         String    @id @default(cuid())
   userId     String    @unique @map("user_id")
-  bvn        String?
-  nin        String?
-  selfieUrl  String?   @map("selfie_url")
-  idDocUrl   String?   @map("id_doc_url")
+  bvn         String?
+  nin         String?
+  selfieUrl   String?   @map("selfie_url")
+  idDocUrl    String?   @map("id_doc_url")
+  kycAttempts Int       @default(0) @map("kyc_attempts")
   kycStatus  KycStatus @default(PENDING) @map("kyc_status")
   verifiedAt DateTime? @map("verified_at")
   createdAt  DateTime  @default(now()) @map("created_at")
