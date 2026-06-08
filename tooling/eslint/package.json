@@ -1,0 +1,14 @@
+{
+  "name": "@poolr/eslint-config",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.60.1",
+    "@typescript-eslint/parser": "^8.60.1",
+    "eslint-config-prettier": "^10.1.8"
+  },
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  }
+}

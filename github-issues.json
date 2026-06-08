@@ -1,0 +1,178 @@
+﻿[
+  {
+    "number": 1,
+    "title": "Monorepo setup: Turborepo + pnpm workspaces",
+    "labels": ["chore", "setup"],
+    "milestone": "M0 - Foundation",
+    "body": "## Overview\nInitialise the Poolr monorepo with Turborepo and pnpm workspaces. This is the foundation all other work depends on.\n\n## Tasks\n- [ ] Initialise pnpm workspace with `pnpm-workspace.yaml`\n- [ ] Configure `turbo.json` with `dev`, `build`, `test`, and `lint` pipelines\n- [ ] Scaffold `apps/api`, `apps/web`, `apps/mobile`, `apps/admin` directories\n- [ ] Scaffold `packages/database`, `packages/types`, `packages/ui`, `packages/config`, `packages/utils`\n- [ ] Add shared TypeScript config in `tooling/typescript/`\n- [ ] Add shared ESLint config in `tooling/eslint/`\n- [ ] Add root `package.json` with workspace scripts\n- [ ] Add `docker-compose.yml` for local PostgreSQL and Redis\n- [ ] Add `.env.example` with all required variables\n- [ ] Add root `README.md`\n\n## Acceptance criteria\n- `pnpm install` succeeds from root\n- `pnpm dev` starts all apps concurrently via Turborepo\n- `pnpm build` succeeds for all packages\n- Docker Compose brings up PostgreSQL on 5432 and Redis on 6379"
+  },
+  {
+    "number": 2,
+    "title": "Database: Prisma schema and initial migrations",
+    "labels": ["chore", "database"],
+    "milestone": "M0 - Foundation",
+    "body": "## Overview\nDefine the full Prisma schema for Poolr and run the initial migration.\n\n## Schema entities\n- `User` (id, full_name, email, phone, password_hash, role, status)\n- `KycProfile` (id, user_id, bvn, nin, selfie_url, id_doc_url, kyc_status, verified_at)\n- `Group` (id, admin_id, name, contribution_amount, currency, frequency, max_members, status, start_date)\n- `GroupMember` (id, group_id, user_id, rotation_position, member_status, joined_at)\n- `Cycle` (id, group_id, recipient_id, cycle_number, due_date, payout_date, status)\n- `Contribution` (id, cycle_id, member_id, amount, status, paystack_ref, paid_at, due_at)\n- `Payout` (id, cycle_id, recipient_id, amount, status, paystack_transfer_code, initiated_at, completed_at)\n- `Penalty` (id, contribution_id, member_id, penalty_amount, reason, status, applied_at)\n- `Wallet` (id, user_id, balance, currency, updated_at)\n- `WalletTransaction` (id, wallet_id, amount, type, direction, reference, created_at)\n- `Notification` (id, user_id, title, body, channel, status, sent_at)\n\n## Tasks\n- [ ] Write full Prisma schema in `packages/database/prisma/schema.prisma`\n- [ ] Define all enums: `Role`, `GroupStatus`, `CycleStatus`, `KycStatus`, `ContribStatus`, `PenaltyReason`, `NotifChannel`, `TxDirection`\n- [ ] Run `prisma migrate dev --name init`\n- [ ] Export typed Prisma client from `packages/database/src/index.ts`\n- [ ] Write seed script with sample user, group, and cycle data\n- [ ] Add `db:migrate`, `db:seed`, and `db:studio` scripts to package.json\n\n## Acceptance criteria\n- `pnpm --filter @poolr/database db:migrate` runs without errors\n- `pnpm --filter @poolr/database db:seed` populates local DB\n- Prisma client is importable from other packages as `@poolr/database`"
+  },
+  {
+    "number": 3,
+    "title": "Shared types package: enums, DTOs, and API response types",
+    "labels": ["chore", "types"],
+    "milestone": "M0 - Foundation",
+    "body": "## Overview\nCreate the `@poolr/types` package with all shared TypeScript types, enums, and API response shapes used across `api`, `web`, `mobile`, and `admin`.\n\n## Tasks\n- [ ] Mirror Prisma enums as TypeScript enums/const objects\n- [ ] Define shared API response wrapper type: `ApiResponse<T>`, `PaginatedResponse<T>`\n- [ ] Define shared entity types: `UserDto`, `GroupDto`, `GroupMemberDto`, `CycleDto`, `ContributionDto`, `PayoutDto`, `PenaltyDto`, `WalletDto`\n- [ ] Define error codes enum for consistent error handling\n- [ ] Export all types from `packages/types/src/index.ts`\n\n## Acceptance criteria\n- Types are importable from `@poolr/types` in all workspace apps\n- No circular dependencies between `@poolr/types` and `@poolr/database`"
+  },
+  {
+    "number": 4,
+    "title": "API: NestJS app bootstrap and core configuration",
+    "labels": ["backend", "setup"],
+    "milestone": "M0 - Foundation",
+    "body": "## Overview\nBootstrap the NestJS application in `apps/api` with all core configuration, middleware, and global setup.\n\n## Tasks\n- [ ] Initialise NestJS app with `@nestjs/cli`\n- [ ] Configure `@nestjs/config` with `.env` validation using `joi` or `zod`\n- [ ] Set up global validation pipe with `class-validator` and `class-transformer`\n- [ ] Set up global exception filter (`HttpExceptionFilter`)\n- [ ] Set up global logging interceptor\n- [ ] Configure CORS for web and mobile origins\n- [ ] Integrate Prisma service as a global provider\n- [ ] Configure Swagger/OpenAPI docs at `/api/docs`\n- [ ] Set up Sentry for error tracking\n- [ ] Add health check endpoint at `/health`\n- [ ] Configure `@nestjs/bull` with Redis connection\n\n## Acceptance criteria\n- `pnpm --filter @poolr/api dev` starts without errors\n- `/health` returns `{ status: 'ok' }`\n- Swagger UI is accessible at `/api/docs`\n- Invalid request bodies return structured validation error responses"
+  },
+  {
+    "number": 5,
+    "title": "API: Authentication module (register, login, OTP, JWT)",
+    "labels": ["backend", "auth"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nImplement the full authentication flow: registration, login, OTP-based phone verification, JWT access/refresh token issuance and rotation.\n\n## Endpoints\n- `POST /auth/register` - create account, trigger OTP\n- `POST /auth/verify-otp` - verify phone OTP, activate account\n- `POST /auth/login` - email+password login, return access + refresh tokens\n- `POST /auth/refresh` - exchange refresh token for new access token\n- `POST /auth/logout` - invalidate refresh token\n- `POST /auth/resend-otp` - resend OTP to phone\n\n## Tasks\n- [ ] Create `AuthModule`, `AuthController`, `AuthService`\n- [ ] Implement `JwtStrategy` with `passport-jwt`\n- [ ] Implement JWT access token (15 min) and refresh token (30 day) issuance\n- [ ] Store refresh tokens in Redis with TTL\n- [ ] Integrate Termii SMS for OTP delivery\n- [ ] Implement OTP generation, hashing, and verification\n- [ ] Create `JwtAuthGuard` and `RolesGuard` in `common/guards/`\n- [ ] Create `@Roles()` decorator\n- [ ] Hash passwords with `bcrypt`\n- [ ] Write unit tests for `AuthService`\n- [ ] Write e2e tests for all auth endpoints\n\n## Acceptance criteria\n- Full register → OTP verify → login → token refresh flow works end to end\n- Expired/invalid tokens return 401\n- OTP expires after 10 minutes\n- Refresh token is rotated on each use"
+  },
+  {
+    "number": 6,
+    "title": "API: Users module (profile, KYC submission)",
+    "labels": ["backend", "users"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nBuild the users module covering profile management and KYC document submission via Smile ID.\n\n## Endpoints\n- `GET /users/me` - get own profile\n- `PATCH /users/me` - update profile (name, profile photo)\n- `POST /users/me/kyc` - submit KYC (BVN, NIN, selfie, ID document)\n- `GET /users/me/kyc` - get KYC status\n- `GET /users/:id` - get another user's public profile (admin only)\n\n## Tasks\n- [ ] Create `UsersModule`, `UsersController`, `UsersService`\n- [ ] Create `KycService` wrapping Smile ID API\n- [ ] Implement BVN verification via Smile ID\n- [ ] Implement NIN verification via Smile ID\n- [ ] Upload selfie and ID document to S3, store URL in `KycProfile`\n- [ ] Implement KYC status webhook handler from Smile ID\n- [ ] Create `KycGuard` - blocks group join if KYC not verified\n- [ ] Write unit tests for `UsersService` and `KycService`\n\n## Acceptance criteria\n- User can submit KYC and track status\n- Smile ID webhook updates `kyc_status` to `VERIFIED` or `REJECTED`\n- KYC documents are stored in S3, not the database\n- Unverified users cannot join groups"
+  },
+  {
+    "number": 7,
+    "title": "API: Groups module (create, invite, manage members)",
+    "labels": ["backend", "groups"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild the groups module: group creation, member invitations, rotation assignment, and group lifecycle management.\n\n## Endpoints\n- `POST /groups` - create group (admin only)\n- `GET /groups` - list groups the current user belongs to\n- `GET /groups/:id` - get group details\n- `PATCH /groups/:id` - update group settings (admin only)\n- `POST /groups/:id/invite` - invite a member by phone or email\n- `POST /groups/:id/join` - accept an invitation\n- `DELETE /groups/:id/members/:memberId` - remove a member (admin only)\n- `PATCH /groups/:id/members/:memberId/position` - update rotation position (admin only)\n- `POST /groups/:id/start` - lock group and generate cycles\n\n## Tasks\n- [ ] Create `GroupsModule`, `GroupsController`, `GroupsService`\n- [ ] Create `RotationService` - generates `Cycle` rows from member rotation order\n- [ ] Implement invitation via unique token (email/SMS link)\n- [ ] Enforce max_members limit\n- [ ] Enforce KYC gate on join\n- [ ] `POST /groups/:id/start` locks membership and calls `RotationService.generateCycles()`\n- [ ] Write unit tests for `GroupsService` and `RotationService`\n\n## Acceptance criteria\n- Admin can create a group and invite members\n- Joining without KYC returns 403\n- `start` endpoint generates one `Cycle` row per member with correct recipient and due dates\n- Rotation positions cannot be changed after group starts"
+  },
+  {
+    "number": 8,
+    "title": "API: Payments module (Paystack integration, contributions)",
+    "labels": ["backend", "payments"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nIntegrate Paystack for collecting member contributions and disbursing payouts. Handle the full payment lifecycle.\n\n## Endpoints\n- `POST /payments/contribute/:cycleId` - initialise Paystack transaction for contribution\n- `GET /payments/verify/:reference` - verify a Paystack payment\n- `POST /payments/webhook` - Paystack webhook receiver (no JWT auth, HMAC verified)\n- `GET /payments/contributions` - list own contributions\n- `GET /payments/payouts` - list own payouts\n\n## Tasks\n- [ ] Create `PaymentsModule`, `PaymentsController`, `PaymentsService`\n- [ ] Create `PaystackService` - wrapper for Paystack REST API (initialize, verify, transfer)\n- [ ] Create `WebhookController` - separate controller, no JWT guard, HMAC signature verification\n- [ ] Handle `charge.success` webhook: mark `Contribution` as PAID, credit `Wallet`\n- [ ] Handle `transfer.success` webhook: mark `Payout` as COMPLETED\n- [ ] Handle `transfer.failed` webhook: retry or flag for admin review\n- [ ] Implement idempotency - ignore duplicate webhook events by reference\n- [ ] Store Paystack references on `Contribution` and `Payout` rows\n- [ ] Write unit tests for `PaystackService` and `PaymentsService`\n\n## Acceptance criteria\n- Member can initiate a contribution and be redirected to Paystack checkout\n- `charge.success` webhook marks contribution PAID within 5 seconds\n- Duplicate webhooks are safely ignored\n- HMAC verification rejects requests with invalid signatures (return 400)"
+  },
+  {
+    "number": 9,
+    "title": "API: Payout scheduler (BullMQ processor)",
+    "labels": ["backend", "scheduler"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild the automated payout scheduler that runs each cycle's disbursement on the due date via a BullMQ queue.\n\n## Tasks\n- [ ] Create `SchedulerModule` with BullMQ queue named `payout`\n- [ ] Create `PayoutProcessor` - processes `payout` jobs\n- [ ] Schedule daily cron job (`@nestjs/schedule`) to enqueue payout jobs for cycles due today\n- [ ] `PayoutProcessor`: verify all contributions for cycle are PAID, then call `PaystackService.initiateTransfer()`\n- [ ] Handle partial collection: if not all members paid, apply penalties then still disburse (configurable per group)\n- [ ] Add retry logic (3 attempts, exponential backoff) for failed Paystack transfers\n- [ ] Emit events on payout initiation and completion for the notifications module to consume\n- [ ] Write unit tests for `PayoutProcessor`\n\n## Acceptance criteria\n- Payout jobs are enqueued at midnight for all cycles due that day\n- Paystack transfer is initiated automatically without manual intervention\n- Failed jobs retry up to 3 times before being moved to the dead-letter queue\n- Admin is notified if a payout enters the dead-letter queue"
+  },
+  {
+    "number": 10,
+    "title": "API: Penalty engine",
+    "labels": ["backend", "penalties"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nImplement the penalty engine that detects missed and late contributions and applies configured penalties.\n\n## Tasks\n- [ ] Create `PenaltiesModule`, `PenaltiesService`\n- [ ] Create BullMQ `reminder` queue and `ReminderProcessor`\n- [ ] Schedule reminders: 48hr before due, 24hr before due, on due date\n- [ ] Day-after-due cron: mark unpaid contributions as MISSED, create `Penalty` row\n- [ ] `PenaltyService.applyPenalty()` - calculates penalty amount (flat fee or % of contribution, per group config)\n- [ ] Add `penalty_config` JSONB field to `Group` model (penalty_type, penalty_amount, grace_period_hours)\n- [ ] Expose `GET /penalties/me` - list own penalties\n- [ ] Expose `POST /penalties/:id/waive` - admin can waive a penalty\n- [ ] Notify member when a penalty is applied\n\n## Acceptance criteria\n- Members receive reminders 48h and 24h before due date\n- Missed contribution creates a `Penalty` row the day after due date\n- Penalty amount is calculated correctly for both flat and percentage modes\n- Admin can waive individual penalties"
+  },
+  {
+    "number": 11,
+    "title": "API: Notifications module (push, email, SMS)",
+    "labels": ["backend", "notifications"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild a unified notifications module that dispatches messages across push (FCM), email (Resend), and SMS (Termii) channels.\n\n## Notification events to handle\n- Welcome / account verified\n- KYC approved / rejected\n- Group invitation received\n- Group started\n- Contribution reminder (48h, 24h, due day)\n- Contribution received confirmation\n- Payout received\n- Penalty applied\n- Payout failed (admin)\n\n## Tasks\n- [ ] Create `NotificationsModule`, `NotificationsService`\n- [ ] Create `PushService` - wraps Firebase Admin SDK (FCM)\n- [ ] Create `EmailService` - wraps Resend SDK with React Email templates\n- [ ] Create `SmsService` - wraps Termii API\n- [ ] Store FCM device tokens on `User` model\n- [ ] Persist every notification to `Notification` table\n- [ ] Expose `GET /notifications` - paginated list of own notifications\n- [ ] Expose `PATCH /notifications/:id/read` - mark as read\n- [ ] Write unit tests for each channel service\n\n## Acceptance criteria\n- Each notification event dispatches to the correct channel(s)\n- All sent notifications are persisted to DB\n- Failed FCM pushes fall back gracefully (log, don't throw)\n- Email templates are tested with React Email preview"
+  },
+  {
+    "number": 12,
+    "title": "API: Wallet module",
+    "labels": ["backend", "wallet"],
+    "milestone": "M3 - Wallet & Dashboard",
+    "body": "## Overview\nBuild the internal wallet system for tracking each user's Poolr balance and transaction history.\n\n## Endpoints\n- `GET /wallet` - get own wallet balance\n- `GET /wallet/transactions` - paginated transaction history\n\n## Tasks\n- [ ] Create `WalletModule`, `WalletService`\n- [ ] `WalletService.credit(userId, amount, reference)` - atomic balance update + `WalletTransaction` insert\n- [ ] `WalletService.debit(userId, amount, reference)` - with insufficient-balance guard\n- [ ] Use Prisma transactions (`$transaction`) to ensure wallet balance and transaction log stay in sync\n- [ ] Trigger wallet credit on `charge.success` webhook\n- [ ] Write unit tests for `WalletService`\n\n## Acceptance criteria\n- Wallet balance is always consistent with transaction log\n- Concurrent credits/debits do not cause race conditions (use Prisma `$transaction` with optimistic locking)\n- Insufficient balance returns 422 with clear error message"
+  },
+  {
+    "number": 13,
+    "title": "API: Admin endpoints (group overview, member management, payout controls)",
+    "labels": ["backend", "admin"],
+    "milestone": "M3 - Wallet & Dashboard",
+    "body": "## Overview\nExpose admin-only endpoints for the collector dashboard covering group oversight, member management, and manual payout controls.\n\n## Endpoints\n- `GET /admin/groups` - list all groups with stats\n- `GET /admin/groups/:id/cycles` - cycle summary with contribution status per member\n- `GET /admin/groups/:id/members` - member list with KYC and payment status\n- `POST /admin/groups/:id/cycles/:cycleId/trigger-payout` - manually trigger a payout\n- `GET /admin/penalties` - list all pending penalties\n- `POST /admin/penalties/:id/waive` - waive a penalty\n- `GET /admin/users` - user list with KYC status (super admin)\n\n## Tasks\n- [ ] Add `ADMIN` and `SUPER_ADMIN` role checks via `RolesGuard`\n- [ ] Implement cycle summary query (contributions received vs expected per cycle)\n- [ ] Manual payout trigger calls `PayoutProcessor` job directly\n- [ ] Write e2e tests for admin endpoints\n\n## Acceptance criteria\n- Non-admin users receive 403 on all `/admin` routes\n- Cycle summary correctly shows paid/unpaid/missed per member\n- Manual payout trigger works even when scheduler hasn't fired"
+  },
+  {
+    "number": 14,
+    "title": "CI/CD: GitHub Actions pipelines",
+    "labels": ["chore", "devops"],
+    "milestone": "M0 - Foundation",
+    "body": "## Overview\nSet up GitHub Actions workflows for continuous integration and deployment.\n\n## Workflows\n\n### `ci.yml` - runs on every PR\n- [ ] Install dependencies (`pnpm install`)\n- [ ] Type check all packages (`tsc --noEmit`)\n- [ ] Lint all packages (`eslint`)\n- [ ] Run unit tests (`pnpm test`)\n- [ ] Build all packages (`pnpm build`)\n\n### `deploy-api.yml` - runs on merge to `main`\n- [ ] Build Docker image for `apps/api`\n- [ ] Push to Railway via Railway CLI or Deploy Hook\n\n### `deploy-web.yml` - runs on merge to `main`\n- [ ] Deploy `apps/web` to Vercel via Vercel CLI\n\n### `deploy-admin.yml` - runs on merge to `main`\n- [ ] Deploy `apps/admin` to Vercel\n\n## Tasks\n- [ ] Create `.github/workflows/ci.yml`\n- [ ] Create `.github/workflows/deploy-api.yml`\n- [ ] Create `.github/workflows/deploy-web.yml`\n- [ ] Create `.github/workflows/deploy-admin.yml`\n- [ ] Add required secrets to GitHub repo settings\n- [ ] Add branch protection rule: PRs require passing CI before merge\n\n## Acceptance criteria\n- PRs cannot be merged without passing CI\n- Merge to `main` automatically deploys all apps\n- Failed deployments notify the team via GitHub status checks"
+  },
+  {
+    "number": 15,
+    "title": "Web: Next.js app scaffold and shared layout",
+    "labels": ["frontend", "web", "setup"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nScaffold the Next.js 14 web app with App Router, Tailwind CSS, shadcn/ui, and the shared layout components.\n\n## Tasks\n- [ ] Initialise Next.js 14 with App Router in `apps/web`\n- [ ] Configure Tailwind CSS and import `@poolr/config/tailwind`\n- [ ] Install and configure shadcn/ui\n- [ ] Create root layout with font, metadata, and providers\n- [ ] Set up React Query (`TanStack Query`) provider\n- [ ] Set up API client (`axios` or `ky`) with base URL and JWT interceptor\n- [ ] Create shared layout components: `Navbar`, `Sidebar`, `MobileNav`, `PageShell`\n- [ ] Configure Next.js middleware for auth route protection\n- [ ] Set up Sentry for frontend error tracking\n\n## Acceptance criteria\n- `pnpm --filter @poolr/web dev` starts without errors\n- Protected routes redirect unauthenticated users to `/login`\n- Shared layout renders correctly on mobile and desktop"
+  },
+  {
+    "number": 16,
+    "title": "Web: Auth pages (register, login, OTP verification)",
+    "labels": ["frontend", "web", "auth"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nBuild the authentication pages for the web app.\n\n## Pages\n- `/register` - sign up form (name, email, phone, password)\n- `/login` - email + password login\n- `/verify` - OTP input screen (6-digit code)\n- `/forgot-password` - request password reset (post-MVP)\n\n## Tasks\n- [ ] Build register form with `react-hook-form` + `zod` validation\n- [ ] Build login form\n- [ ] Build OTP input component (6 individual digit inputs)\n- [ ] Implement token storage (httpOnly cookie preferred, or localStorage fallback)\n- [ ] Implement auto-redirect after successful login\n- [ ] Handle and display API validation errors inline\n- [ ] Add loading states to all form submission buttons\n\n## Acceptance criteria\n- Register → OTP → dashboard flow works end to end\n- Form validation errors display inline without page reload\n- Failed login shows clear error message\n- Successful login stores tokens and redirects to `/dashboard`"
+  },
+  {
+    "number": 17,
+    "title": "Web: KYC verification flow",
+    "labels": ["frontend", "web", "kyc"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nBuild the KYC onboarding flow - a multi-step form collecting BVN, NIN, selfie, and ID document.\n\n## Steps\n1. Enter BVN\n2. Enter NIN\n3. Upload selfie (camera capture or file upload)\n4. Upload government-issued ID (front)\n5. Review and submit\n6. Pending / approved / rejected status screen\n\n## Tasks\n- [ ] Build multi-step form with progress indicator\n- [ ] Implement camera capture for selfie using `getUserMedia` API\n- [ ] Implement file upload for ID document with preview\n- [ ] Upload files directly to S3 via pre-signed URL (avoid routing through API)\n- [ ] Poll KYC status after submission or handle via webhook-triggered status update\n- [ ] Show clear messaging for each status: pending, verified, rejected (with reason)\n\n## Acceptance criteria\n- User can complete full KYC flow without leaving the app\n- Camera capture works on Chrome, Safari, and Firefox\n- Files over 5MB are rejected with a helpful message\n- KYC status updates are reflected in the UI without a page refresh"
+  },
+  {
+    "number": 18,
+    "title": "Web: Dashboard and group list",
+    "labels": ["frontend", "web", "groups"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild the main dashboard showing the user's active groups, upcoming contributions, and wallet balance.\n\n## Components\n- Wallet balance card\n- Active groups list (contribution amount, next due date, position in rotation)\n- Upcoming contributions widget\n- Recent activity feed\n\n## Tasks\n- [ ] Build dashboard page at `/dashboard`\n- [ ] Build `GroupCard` component showing group summary\n- [ ] Build `WalletCard` component\n- [ ] Build `UpcomingContributions` widget\n- [ ] Fetch data with React Query (parallel queries, loading skeletons)\n- [ ] Empty state for users with no groups\n\n## Acceptance criteria\n- Dashboard loads with skeleton placeholders while fetching\n- All group data is up to date (React Query 30s stale time)\n- Empty states guide the user to create or join a group"
+  },
+  {
+    "number": 19,
+    "title": "Web: Group creation and management pages",
+    "labels": ["frontend", "web", "groups"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild pages for creating a new group, viewing group details, inviting members, and managing rotation.\n\n## Pages\n- `/groups/new` - create group form\n- `/groups/:id` - group detail (cycles, members, contribution status)\n- `/groups/:id/members` - member list with status badges\n- `/groups/:id/invite` - invite member by phone/email\n\n## Tasks\n- [ ] Build group creation form (name, amount, frequency, max members, start date, penalty config)\n- [ ] Build group detail page with cycle timeline\n- [ ] Build member list with KYC and payment status indicators\n- [ ] Build invite form with shareable link generation\n- [ ] Build rotation order drag-and-drop UI (admin only, before group starts)\n- [ ] Build `Start Group` confirmation modal\n\n## Acceptance criteria\n- Admin can create, configure, and start a group\n- Rotation order can be reordered via drag-and-drop before group starts\n- Once started, rotation order is locked and the UI reflects this\n- Members can see their position and payout date clearly"
+  },
+  {
+    "number": 20,
+    "title": "Web: Contribution payment flow",
+    "labels": ["frontend", "web", "payments"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild the contribution payment flow - from the due notice to Paystack checkout and confirmation.\n\n## Tasks\n- [ ] Build contribution due banner/card on dashboard\n- [ ] `Pay now` button calls `POST /payments/contribute/:cycleId` and redirects to Paystack checkout URL\n- [ ] Build `/payments/callback` page - handles Paystack redirect after payment\n- [ ] Verify payment status on callback page via `GET /payments/verify/:reference`\n- [ ] Show success or failure state with next steps\n- [ ] Update contribution status in React Query cache on success\n\n## Acceptance criteria\n- User is redirected to Paystack checkout on `Pay now`\n- Successful payment updates the contribution card to PAID without a full page reload\n- Failed payment shows a retry option\n- Already-paid contributions cannot be paid again (button disabled)"
+  },
+  {
+    "number": 21,
+    "title": "Web: Notifications centre",
+    "labels": ["frontend", "web", "notifications"],
+    "milestone": "M3 - Wallet & Dashboard",
+    "body": "## Overview\nBuild the in-app notification centre.\n\n## Tasks\n- [ ] Build notification bell icon in navbar with unread count badge\n- [ ] Build notification dropdown/panel showing recent notifications\n- [ ] Build `/notifications` full page with paginated list\n- [ ] Mark individual notifications as read on click\n- [ ] Mark all as read button\n- [ ] Request browser push notification permission after login\n- [ ] Register FCM service worker for web push\n\n## Acceptance criteria\n- Unread count badge updates in real time (or on page focus via React Query refetch)\n- Clicking a notification marks it read and navigates to the relevant page\n- Browser push notifications appear when app is in background"
+  },
+  {
+    "number": 22,
+    "title": "Admin dashboard: group and cycle overview",
+    "labels": ["frontend", "admin"],
+    "milestone": "M3 - Wallet & Dashboard",
+    "body": "## Overview\nBuild the admin/collector dashboard in `apps/admin` - a separate Next.js app for group administrators.\n\n## Pages\n- `/` - overview: total groups, total pooled, active cycles\n- `/groups` - list of administered groups\n- `/groups/:id` - group detail with cycle-by-cycle contribution matrix\n- `/groups/:id/penalties` - penalty list with waive action\n- `/groups/:id/payouts` - payout history with manual trigger button\n\n## Tasks\n- [ ] Scaffold `apps/admin` as a Next.js app (shares `@poolr/ui` and `@poolr/types`)\n- [ ] Build contribution matrix table: rows = members, columns = cycles, cells = status badges\n- [ ] Build manual payout trigger button with confirmation modal\n- [ ] Build penalty management table with waive action\n- [ ] Build payout history with Paystack transfer reference links\n\n## Acceptance criteria\n- Contribution matrix clearly shows which members have paid/missed per cycle\n- Manual payout triggers successfully and updates payout status in the table\n- Only users with ADMIN role can access the admin app"
+  },
+  {
+    "number": 23,
+    "title": "Mobile: Expo app scaffold and navigation",
+    "labels": ["frontend", "mobile", "setup"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nScaffold the React Native Expo app in `apps/mobile` with navigation, shared types, and API client.\n\n## Tasks\n- [ ] Initialise Expo app with TypeScript template\n- [ ] Set up Expo Router for file-based navigation\n- [ ] Configure `@poolr/types` as a shared dependency\n- [ ] Set up API client with JWT interceptor (using `axios`)\n- [ ] Set up React Query provider\n- [ ] Set up `expo-secure-store` for token storage\n- [ ] Implement tab navigation: Home, Groups, Wallet, Notifications, Profile\n- [ ] Configure Expo EAS for build and submit\n- [ ] Register FCM via `expo-notifications`\n\n## Acceptance criteria\n- App runs on iOS Simulator and Android Emulator via `pnpm --filter @poolr/mobile dev`\n- Tab navigation works with correct screens\n- FCM token is registered and stored on the backend after login"
+  },
+  {
+    "number": 24,
+    "title": "Mobile: Auth screens (register, login, OTP, KYC)",
+    "labels": ["frontend", "mobile", "auth"],
+    "milestone": "M1 - Auth & Users",
+    "body": "## Overview\nBuild the authentication and KYC screens for the mobile app.\n\n## Screens\n- `RegisterScreen` - name, email, phone, password\n- `LoginScreen` - email + password\n- `OtpScreen` - 6-digit OTP input\n- `KycScreen` - multi-step: BVN → NIN → selfie → ID doc\n\n## Tasks\n- [ ] Build `RegisterScreen` with form validation\n- [ ] Build `LoginScreen`\n- [ ] Build `OtpScreen` with auto-advance on 6th digit\n- [ ] Build KYC multi-step screen using `expo-camera` for selfie\n- [ ] Use `expo-image-picker` for ID document upload\n- [ ] Upload documents to S3 via pre-signed URL\n- [ ] Store tokens securely with `expo-secure-store`\n\n## Acceptance criteria\n- Full register → OTP → KYC flow works on both iOS and Android\n- Camera permission request is handled gracefully\n- Token is stored securely and persists across app restarts"
+  },
+  {
+    "number": 25,
+    "title": "Mobile: Home, Groups, and Contribution screens",
+    "labels": ["frontend", "mobile", "groups"],
+    "milestone": "M2 - Groups & Cycles",
+    "body": "## Overview\nBuild the core mobile screens for the home dashboard, group list, group detail, and contribution payment.\n\n## Screens\n- `HomeScreen` - wallet balance, upcoming contributions, active groups\n- `GroupsScreen` - list of user's groups\n- `GroupDetailScreen` - cycle timeline, members, contribution status\n- `PayScreen` - contribution payment via Paystack (in-app browser via `expo-web-browser`)\n\n## Tasks\n- [ ] Build `HomeScreen` with balance card and contribution due list\n- [ ] Build `GroupsScreen` with group cards\n- [ ] Build `GroupDetailScreen` with cycle tabs and member list\n- [ ] Open Paystack checkout in `expo-web-browser`\n- [ ] Handle Paystack deep-link callback to update UI\n- [ ] Pull-to-refresh on all screens\n\n## Acceptance criteria\n- Paystack checkout opens in in-app browser and returns to app after payment\n- Contribution status updates after successful payment\n- Pull-to-refresh works on all list screens"
+  }
+]
+

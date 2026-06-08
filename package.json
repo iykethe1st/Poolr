@@ -1,0 +1,26 @@
+{
+  "name": "poolr",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "dev:api": "turbo dev --filter=@poolr/api",
+    "dev:web": "turbo dev --filter=@poolr/web",
+    "dev:admin": "turbo dev --filter=@poolr/admin",
+    "dev:mobile": "turbo dev --filter=@poolr/mobile",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "clean": "turbo clean"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "turbo": "^2.9.16",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

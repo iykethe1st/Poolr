@@ -1,0 +1,12 @@
+{
+  "extends": "@poolr/typescript-config/base.json",
+  "compilerOptions": {
+    "jsx": "react-native",
+    "lib": ["esnext"],
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "noEmit": true
+  }
+}

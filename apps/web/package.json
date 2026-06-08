@@ -1,0 +1,29 @@
+{
+  "name": "@poolr/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start --port 3000",
+    "lint": "next lint",
+    "clean": "rimraf .next"
+  },
+  "dependencies": {
+    "@poolr/types": "workspace:*",
+    "@poolr/ui": "workspace:*",
+    "@poolr/utils": "workspace:*",
+    "next": "^16.2.7",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@poolr/eslint-config": "workspace:*",
+    "@poolr/typescript-config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3"
+  }
+}

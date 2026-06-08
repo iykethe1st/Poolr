@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "tooling/*"
+allowBuilds:
+  '@prisma/engines': true
+  msgpackr-extract: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@nestjs/cli@11.0.22'
+  - '@nestjs/common@11.1.25'
+  - '@nestjs/core@11.1.25'
+  - '@nestjs/platform-express@11.1.25'
+  - '@nestjs/testing@11.1.25'
