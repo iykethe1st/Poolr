@@ -17,7 +17,7 @@ async function bootstrap() {
     });
   }
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // ── Global prefix (all routes under /api, except /health) ──────────────────
   app.setGlobalPrefix('api', {
