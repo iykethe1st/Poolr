@@ -6,6 +6,7 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GroupsModule } from './groups/groups.module';
+import { PaymentsModule } from './payments/payments.module';
 import { HealthController } from './health/health.controller';
 import { envValidationSchema } from './config/env.validation';
 
@@ -23,6 +24,7 @@ import { envValidationSchema } from './config/env.validation';
     AuthModule,
     UsersModule,
     GroupsModule,
+    PaymentsModule,
 
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => {
