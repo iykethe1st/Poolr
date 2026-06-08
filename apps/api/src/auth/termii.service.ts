@@ -7,11 +7,11 @@ export class TermiiService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async sendOtp(phone: string, otp: string): Promise<void> {
+  async send(phone: string, message: string): Promise<void> {
     const apiKey = this.config.get<string>('TERMII_API_KEY');
 
     if (!apiKey) {
-      this.logger.debug(`[DEV] OTP for ${phone}: ${otp}`);
+      this.logger.debug(`[DEV] SMS to ${phone}: ${message}`);
       return;
     }
 
@@ -21,7 +21,7 @@ export class TermiiService {
       body: JSON.stringify({
         to: phone,
         from: 'Poolr',
-        sms: `Your Poolr verification code is ${otp}. It expires in 10 minutes. Do not share it.`,
+        sms: message,
         type: 'plain',
         channel: 'dnd',
         api_key: apiKey,
@@ -31,5 +31,12 @@ export class TermiiService {
     if (!res.ok) {
       this.logger.error(`Termii SMS failed (${res.status}): ${await res.text()}`);
     }
+  }
+
+  async sendOtp(phone: string, otp: string): Promise<void> {
+    await this.send(
+      phone,
+      `Your Poolr verification code is ${otp}. It expires in 10 minutes. Do not share it.`,
+    );
   }
 }
