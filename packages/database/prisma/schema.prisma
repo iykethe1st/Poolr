@@ -166,6 +166,7 @@ model Group {
   maxMembers         Int         @map("max_members")
   status             GroupStatus @default(DRAFT)
   startDate          DateTime?   @map("start_date")
+  penaltyConfig      Json?       @map("penalty_config")
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
 

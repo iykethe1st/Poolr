@@ -10,6 +10,7 @@ import { UsersModule } from './users/users.module';
 import { GroupsModule } from './groups/groups.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { PenaltiesModule } from './penalties/penalties.module';
 import { HealthController } from './health/health.controller';
 import { envValidationSchema } from './config/env.validation';
 
@@ -29,6 +30,7 @@ import { envValidationSchema } from './config/env.validation';
     GroupsModule,
     PaymentsModule,
     SchedulerModule,
+    PenaltiesModule,
 
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
