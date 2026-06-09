@@ -7,6 +7,6 @@ import { PaystackService } from './paystack.service';
 @Module({
   controllers: [PaymentsController, WebhookController],
   providers: [PaymentsService, PaystackService],
-  exports: [PaymentsService],
+  exports: [PaymentsService, PaystackService],
 })
 export class PaymentsModule {}
