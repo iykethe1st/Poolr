@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ContribStatus, MemberStatus, PayoutStatus, TxDirection, TxType } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../database/prisma.service';
@@ -123,6 +124,7 @@ describe('PaymentsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redis },
         { provide: PaystackService, useValue: paystack },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

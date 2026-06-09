@@ -1,13 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ContribStatus,
-  NotifChannel,
   PenaltyReason,
   PenaltyStatus,
 } from '@prisma/client';
 import { PenaltiesService } from './penalties.service';
 import { PrismaService } from '../database/prisma.service';
+import { NOTIFICATION_EVENTS } from '../notifications/events/notification.events';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,6 @@ function makePrismaMock() {
     groupMember: {
       findMany: jest.fn().mockResolvedValue([{ id: MEMBER_ID }]),
     },
-    notification: { create: jest.fn().mockResolvedValue({}) },
     $: {
       $transaction: jest.fn().mockImplementation(
         (fn: (tx: typeof txClient) => unknown) => fn(txClient),
@@ -89,14 +89,17 @@ function makePrismaMock() {
 describe('PenaltiesService', () => {
   let service: PenaltiesService;
   let prisma: ReturnType<typeof makePrismaMock>;
+  let eventEmitter: { emit: jest.Mock };
 
   beforeEach(async () => {
     prisma = makePrismaMock();
+    eventEmitter = { emit: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PenaltiesService,
         { provide: PrismaService, useValue: prisma },
+        { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
 
@@ -171,17 +174,12 @@ describe('PenaltiesService', () => {
       expect(prisma._txClient.penalty.create).not.toHaveBeenCalled();
     });
 
-    it('sends an IN_APP notification to the member after applying penalty', async () => {
+    it('emits PENALTY_APPLIED notification event after applying penalty', async () => {
       await service.applyPenalty(MOCK_CONTRIBUTION as never);
 
-      expect(prisma.notification.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            userId: MEMBER_USER_ID,
-            channel: NotifChannel.IN_APP,
-            title: 'Penalty Applied',
-          }),
-        }),
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        NOTIFICATION_EVENTS.PENALTY_APPLIED,
+        expect.objectContaining({ userId: MEMBER_USER_ID, amountNgn: 500 }),
       );
     });
   });

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GroupStatus, MemberStatus, Frequency, Currency } from '@prisma/client';
 import { GroupsService } from './groups.service';
 import { PrismaService } from '../database/prisma.service';
@@ -80,6 +81,7 @@ function makePrismaMock() {
     },
     user: {
       findFirst: jest.fn().mockResolvedValue(MOCK_USER),
+      findUnique: jest.fn().mockResolvedValue({ fullName: 'Test Admin' }),
     },
     $: {
       $transaction: jest.fn().mockImplementation((fn: (tx: typeof txClient) => unknown) => fn(txClient)),
@@ -116,6 +118,7 @@ describe('GroupsService', () => {
         { provide: RedisService, useValue: redis },
         { provide: TermiiService, useValue: termii },
         { provide: RotationService, useValue: rotation },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

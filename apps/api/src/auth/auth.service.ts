@@ -8,12 +8,17 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TermiiService } from './termii.service';
+import {
+  NOTIFICATION_EVENTS,
+  UserWelcomeEvent,
+} from '../notifications/events/notification.events';
 import type { RegisterDto } from './dto/register.dto';
 import type { LoginDto } from './dto/login.dto';
 import type { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -35,6 +40,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly redis: RedisService,
     private readonly termii: TermiiService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -77,6 +83,13 @@ export class AuthService {
       this.redis.del(`otp:${dto.phone}`),
       this.prisma.user.update({ where: { id: user.id }, data: { status: 'ACTIVE' } }),
     ]);
+
+    const event: UserWelcomeEvent = {
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.USER_WELCOME, event);
 
     return this.issueTokens({ id: user.id, email: user.email, role: user.role });
   }

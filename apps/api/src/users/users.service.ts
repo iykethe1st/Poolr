@@ -1,7 +1,13 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { KycStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { SmileIdService } from './smile-id.service';
+import {
+  NOTIFICATION_EVENTS,
+  KycApprovedEvent,
+  KycRejectedEvent,
+} from '../notifications/events/notification.events';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
 import type { SubmitKycDto } from './dto/submit-kyc.dto';
 
@@ -12,6 +18,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly smileId: SmileIdService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async getProfile(userId: string) {
@@ -92,6 +99,14 @@ export class UsersService {
         verifiedAt: newStatus === KycStatus.VERIFIED ? new Date() : undefined,
       },
     });
+
+    if (newStatus === KycStatus.VERIFIED) {
+      const evt: KycApprovedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
+      this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_APPROVED, evt);
+    } else {
+      const evt: KycRejectedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
+      this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_REJECTED, evt);
+    }
 
     return {
       kycStatus: updated.kycStatus,

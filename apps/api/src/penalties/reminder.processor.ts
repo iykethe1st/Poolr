@@ -1,15 +1,23 @@
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job } from 'bullmq';
-import { ContribStatus, NotifChannel } from '@prisma/client';
+import { ContribStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { ReminderJobData } from './reminder-job';
+import {
+  NOTIFICATION_EVENTS,
+  ContributionReminderEvent,
+} from '../notifications/events/notification.events';
 
 @Processor('reminder')
 export class ReminderProcessor extends WorkerHost {
   private readonly logger = new Logger(ReminderProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {
     super();
   }
 
@@ -30,29 +38,17 @@ export class ReminderProcessor extends WorkerHost {
     const member = await this.prisma.groupMember.findUnique({ where: { id: memberId } });
     if (!member) return;
 
-    const dueFormatted = new Date(dueDate).toLocaleDateString('en-NG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-
-    const isDueToday = hoursRemaining === 0;
-    const title = isDueToday ? 'Contribution Due Today!' : 'Contribution Reminder';
-    const body = isDueToday
-      ? `Your contribution for "${groupName}" is due today (${dueFormatted}). Pay now to avoid a penalty.`
-      : `Your contribution for "${groupName}" is due in ${hoursRemaining} hours (${dueFormatted}).`;
-
-    await this.prisma.notification.create({
-      data: {
-        userId: member.userId,
-        title,
-        body,
-        channel: NotifChannel.IN_APP,
-      },
-    });
+    const evt: ContributionReminderEvent = {
+      userId: member.userId,
+      groupName,
+      dueDate,
+      hoursRemaining,
+      amountNgn: Number(contribution.amount),
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_REMINDER, evt);
 
     this.logger.log(
-      `Sent ${isDueToday ? 'due-day' : `${hoursRemaining}h`} reminder for contribution ${contributionId}`,
+      `Reminder event emitted (${hoursRemaining}h) for contribution ${contributionId}`,
     );
   }
 }

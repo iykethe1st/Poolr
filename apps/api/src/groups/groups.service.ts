@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GroupStatus, MemberStatus } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -12,6 +13,11 @@ import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TermiiService } from '../auth/termii.service';
 import { RotationService } from './rotation.service';
+import {
+  NOTIFICATION_EVENTS,
+  GroupInvitedEvent,
+  GroupStartedEvent,
+} from '../notifications/events/notification.events';
 import type { CreateGroupDto } from './dto/create-group.dto';
 import type { UpdateGroupDto } from './dto/update-group.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
@@ -27,6 +33,7 @@ export class GroupsService {
     private readonly redis: RedisService,
     private readonly termii: TermiiService,
     private readonly rotation: RotationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(adminId: string, dto: CreateGroupDto) {
@@ -170,11 +177,26 @@ export class GroupsService {
     const token = randomBytes(32).toString('hex');
     await this.redis.set(`invite:${token}`, JSON.stringify({ groupId, memberId: member.id }), INVITE_TTL);
 
-    const message = `You've been invited to join "${group.name}" on Poolr. Your invite code: ${token}`;
+    const smsMessage = `You've been invited to join "${group.name}" on Poolr. Your invite code: ${token}`;
     const notifyPhone = dto.phone ?? user.phone;
     if (notifyPhone) {
-      await this.termii.send(notifyPhone, message);
+      await this.termii.send(notifyPhone, smsMessage);
     }
+
+    const admin = await this.prisma.user.findUnique({
+      where: { id: adminId },
+      select: { fullName: true },
+    });
+
+    const evt: GroupInvitedEvent = {
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      groupName: group.name,
+      adminName: admin?.fullName ?? 'A Poolr member',
+      inviteToken: token,
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.GROUP_INVITED, evt);
 
     return { message: 'Invitation sent', memberId: member.id, token };
   }
@@ -303,6 +325,12 @@ export class GroupsService {
       { id: group.id, frequency: group.frequency, startDate: group.startDate, status: GroupStatus.ACTIVE },
       activeMembers,
     );
+
+    const evt: GroupStartedEvent = {
+      memberUserIds: activeMembers.map((m) => m.userId),
+      groupName: group.name,
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.GROUP_STARTED, evt);
 
     return { message: 'Group started successfully', cyclesGenerated: activeMembers.length };
   }

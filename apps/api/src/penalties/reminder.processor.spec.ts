@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Job } from 'bullmq';
-import { ContribStatus, NotifChannel } from '@prisma/client';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ContribStatus } from '@prisma/client';
 import { ReminderProcessor } from './reminder.processor';
 import { PrismaService } from '../database/prisma.service';
 import { ReminderJobData } from './reminder-job';
+import { NOTIFICATION_EVENTS } from '../notifications/events/notification.events';
 
 const CONTRIB_ID = 'contrib-1';
 const MEMBER_ID = 'member-1';
@@ -27,26 +29,32 @@ function makeJob(hoursRemaining: 48 | 24 | 0): Job<ReminderJobData> {
 function makePrismaMock() {
   return {
     contribution: {
-      findUnique: jest.fn().mockResolvedValue({ id: CONTRIB_ID, status: ContribStatus.PENDING }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: CONTRIB_ID,
+        amount: 5000,
+        status: ContribStatus.PENDING,
+      }),
     },
     groupMember: {
       findUnique: jest.fn().mockResolvedValue({ id: MEMBER_ID, userId: USER_ID }),
     },
-    notification: { create: jest.fn().mockResolvedValue({}) },
   };
 }
 
 describe('ReminderProcessor', () => {
   let processor: ReminderProcessor;
   let prisma: ReturnType<typeof makePrismaMock>;
+  let eventEmitter: { emit: jest.Mock };
 
   beforeEach(async () => {
     prisma = makePrismaMock();
+    eventEmitter = { emit: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReminderProcessor,
         { provide: PrismaService, useValue: prisma },
+        { provide: EventEmitter2, useValue: eventEmitter },
       ],
     }).compile();
 
@@ -55,56 +63,52 @@ describe('ReminderProcessor', () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  it('creates IN_APP notification for PENDING contribution (48h reminder)', async () => {
+  it('emits CONTRIBUTION_REMINDER event for PENDING contribution (48h)', async () => {
     await processor.process(makeJob(48));
 
-    expect(prisma.notification.create).toHaveBeenCalledWith(
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      NOTIFICATION_EVENTS.CONTRIBUTION_REMINDER,
       expect.objectContaining({
-        data: expect.objectContaining({
-          userId: USER_ID,
-          channel: NotifChannel.IN_APP,
-          title: 'Contribution Reminder',
-        }),
+        userId: USER_ID,
+        hoursRemaining: 48,
+        groupName: 'Test Pool',
       }),
     );
   });
 
-  it('uses "due today" title and urgent copy for 0h reminder', async () => {
+  it('emits reminder event with hoursRemaining=0 for due-day reminder', async () => {
     await processor.process(makeJob(0));
 
-    expect(prisma.notification.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          title: 'Contribution Due Today!',
-          body: expect.stringContaining('due today'),
-        }),
-      }),
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      NOTIFICATION_EVENTS.CONTRIBUTION_REMINDER,
+      expect.objectContaining({ hoursRemaining: 0 }),
     );
   });
 
-  it('skips notification when contribution is already PAID', async () => {
+  it('skips event when contribution is already PAID', async () => {
     prisma.contribution.findUnique.mockResolvedValue({
       id: CONTRIB_ID,
+      amount: 5000,
       status: ContribStatus.PAID,
     });
 
     await processor.process(makeJob(24));
 
-    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 
-  it('skips notification when contribution record is not found', async () => {
+  it('skips event when contribution record is not found', async () => {
     prisma.contribution.findUnique.mockResolvedValue(null);
 
     await processor.process(makeJob(24));
 
-    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 
   it('returns without error when GroupMember record is missing', async () => {
     prisma.groupMember.findUnique.mockResolvedValue(null);
 
     await expect(processor.process(makeJob(24))).resolves.not.toThrow();
-    expect(prisma.notification.create).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 });
