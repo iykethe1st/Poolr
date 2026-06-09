@@ -5,11 +5,12 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContribStatus, MemberStatus, PayoutStatus, TxDirection, TxType } from '@prisma/client';
+import { ContribStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaystackService } from './paystack.service';
+import { WalletService } from '../wallet/wallet.service';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -51,11 +52,13 @@ const MOCK_PAYOUT = {
   completedAt: null,
 };
 
+function makeWalletMock() {
+  return { credit: jest.fn().mockResolvedValue(undefined) };
+}
+
 function makePrismaMock() {
   const txClient = {
     contribution: { update: jest.fn().mockResolvedValue({}) },
-    wallet: { findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_WALLET), update: jest.fn().mockResolvedValue({}) },
-    walletTransaction: { create: jest.fn().mockResolvedValue({}) },
     payout: { update: jest.fn().mockResolvedValue({}) },
   };
   return {
@@ -112,11 +115,13 @@ describe('PaymentsService', () => {
   let prisma: ReturnType<typeof makePrismaMock>;
   let redis: ReturnType<typeof makeRedisMock>;
   let paystack: ReturnType<typeof makePaystackMock>;
+  let wallet: ReturnType<typeof makeWalletMock>;
 
   beforeEach(async () => {
     prisma = makePrismaMock();
     redis = makeRedisMock();
     paystack = makePaystackMock();
+    wallet = makeWalletMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -124,6 +129,7 @@ describe('PaymentsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redis },
         { provide: PaystackService, useValue: paystack },
+        { provide: WalletService, useValue: wallet },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
@@ -186,7 +192,7 @@ describe('PaymentsService', () => {
   describe('handleChargeSuccess', () => {
     const chargeData = { reference: REFERENCE, amount: 500000 };
 
-    it('marks contribution PAID and credits wallet', async () => {
+    it('marks contribution PAID and credits wallet via WalletService', async () => {
       prisma.contribution.findFirst.mockResolvedValue(MOCK_CONTRIBUTION);
       prisma.contribution.count.mockResolvedValue(1); // more unpaid remain
 
@@ -195,10 +201,12 @@ describe('PaymentsService', () => {
       expect(prisma._txClient.contribution.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: ContribStatus.PAID }) }),
       );
-      expect(prisma._txClient.walletTransaction.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ type: TxType.CONTRIBUTION, direction: TxDirection.CREDIT }),
-        }),
+      expect(wallet.credit).toHaveBeenCalledWith(
+        MOCK_MEMBER.userId,
+        expect.any(Number),
+        expect.stringContaining(REFERENCE),
+        TxType.CONTRIBUTION,
+        expect.anything(), // tx client
       );
       expect(redis.set).toHaveBeenCalledWith(`webhook:charge:${REFERENCE}`, '1', expect.any(Number));
     });
@@ -239,7 +247,7 @@ describe('PaymentsService', () => {
   describe('handleTransferSuccess', () => {
     const transferData = { transfer_code: TRANSFER_CODE, amount: 2500000 };
 
-    it('marks payout COMPLETED and credits recipient wallet', async () => {
+    it('marks payout COMPLETED and credits recipient wallet via WalletService', async () => {
       prisma.payout.findFirst.mockResolvedValue(MOCK_PAYOUT);
 
       await service.handleTransferSuccess(transferData);
@@ -249,10 +257,12 @@ describe('PaymentsService', () => {
           data: expect.objectContaining({ status: PayoutStatus.COMPLETED }),
         }),
       );
-      expect(prisma._txClient.walletTransaction.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ type: TxType.PAYOUT, direction: TxDirection.CREDIT }),
-        }),
+      expect(wallet.credit).toHaveBeenCalledWith(
+        MOCK_PAYOUT.recipientId,
+        expect.any(Number),
+        expect.stringContaining(TRANSFER_CODE),
+        TxType.PAYOUT,
+        expect.anything(), // tx client
       );
       expect(redis.set).toHaveBeenCalledWith(`webhook:transfer:${TRANSFER_CODE}`, '1', expect.any(Number));
     });

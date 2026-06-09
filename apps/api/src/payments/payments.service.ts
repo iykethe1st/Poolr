@@ -6,11 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContribStatus, MemberStatus, PayoutStatus, TxDirection, TxType } from '@prisma/client';
+import { ContribStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaystackService } from './paystack.service';
+import { WalletService } from '../wallet/wallet.service';
 import {
   NOTIFICATION_EVENTS,
   ContributionReceivedEvent,
@@ -26,6 +27,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly paystack: PaystackService,
+    private readonly walletService: WalletService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -155,20 +157,13 @@ export class PaymentsService {
         data: { status: ContribStatus.PAID, paidAt: new Date() },
       });
 
-      const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: contribution.member.userId } });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          amount: amountNgn,
-          type: TxType.CONTRIBUTION,
-          direction: TxDirection.CREDIT,
-          reference: `wt_contrib_${reference}`,
-        },
-      });
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { increment: amountNgn } },
-      });
+      await this.walletService.credit(
+        contribution.member.userId,
+        amountNgn,
+        `wt_contrib_${reference}`,
+        TxType.CONTRIBUTION,
+        tx,
+      );
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
@@ -221,20 +216,13 @@ export class PaymentsService {
         data: { status: PayoutStatus.COMPLETED, completedAt: new Date() },
       });
 
-      const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: payout.recipientId } });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          amount: amountNgn,
-          type: TxType.PAYOUT,
-          direction: TxDirection.CREDIT,
-          reference: `wt_payout_${transferCode}`,
-        },
-      });
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { increment: amountNgn } },
-      });
+      await this.walletService.credit(
+        payout.recipientId,
+        amountNgn,
+        `wt_payout_${transferCode}`,
+        TxType.PAYOUT,
+        tx,
+      );
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);

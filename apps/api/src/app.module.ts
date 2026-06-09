@@ -12,6 +12,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { PenaltiesModule } from './penalties/penalties.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { WalletModule } from './wallet/wallet.module';
 import { HealthController } from './health/health.controller';
 import { envValidationSchema } from './config/env.validation';
 
@@ -33,6 +34,7 @@ import { envValidationSchema } from './config/env.validation';
     SchedulerModule,
     PenaltiesModule,
     NotificationsModule,
+    WalletModule,
 
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
