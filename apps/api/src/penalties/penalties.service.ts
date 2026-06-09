@@ -6,14 +6,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ContribStatus,
-  NotifChannel,
   PenaltyReason,
   PenaltyStatus,
 } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import {
+  NOTIFICATION_EVENTS,
+  PenaltyAppliedEvent,
+} from '../notifications/events/notification.events';
 import {
   DEFAULT_PENALTY_CONFIG,
   PenaltyConfig,
@@ -33,7 +37,10 @@ type ContributionWithRelations = Prisma.ContributionGetPayload<{
 export class PenaltiesService {
   private readonly logger = new Logger(PenaltiesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   @Cron('0 1 * * *')
   async applyMissedPenalties(): Promise<void> {
@@ -95,14 +102,12 @@ export class PenaltiesService {
       });
     });
 
-    await this.prisma.notification.create({
-      data: {
-        userId: contribution.member.userId,
-        title: 'Penalty Applied',
-        body: `A penalty of ₦${penaltyAmount.toLocaleString('en-NG')} has been applied to your account for a missed contribution in "${contribution.cycle.group.name}".`,
-        channel: NotifChannel.IN_APP,
-      },
-    });
+    const evt: PenaltyAppliedEvent = {
+      userId: contribution.member.userId,
+      amountNgn: penaltyAmount,
+      groupName: contribution.cycle.group.name,
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.PENALTY_APPLIED, evt);
 
     this.logger.log(
       `Penalty applied for contribution ${contribution.id}: ₦${penaltyAmount} NGN`,

@@ -5,11 +5,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ContribStatus, MemberStatus, PayoutStatus, TxDirection, TxType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaystackService } from './paystack.service';
+import {
+  NOTIFICATION_EVENTS,
+  ContributionReceivedEvent,
+} from '../notifications/events/notification.events';
 
 const WEBHOOK_TTL = 60 * 60 * 24 * 30; // 30 days
 
@@ -21,6 +26,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly paystack: PaystackService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ── Contribute ──────────────────────────────────────────────────────────────
@@ -166,6 +172,20 @@ export class PaymentsService {
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+
+    // Notify contributor of successful payment
+    const cycle = await this.prisma.cycle.findUnique({
+      where: { id: contribution.cycleId },
+      include: { group: { select: { name: true } } },
+    });
+    if (cycle) {
+      const evt: ContributionReceivedEvent = {
+        userId: contribution.member.userId,
+        amountNgn,
+        groupName: cycle.group.name,
+      };
+      this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_RECEIVED, evt);
+    }
 
     const unpaid = await this.prisma.contribution.count({
       where: { cycleId: contribution.cycleId, status: { not: ContribStatus.PAID } },

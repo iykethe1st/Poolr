@@ -1,0 +1,26 @@
+{
+  "name": "@poolr/email",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "email:preview": "email dev --dir src/templates"
+  },
+  "dependencies": {
+    "@react-email/components": "^0.0.28",
+    "@react-email/render": "^1.0.5",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@poolr/typescript-config": "workspace:*",
+    "@types/react": "^19.0.0",
+    "react-email": "^4.0.10",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  }
+}

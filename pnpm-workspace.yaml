@@ -3,12 +3,15 @@ packages:
   - "packages/*"
   - "tooling/*"
 allowBuilds:
+  '@firebase/util': true
   '@prisma/engines': true
   '@scarf/scarf': true
   bcrypt: true
   esbuild: true
+  firebase-admin: true
   msgpackr-extract: true
   prisma: true
+  protobufjs: true
   sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
