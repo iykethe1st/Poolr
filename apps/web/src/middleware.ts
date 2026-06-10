@@ -4,10 +4,10 @@ import type { NextRequest } from 'next/server';
 const TOKEN_COOKIE = 'poolr_access_token';
 
 // Routes that anyone can access
-const PUBLIC_PATHS = new Set(['/', '/login', '/register', '/verify-otp']);
+const PUBLIC_PATHS = new Set(['/', '/login', '/register', '/verify-otp', '/forgot-password']);
 
-// Routes only accessible when NOT authenticated
-const AUTH_ONLY_PATHS = new Set(['/login', '/register', '/verify-otp']);
+// Routes only accessible when NOT authenticated (redirect to /dashboard if logged in)
+const AUTH_ONLY_PATHS = new Set(['/login', '/register', '/verify-otp', '/forgot-password']);
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname);

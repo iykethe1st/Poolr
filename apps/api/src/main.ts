@@ -28,7 +28,8 @@ async function bootstrap() {
   const extraOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()) ?? [];
   app.enableCors({
     origin: [
-      'http://localhost:3000', // web
+      'http://localhost:3000', // web (default)
+      'http://localhost:3003', // web (dev port)
       'http://localhost:3001', // admin
       ...extraOrigins,
     ],

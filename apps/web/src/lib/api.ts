@@ -4,6 +4,14 @@ import { getToken, clearToken } from './auth';
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002/api';
 
+// Bare client for auth routes — no Bearer header, no 401 redirect
+export const authClient: KyInstance = ky.create({
+  prefixUrl: API_BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+  retry: { limit: 0 },
+  throwHttpErrors: true,
+});
+
 export const apiClient: KyInstance = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
