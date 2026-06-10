@@ -1,6 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { join, extname } from 'path';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { KycStatus } from '@prisma/client';
+import type { Express } from 'express';
 import { PrismaService } from '../database/prisma.service';
 import { SmileIdService } from './smile-id.service';
 import {
@@ -43,6 +46,26 @@ export class UsersService {
     });
     const { passwordHash: _pw, ...profile } = user;
     return profile;
+  }
+
+  async saveKycFile(userId: string, kind: 'selfie' | 'document', file: Express.Multer.File) {
+    const dir = join(process.cwd(), 'uploads', 'kyc', userId);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+    const filename = `${kind}-${Date.now()}${extname(file.originalname) || '.jpg'}`;
+    const dest = join(dir, filename);
+    writeFileSync(dest, file.buffer);
+
+    const url = `/uploads/kyc/${userId}/${filename}`;
+    const data = kind === 'selfie' ? { selfieUrl: url } : { idDocUrl: url };
+
+    await this.prisma.kycProfile.upsert({
+      where: { userId },
+      create: { userId, ...data },
+      update: data,
+    });
+
+    return { url };
   }
 
   async submitKyc(userId: string, dto: SubmitKycDto) {

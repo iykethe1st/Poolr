@@ -1,6 +1,8 @@
 import 'reflect-metadata';
+import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
-import { RequestMethod, ValidationPipe, VersioningType } from '@nestjs/common';
+import { type NestExpressApplication } from '@nestjs/platform-express';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as Sentry from '@sentry/nestjs';
 import { AppModule } from './app.module';
@@ -17,7 +19,10 @@ async function bootstrap() {
     });
   }
 
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+
+  // Serve uploaded KYC files from /uploads/
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
   // ── Global prefix (all routes under /api, except /health) ──────────────────
   app.setGlobalPrefix('api', {
