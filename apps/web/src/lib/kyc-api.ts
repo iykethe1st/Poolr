@@ -16,9 +16,8 @@ export type UserWithKyc = {
   kycProfile: KycProfileDto | null;
 };
 
-export async function getMe(): Promise<UserWithKyc> {
-  const res = await apiClient.get('users/me').json<ApiResponse<UserWithKyc>>();
-  return res.data!;
+export function getMe(): Promise<UserWithKyc> {
+  return apiClient.get('users/me').json<UserWithKyc>();
 }
 
 export async function uploadKycFile(
@@ -31,8 +30,8 @@ export async function uploadKycFile(
   const endpoint = kind === 'selfie' ? 'users/kyc/selfie' : 'users/kyc/document';
   const res = await apiClient
     .post(endpoint, { body: form })
-    .json<ApiResponse<{ url: string }>>();
-  return res.data!.url;
+    .json<{ url: string }>();
+  return res.url;
 }
 
 export async function submitKycIdentity(payload: {
@@ -40,10 +39,7 @@ export async function submitKycIdentity(payload: {
   nin?: string;
   dateOfBirth: string;
 }): Promise<KycSubmitResult> {
-  const res = await apiClient
-    .post('users/kyc', { json: payload })
-    .json<ApiResponse<KycSubmitResult>>();
-  return res.data!;
+  return apiClient.post('users/kyc', { json: payload }).json<KycSubmitResult>();
 }
 
 export async function extractHttpError(err: unknown): Promise<string> {
