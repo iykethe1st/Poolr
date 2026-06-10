@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -42,4 +43,9 @@ export class CreateGroupDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
+
+  @ApiPropertyOptional({ example: { enabled: true, percentage: 5 } })
+  @IsOptional()
+  @IsObject()
+  penaltyConfig?: Record<string, unknown>;
 }

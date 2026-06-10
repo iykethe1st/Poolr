@@ -1,0 +1,152 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api';
+
+const STALE = 30_000;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type GroupMemberUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+};
+
+export type GroupMember = {
+  id: string;
+  userId: string;
+  groupId: string;
+  rotationPosition: number;
+  memberStatus: string;
+  joinedAt: string;
+  user: GroupMemberUser;
+};
+
+export type Cycle = {
+  id: string;
+  groupId: string;
+  recipientId: string;
+  cycleNumber: number;
+  dueDate: string;
+  payoutDate: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GroupDetail = {
+  id: string;
+  adminId: string;
+  name: string;
+  contributionAmount: number;
+  currency: string;
+  frequency: string;
+  maxMembers: number;
+  status: string;
+  startDate: string | null;
+  penaltyConfig: unknown;
+  createdAt: string;
+  updatedAt: string;
+  members: GroupMember[];
+  cycles: Cycle[];
+};
+
+// ─── Queries ─────────────────────────────────────────────────────────────────
+
+export function useGroup(id: string) {
+  return useQuery<GroupDetail>({
+    queryKey: ['group', id],
+    queryFn: () => apiClient.get(`groups/${id}`).json<GroupDetail>(),
+    staleTime: STALE,
+    enabled: !!id,
+  });
+}
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
+export type CreateGroupInput = {
+  name: string;
+  contributionAmount: number;
+  frequency: string;
+  maxMembers: number;
+  startDate?: string;
+  penaltyConfig?: unknown;
+};
+
+export function useCreateGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateGroupInput) =>
+      apiClient.post('groups', { json: data }).json<GroupDetail>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useUpdateGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<Omit<CreateGroupInput, 'currency'>>) =>
+      apiClient.patch(`groups/${groupId}`, { json: data }).json<GroupDetail>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useInviteMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { phone?: string; email?: string }) =>
+      apiClient
+        .post(`groups/${groupId}/invite`, { json: data })
+        .json<{ message: string; memberId: string; token: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
+export function useUpdatePosition(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, position }: { memberId: string; position: number }) =>
+      apiClient
+        .patch(`groups/${groupId}/members/${memberId}/position`, { json: { position } })
+        .json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
+export function useRemoveMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (memberId: string) =>
+      apiClient
+        .delete(`groups/${groupId}/members/${memberId}`)
+        .json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
+export function useStartGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient
+        .post(`groups/${groupId}/start`)
+        .json<{ message: string; cyclesGenerated: number }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}

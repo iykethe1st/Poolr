@@ -47,6 +47,7 @@ export class GroupsService {
           maxMembers: dto.maxMembers,
           currency: dto.currency ?? 'NGN',
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+          penaltyConfig: dto.penaltyConfig as Prisma.InputJsonValue | undefined,
         },
       });
 
@@ -114,11 +115,13 @@ export class GroupsService {
       throw new ForbiddenException('Cannot update a group that has already started');
     }
 
+    const { penaltyConfig, startDate, ...rest } = dto;
     return this.prisma.group.update({
       where: { id: groupId },
       data: {
-        ...dto,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        ...rest,
+        startDate: startDate ? new Date(startDate) : undefined,
+        penaltyConfig: penaltyConfig as Prisma.InputJsonValue | undefined,
       },
     });
   }
