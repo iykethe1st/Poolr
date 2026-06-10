@@ -56,10 +56,10 @@ export function VerifyOtpForm() {
     try {
       const data = await authClient
         .post('auth/verify-otp', { json: { phone, otp } })
-        .json<ApiResponse<{ accessToken: string }>>();
+        .json<{ accessToken: string; refreshToken: string }>();
 
-      if (data.data?.accessToken) {
-        setToken(data.data.accessToken);
+      if (data.accessToken) {
+        setToken(data.accessToken);
         sessionStorage.removeItem('poolr_verify_phone');
         router.push('/dashboard');
         router.refresh();

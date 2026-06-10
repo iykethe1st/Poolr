@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authClient } from '@/lib/api';
 import { setToken } from '@/lib/auth';
-import type { ApiResponse } from '@poolr/types';
+import type { ApiResponse } from '@poolr/types'; // used only for error response shape
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -38,10 +38,10 @@ export function LoginForm() {
     try {
       const data = await authClient
         .post('auth/login', { json: values })
-        .json<ApiResponse<{ accessToken: string }>>();
+        .json<{ accessToken: string; refreshToken: string }>();
 
-      if (data.data?.accessToken) {
-        setToken(data.data.accessToken);
+      if (data.accessToken) {
+        setToken(data.accessToken);
         const redirect = searchParams.get('redirect') ?? '/dashboard';
         router.push(redirect);
         router.refresh();

@@ -38,11 +38,10 @@ export const apiClient: KyInstance = ky.create({
   },
 });
 
-// Typed helper — unwraps the standard { success, data } envelope
-export async function apiFetch<T>(
+// Typed GET helper — API returns data directly (no { success, data } envelope)
+export function apiFetch<T>(
   path: string,
   options?: Parameters<KyInstance['get']>[1],
 ): Promise<T> {
-  const res = await apiClient.get(path, options).json<{ success: boolean; data: T }>();
-  return res.data;
+  return apiClient.get(path, options).json<T>();
 }
