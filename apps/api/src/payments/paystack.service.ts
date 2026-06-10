@@ -5,6 +5,7 @@ export interface InitializeParams {
   email: string;
   amountNgn: number;
   reference: string;
+  callbackUrl?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -56,7 +57,13 @@ export class PaystackService {
       '/transaction/initialize',
       'POST',
       secretKey,
-      { email: params.email, amount: Math.round(params.amountNgn * 100), reference: params.reference, metadata: params.metadata },
+      {
+        email: params.email,
+        amount: Math.round(params.amountNgn * 100),
+        reference: params.reference,
+        callback_url: params.callbackUrl,
+        metadata: params.metadata,
+      },
     );
 
     return { authorizationUrl: data.authorization_url, reference: data.reference };
