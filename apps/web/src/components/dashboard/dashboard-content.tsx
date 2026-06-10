@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleDollarSign, ShieldCheck, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, CircleDollarSign, ShieldCheck, TrendingUp, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-shell';
 import { StatCard } from './stat-card';
@@ -52,6 +52,21 @@ export function DashboardContent() {
           </Button>
         )}
       </PageHeader>
+
+      {/* ── Overdue banner ──────────────────────────────────────────────────── */}
+      {!contribLoading && overdueCount > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div className="flex-1 text-sm">
+            <span className="font-medium text-destructive">
+              {overdueCount} overdue {overdueCount === 1 ? 'payment' : 'payments'}
+            </span>
+            <span className="text-muted-foreground">
+              {' '}— pay now to avoid penalties.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── Stat cards ──────────────────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

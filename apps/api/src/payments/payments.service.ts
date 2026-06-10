@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ContribStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
@@ -29,6 +30,7 @@ export class PaymentsService {
     private readonly paystack: PaystackService,
     private readonly walletService: WalletService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly config: ConfigService,
   ) {}
 
   // ── Contribute ──────────────────────────────────────────────────────────────
@@ -83,10 +85,12 @@ export class PaymentsService {
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3003');
     const { authorizationUrl } = await this.paystack.initializeTransaction({
       email: user.email,
       amountNgn: Number(cycle.group.contributionAmount),
       reference,
+      callbackUrl: `${frontendUrl}/payments/callback`,
       metadata: { cycleId, memberId: member.id, userId },
     });
 
