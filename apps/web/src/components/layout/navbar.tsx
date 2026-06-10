@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { BellIcon } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { MobileNav } from './mobile-nav';
 
 interface NavbarProps {
@@ -27,11 +27,7 @@ export function Navbar({ title }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/notifications" aria-label="Notifications">
-            <BellIcon className="size-5" />
-          </Link>
-        </Button>
+        <NotificationBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -19,6 +19,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SubmitKycDto } from './dto/submit-kyc.dto';
+import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto';
 
 interface AuthUser {
   id: string;
@@ -57,6 +58,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Update profile (name, avatar)' })
   updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
     return this.users.updateProfile(user.id, dto);
+  }
+
+  @Patch('fcm-token')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Register FCM push token' })
+  updateFcmToken(@CurrentUser() user: AuthUser, @Body() dto: UpdateFcmTokenDto) {
+    return this.users.updateFcmToken(user.id, dto.token);
   }
 
   @Post('kyc')

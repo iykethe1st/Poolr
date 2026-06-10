@@ -68,6 +68,11 @@ export class UsersService {
     return { url };
   }
 
+  async updateFcmToken(userId: string, token: string) {
+    await this.prisma.user.update({ where: { id: userId }, data: { fcmToken: token } });
+    return { message: 'FCM token updated' };
+  }
+
   async submitKyc(userId: string, dto: SubmitKycDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
