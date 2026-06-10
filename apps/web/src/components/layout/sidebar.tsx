@@ -9,6 +9,7 @@ import {
   Wallet,
   Bell,
   Settings,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ const mainNav = [
   { href: '/groups', icon: Users, label: 'Groups' },
   { href: '/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/notifications', icon: Bell, label: 'Notifications' },
+  { href: '/kyc', icon: ShieldCheck, label: 'Verify identity' },
 ];
 
 const bottomNav = [
