@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -38,6 +38,7 @@ type FormValues = z.infer<typeof schema>;
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [serverError, setServerError] = useState('');
 
   const {
@@ -60,8 +61,10 @@ export function RegisterForm() {
         })
         .json();
 
-      // Pass phone to the verify page via sessionStorage
+      // Pass phone (and optional post-OTP redirect) to the verify page via sessionStorage
       sessionStorage.setItem('poolr_verify_phone', values.phone);
+      const redirect = searchParams.get('redirect');
+      if (redirect) sessionStorage.setItem('poolr_verify_redirect', redirect);
       router.push('/verify-otp');
     } catch (err) {
       if (err instanceof HTTPError) {

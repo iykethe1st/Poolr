@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.withpersona.com)",
+      "WebFetch(domain:withpersona.com)",
+      "WebFetch(domain:docs.dojah.io)"
+    ]
+  }
+}

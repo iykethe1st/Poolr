@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { KycStatus } from '@prisma/client';
 import { UsersService } from './users.service';
 import { PrismaService } from '../database/prisma.service';
-import { SmileIdService } from './smile-id.service';
+import { DojahService } from './dojah.service';
 
 const MOCK_USER = {
   id: 'user-1',
@@ -13,6 +13,7 @@ const MOCK_USER = {
   phone: '+2348012345678',
   passwordHash: '$2b$10$hashed',
   avatarUrl: null,
+  fcmToken: null,
   role: 'USER',
   status: 'ACTIVE',
   createdAt: new Date(),
@@ -23,7 +24,7 @@ const MOCK_USER = {
 const MOCK_KYC = {
   id: 'kyc-1',
   userId: 'user-1',
-  bvn: '12345678901',
+  bvn: null,
   nin: null,
   selfieUrl: null,
   idDocUrl: null,
@@ -41,32 +42,34 @@ function makePrismaMock() {
       update: jest.fn(),
     },
     kycProfile: {
-      findUnique: jest.fn(),
       upsert: jest.fn(),
     },
   };
 }
 
-function makeSmileIdMock() {
+function makeDojahMock() {
   return {
-    verifyIdentity: jest.fn().mockResolvedValue('VERIFIED'),
+    getVerificationDetails: jest.fn().mockResolvedValue({
+      verificationStatus: 'Completed',
+      referenceId: 'DJ-TEST001',
+    }),
   };
 }
 
 describe('UsersService', () => {
   let service: UsersService;
   let prisma: ReturnType<typeof makePrismaMock>;
-  let smileId: ReturnType<typeof makeSmileIdMock>;
+  let dojah: ReturnType<typeof makeDojahMock>;
 
   beforeEach(async () => {
     prisma = makePrismaMock();
-    smileId = makeSmileIdMock();
+    dojah = makeDojahMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: prisma },
-        { provide: SmileIdService, useValue: smileId },
+        { provide: DojahService, useValue: dojah },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
@@ -113,38 +116,54 @@ describe('UsersService', () => {
     });
   });
 
-  // ── submitKyc ────────────────────────────────────────────────────────────────
+  // ── verifyDojahKyc ───────────────────────────────────────────────────────────
 
-  describe('submitKyc', () => {
-    const KYC_DTO = { bvn: '12345678901', dateOfBirth: '1990-01-15' };
+  describe('verifyDojahKyc', () => {
+    const REF = 'DJ-TEST001';
 
-    it('creates KYC profile as VERIFIED on success', async () => {
+    it('sets VERIFIED when Dojah returns Completed', async () => {
       prisma.user.findUnique.mockResolvedValue(MOCK_USER);
-      smileId.verifyIdentity.mockResolvedValue('VERIFIED');
-      prisma.kycProfile.upsert.mockResolvedValue({
-        ...MOCK_KYC,
-        kycStatus: KycStatus.VERIFIED,
-        kycAttempts: 1,
-        verifiedAt: new Date(),
-      });
+      dojah.getVerificationDetails.mockResolvedValue({ verificationStatus: 'Completed', referenceId: REF });
+      prisma.kycProfile.upsert.mockResolvedValue({ ...MOCK_KYC, kycStatus: KycStatus.VERIFIED, kycAttempts: 1, verifiedAt: new Date() });
 
-      const result = await service.submitKyc('user-1', KYC_DTO);
+      const result = await service.verifyDojahKyc('user-1', REF);
       expect(result.kycStatus).toBe(KycStatus.VERIFIED);
       expect(result.message).toMatch(/verified/i);
     });
 
-    it('creates KYC profile as REJECTED on failure', async () => {
+    it('sets REJECTED when Dojah returns Failed', async () => {
       prisma.user.findUnique.mockResolvedValue(MOCK_USER);
-      smileId.verifyIdentity.mockResolvedValue('REJECTED');
-      prisma.kycProfile.upsert.mockResolvedValue({
-        ...MOCK_KYC,
-        kycStatus: KycStatus.REJECTED,
-        kycAttempts: 1,
-      });
+      dojah.getVerificationDetails.mockResolvedValue({ verificationStatus: 'Failed', referenceId: REF });
+      prisma.kycProfile.upsert.mockResolvedValue({ ...MOCK_KYC, kycStatus: KycStatus.REJECTED, kycAttempts: 1 });
 
-      const result = await service.submitKyc('user-1', KYC_DTO);
+      const result = await service.verifyDojahKyc('user-1', REF);
       expect(result.kycStatus).toBe(KycStatus.REJECTED);
       expect(result.message).toMatch(/attempt/i);
+    });
+
+    it('sets UNDER_REVIEW for intermediate Dojah statuses', async () => {
+      prisma.user.findUnique.mockResolvedValue(MOCK_USER);
+      dojah.getVerificationDetails.mockResolvedValue({ verificationStatus: 'Ongoing', referenceId: REF });
+      prisma.kycProfile.upsert.mockResolvedValue({ ...MOCK_KYC, kycStatus: KycStatus.UNDER_REVIEW, kycAttempts: 1 });
+
+      const result = await service.verifyDojahKyc('user-1', REF);
+      expect(result.kycStatus).toBe(KycStatus.UNDER_REVIEW);
+    });
+
+    it('blocks when already VERIFIED', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...MOCK_USER,
+        kycProfile: { ...MOCK_KYC, kycStatus: KycStatus.VERIFIED, kycAttempts: 1 },
+      });
+      await expect(service.verifyDojahKyc('user-1', REF)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('blocks when REJECTED with max attempts reached', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...MOCK_USER,
+        kycProfile: { ...MOCK_KYC, kycStatus: KycStatus.REJECTED, kycAttempts: 3 },
+      });
+      await expect(service.verifyDojahKyc('user-1', REF)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('allows retry when REJECTED with attempts < 3', async () => {
@@ -152,64 +171,16 @@ describe('UsersService', () => {
         ...MOCK_USER,
         kycProfile: { ...MOCK_KYC, kycStatus: KycStatus.REJECTED, kycAttempts: 2 },
       });
-      smileId.verifyIdentity.mockResolvedValue('VERIFIED');
-      prisma.kycProfile.upsert.mockResolvedValue({
-        ...MOCK_KYC,
-        kycStatus: KycStatus.VERIFIED,
-        kycAttempts: 3,
-        verifiedAt: new Date(),
-      });
+      dojah.getVerificationDetails.mockResolvedValue({ verificationStatus: 'Completed', referenceId: REF });
+      prisma.kycProfile.upsert.mockResolvedValue({ ...MOCK_KYC, kycStatus: KycStatus.VERIFIED, kycAttempts: 3, verifiedAt: new Date() });
 
-      const result = await service.submitKyc('user-1', KYC_DTO);
+      const result = await service.verifyDojahKyc('user-1', REF);
       expect(result.kycStatus).toBe(KycStatus.VERIFIED);
-    });
-
-    it('blocks submission when VERIFIED', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...MOCK_USER,
-        kycProfile: { ...MOCK_KYC, kycStatus: KycStatus.VERIFIED, kycAttempts: 1 },
-      });
-
-      await expect(service.submitKyc('user-1', KYC_DTO)).rejects.toBeInstanceOf(ForbiddenException);
-    });
-
-    it('blocks submission when UNDER_REVIEW', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...MOCK_USER,
-        kycProfile: { ...MOCK_KYC, kycStatus: KycStatus.UNDER_REVIEW, kycAttempts: 1 },
-      });
-
-      await expect(service.submitKyc('user-1', KYC_DTO)).rejects.toBeInstanceOf(ForbiddenException);
-    });
-
-    it('blocks submission when REJECTED with attempts >= 3', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...MOCK_USER,
-        kycProfile: { ...MOCK_KYC, kycStatus: KycStatus.REJECTED, kycAttempts: 3 },
-      });
-
-      await expect(service.submitKyc('user-1', KYC_DTO)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('throws NotFoundException for unknown user', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.submitKyc('unknown', KYC_DTO)).rejects.toBeInstanceOf(NotFoundException);
-    });
-
-    it('passes NIN when bvn is absent', async () => {
-      prisma.user.findUnique.mockResolvedValue(MOCK_USER);
-      smileId.verifyIdentity.mockResolvedValue('VERIFIED');
-      prisma.kycProfile.upsert.mockResolvedValue({
-        ...MOCK_KYC,
-        kycStatus: KycStatus.VERIFIED,
-        kycAttempts: 1,
-      });
-
-      await service.submitKyc('user-1', { nin: '98765432101', dateOfBirth: '1990-01-15' });
-
-      expect(smileId.verifyIdentity).toHaveBeenCalledWith(
-        expect.objectContaining({ idType: 'NIN', idNumber: '98765432101' }),
-      );
+      await expect(service.verifyDojahKyc('unknown', REF)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

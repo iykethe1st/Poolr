@@ -85,6 +85,21 @@ export class GroupsController {
     return this.groups.joinGroup(groupId, user.id, dto);
   }
 
+  @Post(':id/accept-invite')
+  @HttpCode(200)
+  @UseGuards(KycGuard)
+  @ApiOperation({ summary: 'Accept group invitation without token (KYC required)' })
+  acceptInvite(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {
+    return this.groups.acceptInvite(groupId, user.id);
+  }
+
+  @Delete(':id/decline-invite')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Decline group invitation' })
+  declineInvite(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {
+    return this.groups.declineInvite(groupId, user.id);
+  }
+
   @Delete(':id/members/:memberId')
   @HttpCode(200)
   @ApiOperation({ summary: 'Remove a member (admin only)' })

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { RegisterForm } from '@/components/auth/register-form';
 
 export const metadata: Metadata = { title: 'Create account' };
@@ -10,7 +11,10 @@ export default function RegisterPage() {
       <p className="mb-6 text-sm text-muted-foreground">
         Join Poolr and start saving together
       </p>
-      <RegisterForm />
+      {/* Suspense needed because RegisterForm calls useSearchParams() */}
+      <Suspense>
+        <RegisterForm />
+      </Suspense>
     </div>
   );
 }

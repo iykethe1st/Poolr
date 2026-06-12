@@ -1,0 +1,31 @@
+import ky, { type KyInstance } from 'ky';
+import { getToken, clearToken } from './auth';
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002/api';
+
+export const apiClient: KyInstance = ky.create({
+  prefixUrl: API_BASE_URL,
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  retry: { limit: 0 },
+  hooks: {
+    beforeRequest: [
+      (request) => {
+        const token = getToken();
+        if (token) request.headers.set('Authorization', `Bearer ${token}`);
+      },
+    ],
+    afterResponse: [
+      async (_request, _options, response) => {
+        if (response.status === 401) {
+          clearToken();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+        }
+        return response;
+      },
+    ],
+  },
+});
