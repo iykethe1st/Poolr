@@ -235,6 +235,42 @@ export class GroupsService {
     return { message: 'Joined group successfully' };
   }
 
+  async acceptInvite(groupId: string, userId: string) {
+    const member = await this.prisma.groupMember.findFirst({
+      where: { groupId, userId, memberStatus: MemberStatus.INVITED },
+    });
+
+    if (!member) {
+      const existing = await this.prisma.groupMember.findFirst({ where: { groupId, userId } });
+      if (existing?.memberStatus === MemberStatus.ACTIVE) {
+        throw new ConflictException('You are already a member of this group');
+      }
+      throw new NotFoundException('No pending invitation found');
+    }
+
+    await this.prisma.groupMember.update({
+      where: { id: member.id },
+      data: { memberStatus: MemberStatus.ACTIVE },
+    });
+
+    return { message: 'Invitation accepted' };
+  }
+
+  async declineInvite(groupId: string, userId: string) {
+    const member = await this.prisma.groupMember.findFirst({
+      where: { groupId, userId, memberStatus: MemberStatus.INVITED },
+    });
+
+    if (!member) throw new NotFoundException('No pending invitation found');
+
+    await this.prisma.groupMember.update({
+      where: { id: member.id },
+      data: { memberStatus: MemberStatus.REMOVED },
+    });
+
+    return { message: 'Invitation declined' };
+  }
+
   async removeMember(groupId: string, adminId: string, memberId: string) {
     const group = await this.ensureAdmin(groupId, adminId);
 

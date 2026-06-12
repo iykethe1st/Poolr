@@ -150,3 +150,45 @@ export function useStartGroup(groupId: string) {
     },
   });
 }
+
+export function useJoinGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiClient
+        .post(`groups/${groupId}/join`, { json: { token } })
+        .json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
+export function useAcceptInvite(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient
+        .post(`groups/${groupId}/accept-invite`)
+        .json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
+export function useDeclineInvite(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient
+        .delete(`groups/${groupId}/decline-invite`)
+        .json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}

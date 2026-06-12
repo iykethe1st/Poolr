@@ -61,7 +61,9 @@ export function VerifyOtpForm() {
       if (data.accessToken) {
         setToken(data.accessToken);
         sessionStorage.removeItem('poolr_verify_phone');
-        router.push('/dashboard');
+        const redirect = sessionStorage.getItem('poolr_verify_redirect') ?? '/dashboard';
+        sessionStorage.removeItem('poolr_verify_redirect');
+        router.push(redirect);
         router.refresh();
       }
     } catch (err) {

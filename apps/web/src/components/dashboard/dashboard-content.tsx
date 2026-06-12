@@ -28,9 +28,12 @@ export function DashboardContent() {
     ? `Welcome back, ${user.fullName.split(' ')[0]}!`
     : 'Welcome back!';
 
-  const activeGroups = groups?.filter((g) =>
-    ['DRAFT', 'OPEN', 'ACTIVE'].includes(g.status),
-  ).length ?? 0;
+  const activeGroups = groups?.filter((g) => {
+    const myMember = g.members.find((m) => m.userId === user?.id);
+    // Exclude groups where I'm only invited (not yet accepted)
+    if (myMember?.memberStatus === 'INVITED') return false;
+    return ['DRAFT', 'OPEN', 'ACTIVE'].includes(g.status);
+  }).length ?? 0;
 
   const pendingCount = contributions?.filter(
     (c) => c.status === 'PENDING' || c.status === 'OVERDUE',
@@ -47,7 +50,7 @@ export function DashboardContent() {
           <Button size="sm" variant="outline" asChild>
             <Link href="/kyc">
               <ShieldCheck className="size-3.5" />
-              Verify identity
+              Identity verification
             </Link>
           </Button>
         )}

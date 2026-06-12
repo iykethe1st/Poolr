@@ -3,12 +3,6 @@ import { apiClient } from './api';
 import type { ApiResponse } from '@poolr/types';
 import type { KycProfileDto } from '@poolr/types';
 
-export type KycSubmitResult = {
-  kycStatus: string;
-  kycAttempts: number;
-  message: string;
-};
-
 export type UserWithKyc = {
   id: string;
   fullName: string;
@@ -18,28 +12,6 @@ export type UserWithKyc = {
 
 export function getMe(): Promise<UserWithKyc> {
   return apiClient.get('users/me').json<UserWithKyc>();
-}
-
-export async function uploadKycFile(
-  kind: 'selfie' | 'document',
-  file: File | Blob,
-  filename: string,
-): Promise<string> {
-  const form = new FormData();
-  form.append('file', file, filename);
-  const endpoint = kind === 'selfie' ? 'users/kyc/selfie' : 'users/kyc/document';
-  const res = await apiClient
-    .post(endpoint, { body: form })
-    .json<{ url: string }>();
-  return res.url;
-}
-
-export async function submitKycIdentity(payload: {
-  bvn?: string;
-  nin?: string;
-  dateOfBirth: string;
-}): Promise<KycSubmitResult> {
-  return apiClient.post('users/kyc', { json: payload }).json<KycSubmitResult>();
 }
 
 export async function extractHttpError(err: unknown): Promise<string> {

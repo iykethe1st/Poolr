@@ -1,8 +1,5 @@
-export default function AdminPage() {
-  return (
-    <main>
-      <h1>Poolr Admin</h1>
-      <p>Admin and collector dashboard.</p>
-    </main>
-  );
+import { redirect } from 'next/navigation';
+
+export default function RootPage() {
+  redirect('/overview');
 }

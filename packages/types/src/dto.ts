@@ -39,6 +39,7 @@ export type KycProfileDto = {
   selfieUrl: string | null;
   idDocUrl: string | null;
   kycStatus: KycStatus;
+  kycAttempts: number;
   verifiedAt: string | null;
   createdAt: string;
   updatedAt: string;

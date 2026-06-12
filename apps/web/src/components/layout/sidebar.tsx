@@ -23,7 +23,7 @@ const mainNav = [
   { href: '/groups', icon: Users, label: 'Groups' },
   { href: '/wallet', icon: Wallet, label: 'Wallet' },
   { href: '/notifications', icon: Bell, label: 'Notifications' },
-  { href: '/kyc', icon: ShieldCheck, label: 'Verify identity' },
+  { href: '/kyc', icon: ShieldCheck, label: 'Identity verification' },
 ];
 
 const bottomNav = [

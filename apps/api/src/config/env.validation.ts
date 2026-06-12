@@ -17,8 +17,9 @@ export const envValidationSchema = Joi.object({
   // External integrations — optional in dev
   PAYSTACK_SECRET_KEY: Joi.string().allow('').optional(),
   PAYSTACK_WEBHOOK_SECRET: Joi.string().allow('').optional(),
-  SMILE_ID_API_KEY: Joi.string().allow('').optional(),
-  SMILE_ID_PARTNER_ID: Joi.string().allow('').optional(),
+  DOJAH_APP_ID: Joi.string().allow('').optional(),
+  DOJAH_SECRET_KEY: Joi.string().allow('').optional(),
+  DOJAH_WEBHOOK_SECRET: Joi.string().allow('').optional(),
   TERMII_API_KEY: Joi.string().allow('').optional(),
   RESEND_API_KEY: Joi.string().allow('').optional(),
   FCM_SERVER_KEY: Joi.string().allow('').optional(),

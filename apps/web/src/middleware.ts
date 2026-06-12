@@ -10,7 +10,10 @@ const PUBLIC_PATHS = new Set(['/', '/login', '/register', '/verify-otp', '/forgo
 const AUTH_ONLY_PATHS = new Set(['/login', '/register', '/verify-otp', '/forgot-password']);
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.has(pathname);
+  if (PUBLIC_PATHS.has(pathname)) return true;
+  // Public join page — unauthenticated users need to see the invite landing
+  if (/^\/groups\/[^/]+\/join(\/.*)?$/.test(pathname)) return true;
+  return false;
 }
 
 function isAuthOnly(pathname: string): boolean {

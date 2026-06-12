@@ -1,12 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   CalendarDays,
+  Check,
+  Loader2,
+  Pencil,
   Settings,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,7 +21,7 @@ import { PageHeader } from '@/components/layout/page-shell';
 import { RotationOrder } from './rotation-order';
 import { CycleTimeline } from './cycle-timeline';
 import { StartGroupModal } from './start-group-modal';
-import { useGroup } from '@/hooks/use-group';
+import { useGroup, useUpdateGroup, useAcceptInvite, useDeclineInvite } from '@/hooks/use-group';
 import { useCurrentUser } from '@/hooks/use-dashboard';
 import { formatCurrency, formatFrequency, formatGroupStatus } from '@/lib/format';
 
@@ -39,9 +45,12 @@ export function GroupDetailContent({ groupId }: GroupDetailContentProps) {
   if (!group) return <p className="text-sm text-muted-foreground">Group not found.</p>;
 
   const isAdmin = me?.id === group.adminId;
+  const myMember = group.members.find((m) => m.userId === me?.id);
+  const isInvited = myMember?.memberStatus === 'INVITED';
   const activeMembers = group.members.filter((m) => m.memberStatus === 'ACTIVE');
   const isDraft = group.status === 'DRAFT';
   const isLive = ['ACTIVE', 'PAUSED', 'COMPLETED'].includes(group.status);
+  const canEditStartDate = isAdmin && isDraft;
 
   return (
     <div className="space-y-6">
@@ -53,6 +62,8 @@ export function GroupDetailContent({ groupId }: GroupDetailContentProps) {
           </Link>
         </Button>
       </div>
+
+      {isInvited && <InviteBanner groupId={groupId} />}
 
       <PageHeader
         title={group.name}
@@ -81,18 +92,10 @@ export function GroupDetailContent({ groupId }: GroupDetailContentProps) {
           label="Members"
           value={`${activeMembers.length} / ${group.maxMembers}`}
         />
-        <InfoCard
-          icon={CalendarDays}
-          label="Start date"
-          value={
-            group.startDate
-              ? new Date(group.startDate).toLocaleDateString('en-NG', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })
-              : 'Not set'
-          }
+        <StartDateCard
+          groupId={groupId}
+          startDate={group.startDate}
+          canEdit={canEditStartDate}
         />
         <InfoCard
           icon={CalendarDays}
@@ -192,6 +195,149 @@ export function GroupDetailContent({ groupId }: GroupDetailContentProps) {
           <p className="text-sm font-medium text-destructive">This group has been cancelled.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function InviteBanner({ groupId }: { groupId: string }) {
+  const router = useRouter();
+  const accept = useAcceptInvite(groupId);
+  const decline = useDeclineInvite(groupId);
+  const [error, setError] = useState('');
+  const busy = accept.isPending || decline.isPending;
+
+  async function handleAccept() {
+    setError('');
+    try {
+      await accept.mutateAsync();
+      router.refresh();
+    } catch {
+      setError('Failed to accept. Please try again.');
+    }
+  }
+
+  async function handleDecline() {
+    setError('');
+    try {
+      await decline.mutateAsync();
+      router.push('/groups');
+    } catch {
+      setError('Failed to decline. Please try again.');
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-4 space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">You&apos;ve been invited to join this group</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Accept to become an active member and participate in the savings cycle.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={handleAccept} disabled={busy}>
+            {accept.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Check className="size-3.5" />
+            )}
+            Accept
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleDecline} disabled={busy}>
+            {decline.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <X className="size-3.5" />
+            )}
+            Decline
+          </Button>
+        </div>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function StartDateCard({
+  groupId,
+  startDate,
+  canEdit,
+}: {
+  groupId: string;
+  startDate: string | null;
+  canEdit: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(
+    startDate ? new Date(startDate).toISOString().slice(0, 10) : '',
+  );
+  const update = useUpdateGroup(groupId);
+
+  const formatted = startDate
+    ? new Date(startDate).toLocaleDateString('en-NG', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'Not set';
+
+  function handleSave() {
+    update.mutate(
+      { startDate: value || undefined },
+      { onSuccess: () => setEditing(false) },
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <CalendarDays className="size-4 text-muted-foreground" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground">Start date</p>
+        {editing ? (
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="date"
+              value={value}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setValue(e.target.value)}
+              className="h-7 rounded border border-input bg-transparent px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <Button
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={handleSave}
+              disabled={update.isPending}
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => { setEditing(false); setValue(startDate ? new Date(startDate).toISOString().slice(0, 10) : ''); }}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-semibold">{formatted}</p>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Edit start date"
+              >
+                <Pencil className="size-3" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
