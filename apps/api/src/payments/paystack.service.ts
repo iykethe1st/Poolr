@@ -33,6 +33,16 @@ export interface TransferResult {
   reference: string;
 }
 
+export interface CustomerResult {
+  customerCode: string;
+}
+
+export interface DvaResult {
+  accountNumber: string;
+  accountName: string;
+  bankName: string;
+}
+
 @Injectable()
 export class PaystackService {
   private readonly logger = new Logger(PaystackService.name);
@@ -115,6 +125,128 @@ export class PaystackService {
     );
 
     return { transferCode: data.transfer_code, reference: data.reference };
+  }
+
+  async createCustomer(params: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<CustomerResult> {
+    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+
+    if (!secretKey) {
+      const mockCode = `CUS_mock_${Date.now()}`;
+      this.logger.debug(`[DEV] Paystack mock customer → ${mockCode}`);
+      return { customerCode: mockCode };
+    }
+
+    const data = await this.request<{ customer_code: string }>(
+      '/customer',
+      'POST',
+      secretKey,
+      {
+        email: params.email,
+        first_name: params.firstName,
+        last_name: params.lastName,
+      },
+    );
+
+    return { customerCode: data.customer_code };
+  }
+
+  async createDedicatedAccount(customerCode: string): Promise<DvaResult> {
+    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+
+    if (!secretKey) {
+      const mock = `91${Math.floor(Math.random() * 100_000_000)
+        .toString()
+        .padStart(8, '0')}`;
+      this.logger.debug(`[DEV] Paystack mock DVA → ${mock}`);
+      return { accountNumber: mock, accountName: 'PAYSTACK-POOLR TEST', bankName: 'Wema Bank' };
+    }
+
+    const data = await this.request<{
+      account_number: string;
+      account_name: string;
+      bank: { name: string };
+    }>('/dedicated_account', 'POST', secretKey, {
+      customer: customerCode,
+      preferred_bank: 'wema-bank',
+    });
+
+    return {
+      accountNumber: data.account_number,
+      accountName: data.account_name,
+      bankName: data.bank.name,
+    };
+  }
+
+  async listBanks(): Promise<Array<{ name: string; code: string; slug: string }>> {
+    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+
+    if (!secretKey) {
+      return [
+        { name: 'Access Bank', code: '044', slug: 'access-bank' },
+        { name: 'GTBank', code: '058', slug: 'guaranty-trust-bank' },
+        { name: 'First Bank', code: '011', slug: 'first-bank-of-nigeria' },
+        { name: 'Zenith Bank', code: '057', slug: 'zenith-bank' },
+        { name: 'UBA', code: '033', slug: 'united-bank-for-africa' },
+        { name: 'Wema Bank', code: '035', slug: 'wema-bank' },
+        { name: 'Opay', code: '999992', slug: 'paycom' },
+        { name: 'Kuda Bank', code: '090267', slug: 'kuda-bank' },
+      ];
+    }
+
+    const data = await this.request<Array<{ name: string; code: string; slug: string }>>(
+      '/bank?currency=NGN&perPage=100',
+      'GET',
+      secretKey,
+    );
+    return data;
+  }
+
+  async resolveAccount(bankCode: string, accountNumber: string): Promise<{ accountName: string; accountNumber: string }> {
+    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+
+    if (!secretKey) {
+      this.logger.debug(`[DEV] Paystack mock resolve → ${accountNumber}`);
+      return { accountName: 'MOCK ACCOUNT HOLDER', accountNumber };
+    }
+
+    const data = await this.request<{ account_name: string; account_number: string }>(
+      `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+      'GET',
+      secretKey,
+    );
+    return { accountName: data.account_name, accountNumber: data.account_number };
+  }
+
+  async createTransferRecipient(params: {
+    name: string;
+    accountNumber: string;
+    bankCode: string;
+  }): Promise<{ recipientCode: string }> {
+    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+
+    if (!secretKey) {
+      const mockCode = `RCP_mock_${Date.now()}`;
+      this.logger.debug(`[DEV] Paystack mock recipient → ${mockCode}`);
+      return { recipientCode: mockCode };
+    }
+
+    const data = await this.request<{ recipient_code: string }>(
+      '/transferrecipient',
+      'POST',
+      secretKey,
+      {
+        type: 'nuban',
+        name: params.name,
+        account_number: params.accountNumber,
+        bank_code: params.bankCode,
+        currency: 'NGN',
+      },
+    );
+    return { recipientCode: data.recipient_code };
   }
 
   private async request<T>(

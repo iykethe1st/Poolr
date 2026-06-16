@@ -1,34 +1,35 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
-  Wallet,
   Bell,
   Settings,
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import Image from "next/image";
 
 const mainNav = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/groups', icon: Users, label: 'Groups' },
-  { href: '/wallet', icon: Wallet, label: 'Wallet' },
-  { href: '/notifications', icon: Bell, label: 'Notifications' },
-  { href: '/kyc', icon: ShieldCheck, label: 'Identity verification' },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/groups", icon: Users, label: "Groups" },
+  { href: "/notifications", icon: Bell, label: "Notifications" },
+  { href: "/kyc", icon: ShieldCheck, label: "Identity verification" },
 ];
 
-const bottomNav = [
-  { href: '/settings', icon: Settings, label: 'Settings' },
-];
+const bottomNav = [{ href: "/settings", icon: Settings, label: "Settings" }];
 
 function NavLink({
   href,
@@ -48,11 +49,11 @@ function NavLink({
     <Link
       href={href}
       className={cn(
-        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
         isActive
-          ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        collapsed && 'justify-center px-2',
+          ? "bg-sidebar-primary text-sidebar-primary-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        collapsed && "justify-center px-2",
       )}
     >
       <Icon className="size-4 shrink-0" />
@@ -76,21 +77,25 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'hidden md:flex flex-col border-r bg-sidebar transition-[width] duration-200',
-        collapsed ? 'w-14' : 'w-60',
+        "hidden md:flex flex-col border-r bg-sidebar transition-[width] duration-200",
+        collapsed ? "w-14" : "w-60",
       )}
     >
       {/* Logo */}
       <div
         className={cn(
-          'flex h-16 shrink-0 items-center border-b px-4',
-          collapsed && 'justify-center px-2',
+          "flex h-16 shrink-0 items-center border-b px-4",
+          collapsed && "justify-center px-2",
         )}
       >
         {collapsed ? (
           <span className="text-lg font-bold">P</span>
         ) : (
-          <Link href="/dashboard" className="text-xl font-bold tracking-tight">
+          <Link
+            href="/dashboard"
+            className="text-xl flex items-center font-bold tracking-tight"
+          >
+            <Image src="/favicon.png" alt="Poolr Logo" width={45} height={45} />
             Poolr
           </Link>
         )}
@@ -114,8 +119,8 @@ export function Sidebar() {
           variant="ghost"
           size="sm"
           className={cn(
-            'w-full text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-            collapsed ? 'justify-center px-2' : 'justify-start gap-3',
+            "w-full text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            collapsed ? "justify-center px-2" : "justify-start gap-3",
           )}
           onClick={() => setCollapsed(!collapsed)}
         >

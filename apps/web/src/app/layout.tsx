@@ -20,12 +20,21 @@ export const metadata: Metadata = {
   },
   description: 'Rotating savings circles, reimagined for the modern age.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Poolr',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+    { media: '(prefers-color-scheme: light)', color: '#f5fbf9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0d1612' },
   ],
   width: 'device-width',
   initialScale: 1,

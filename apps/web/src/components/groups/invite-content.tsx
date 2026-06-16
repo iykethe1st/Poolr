@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { PageHeader } from '@/components/layout/page-shell';
-import { InviteForm } from './invite-form';
-import { useGroup } from '@/hooks/use-group';
-import { useCurrentUser } from '@/hooks/use-dashboard';
+import Link from "next/link";
+import { ArrowLeft, TriangleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/page-shell";
+import { InviteForm } from "./invite-form";
+import { useGroup } from "@/hooks/use-group";
+import { useCurrentUser } from "@/hooks/use-dashboard";
 
 interface InviteContentProps {
   groupId: string;
@@ -27,11 +27,14 @@ export function InviteContent({ groupId }: InviteContentProps) {
     );
   }
 
-  if (!group) return <p className="text-sm text-muted-foreground">Group not found.</p>;
+  if (!group)
+    return <p className="text-sm text-muted-foreground">Group not found.</p>;
 
   const isAdmin = me?.id === group.adminId;
-  const isDraft = group.status === 'DRAFT';
-  const activeCount = group.members.filter((m) => m.memberStatus === 'ACTIVE').length;
+  const isDraft = group.status === "DRAFT";
+  const activeCount = group.members.filter(
+    (m) => m.memberStatus === "ACTIVE",
+  ).length;
   const isFull = activeCount >= group.maxMembers;
 
   if (!isAdmin || !isDraft) {
@@ -39,8 +42,8 @@ export function InviteContent({ groupId }: InviteContentProps) {
       <div className="mx-auto max-w-lg">
         <p className="text-sm text-muted-foreground">
           {!isAdmin
-            ? 'Only the group admin can invite members.'
-            : 'Members can only be invited while the group is in draft.'}
+            ? "Only the group admin can invite members."
+            : "Members can only be invited while the group is in draft."}
         </p>
         <Button variant="link" asChild className="pl-0 mt-2">
           <Link href={`/groups/${groupId}`}>Go back to group</Link>
@@ -65,6 +68,15 @@ export function InviteContent({ groupId }: InviteContentProps) {
         description={`${group.name} · ${activeCount} / ${group.maxMembers} members`}
       />
 
+      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+        <p>
+          Only invite people you <strong>personally know and trust.</strong> If
+          a member defaults after collecting their payout, the loss is bore by
+          the entire group.
+        </p>
+      </div>
+
       {isFull ? (
         <div className="rounded-xl border bg-muted/40 px-4 py-6 text-center">
           <p className="text-sm font-medium">Group is full</p>
@@ -79,19 +91,23 @@ export function InviteContent({ groupId }: InviteContentProps) {
       )}
 
       {/* Existing invited/pending members */}
-      {group.members.filter((m) => m.memberStatus === 'INVITED').length > 0 && (
+      {group.members.filter((m) => m.memberStatus === "INVITED").length > 0 && (
         <div>
-          <h3 className="mb-2 text-sm font-medium text-muted-foreground">Pending invites</h3>
+          <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+            Pending invites
+          </h3>
           <ul className="space-y-1">
             {group.members
-              .filter((m) => m.memberStatus === 'INVITED')
+              .filter((m) => m.memberStatus === "INVITED")
               .map((m) => (
                 <li
                   key={m.id}
                   className="flex items-center justify-between rounded-lg border bg-card px-3 py-2 text-sm"
                 >
                   <span>{m.user.fullName}</span>
-                  <span className="text-xs text-muted-foreground">{m.user.phone}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {m.user.phone}
+                  </span>
                 </li>
               ))}
           </ul>

@@ -34,11 +34,13 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get user() { return this.client.user; }
   get kycProfile() { return this.client.kycProfile; }
   get group() { return this.client.group; }
+  get groupAccount() { return this.client.groupAccount; }
   get groupMember() { return this.client.groupMember; }
   get cycle() { return this.client.cycle; }
   get contribution() { return this.client.contribution; }
   get payout() { return this.client.payout; }
   get penalty() { return this.client.penalty; }
+  get bankAccount() { return this.client.bankAccount; }
   get wallet() { return this.client.wallet; }
   get walletTransaction() { return this.client.walletTransaction; }
   get notification() { return this.client.notification; }

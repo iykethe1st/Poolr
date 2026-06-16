@@ -19,6 +19,44 @@ export function useInitializeContribution() {
   });
 }
 
+export type NextPayout = {
+  groupId: string;
+  groupName: string;
+  cycleNumber: number;
+  amountNgn: number;
+  dueDate: string;
+  isActive: boolean;
+};
+
+export function useNextPayout() {
+  return useQuery<NextPayout | null>({
+    queryKey: ['next-payout'],
+    queryFn: () => apiClient.get('payments/next-payout').json<NextPayout | null>(),
+    staleTime: 30_000,
+  });
+}
+
+export type MyPayout = {
+  id: string;
+  amount: number;
+  status: string;
+  initiatedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  cycle: {
+    cycleNumber: number;
+    group: { id: string; name: string };
+  };
+};
+
+export function useMyPayouts() {
+  return useQuery<MyPayout[]>({
+    queryKey: ['my-payouts'],
+    queryFn: () => apiClient.get('payments/payouts').json<MyPayout[]>(),
+    staleTime: 30_000,
+  });
+}
+
 export function useVerifyPayment(reference: string | null) {
   const qc = useQueryClient();
 

@@ -41,4 +41,10 @@ export class PaymentsController {
   listPayouts(@CurrentUser() user: AuthUser) {
     return this.payments.listPayouts(user.id);
   }
+
+  @Get('next-payout')
+  @ApiOperation({ summary: 'Get the next scheduled payout for the current user' })
+  getNextPayout(@CurrentUser() user: AuthUser) {
+    return this.payments.getNextPayout(user.id);
+  }
 }

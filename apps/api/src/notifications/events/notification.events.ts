@@ -4,9 +4,13 @@ export const NOTIFICATION_EVENTS = {
   KYC_REJECTED: 'notification.kyc.rejected',
   GROUP_INVITED: 'notification.group.invited',
   GROUP_STARTED: 'notification.group.started',
+  MEMBER_JOINED: 'notification.group.member_joined',
+  MEMBER_LEFT: 'notification.group.member_left',
   CONTRIBUTION_REMINDER: 'notification.contribution.reminder',
   CONTRIBUTION_RECEIVED: 'notification.contribution.received',
+  MEMBER_CONTRIBUTED: 'notification.group.member_contributed',
   PAYOUT_RECEIVED: 'notification.payout.received',
+  MEMBER_PAYOUT_RECEIVED: 'notification.group.member_payout_received',
   PENALTY_APPLIED: 'notification.penalty.applied',
   PAYOUT_FAILED_ADMIN: 'notification.payout.failed_admin',
 } as const;
@@ -80,4 +84,30 @@ export class PayoutFailedAdminEvent {
   groupName!: string;
   cycleNumber!: number;
   error!: string;
+}
+
+export class MemberJoinedEvent {
+  memberName!: string;
+  groupName!: string;
+  otherMemberUserIds!: string[];
+}
+
+export class MemberLeftEvent {
+  memberName!: string;
+  groupName!: string;
+  otherMemberUserIds!: string[];
+}
+
+export class MemberContributedEvent {
+  payerName!: string;
+  groupName!: string;
+  amountNgn!: number;
+  otherMemberUserIds!: string[];
+}
+
+export class MemberPayoutReceivedEvent {
+  recipientName!: string;
+  groupName!: string;
+  amountNgn!: number;
+  otherMemberUserIds!: string[];
 }

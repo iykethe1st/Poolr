@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,13 +13,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { MobileNav } from './mobile-nav';
+import { clearToken } from '@/lib/auth';
 
 interface NavbarProps {
   title?: string;
 }
 
 export function Navbar({ title }: NavbarProps) {
+  const router = useRouter();
+
+  function handleSignOut() {
+    clearToken();
+    router.push('/login');
+  }
+
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b bg-background/95 backdrop-blur-sm px-4 md:px-6">
       <div className="flex items-center gap-3">
@@ -27,6 +39,7 @@ export function Navbar({ title }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1">
+        <ThemeToggle />
         <NotificationBell />
 
         <DropdownMenu>
@@ -50,7 +63,10 @@ export function Navbar({ title }: NavbarProps) {
               <Link href="/settings">Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              onClick={handleSignOut}
+            >
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

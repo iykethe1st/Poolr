@@ -3,20 +3,24 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { GroupStatus, MemberStatus } from '@prisma/client';
+import { ContribStatus, CycleStatus, GroupStatus, MemberStatus } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TermiiService } from '../auth/termii.service';
 import { RotationService } from './rotation.service';
+import { PaystackService } from '../payments/paystack.service';
 import {
   NOTIFICATION_EVENTS,
   GroupInvitedEvent,
   GroupStartedEvent,
+  MemberJoinedEvent,
+  MemberLeftEvent,
 } from '../notifications/events/notification.events';
 import type { CreateGroupDto } from './dto/create-group.dto';
 import type { UpdateGroupDto } from './dto/update-group.dto';
@@ -28,11 +32,14 @@ const INVITE_TTL = 60 * 60 * 24 * 7; // 7 days
 
 @Injectable()
 export class GroupsService {
+  private readonly logger = new Logger(GroupsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly termii: TermiiService,
     private readonly rotation: RotationService,
+    private readonly paystack: PaystackService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -89,6 +96,7 @@ export class GroupsService {
     const group = await this.prisma.group.findUnique({
       where: { id: groupId },
       include: {
+        groupAccount: true,
         members: {
           where: { memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
           include: {
@@ -232,6 +240,8 @@ export class GroupsService {
       this.redis.del(`invite:${dto.token}`),
     ]);
 
+    this.emitMemberJoined(groupId, userId).catch(() => null);
+
     return { message: 'Joined group successfully' };
   }
 
@@ -252,6 +262,8 @@ export class GroupsService {
       where: { id: member.id },
       data: { memberStatus: MemberStatus.ACTIVE },
     });
+
+    this.emitMemberJoined(groupId, userId).catch(() => null);
 
     return { message: 'Invitation accepted' };
   }
@@ -286,6 +298,8 @@ export class GroupsService {
       where: { id: memberId },
       data: { memberStatus: MemberStatus.REMOVED },
     });
+
+    this.emitMemberLeft(groupId, member.userId, group.name).catch(() => null);
 
     return { message: 'Member removed' };
   }
@@ -351,8 +365,8 @@ export class GroupsService {
       orderBy: { rotationPosition: 'asc' },
     });
 
-    if (activeMembers.length < 2) {
-      throw new BadRequestException('Group needs at least 2 active members to start');
+    if (activeMembers.length < 3) {
+      throw new BadRequestException('Group needs at least 3 active members to start');
     }
 
     await this.prisma.group.update({
@@ -361,9 +375,40 @@ export class GroupsService {
     });
 
     await this.rotation.generateCycles(
-      { id: group.id, frequency: group.frequency, startDate: group.startDate, status: GroupStatus.ACTIVE },
+      {
+        id: group.id,
+        frequency: group.frequency,
+        startDate: group.startDate as Date,
+        status: GroupStatus.ACTIVE,
+        contributionAmount: Number(group.contributionAmount),
+      },
       activeMembers,
     );
+
+    // Provision dedicated virtual account (idempotent — skipped if already exists)
+    const existingAccount = await this.prisma.groupAccount.findUnique({ where: { groupId } });
+    if (!existingAccount) {
+      try {
+        const { customerCode } = await this.paystack.createCustomer({
+          email: `group-${groupId}@poolr.internal`,
+          firstName: 'Poolr',
+          lastName: group.name.slice(0, 50),
+        });
+        const dva = await this.paystack.createDedicatedAccount(customerCode);
+        await this.prisma.groupAccount.create({
+          data: {
+            groupId,
+            paystackCustomerCode: customerCode,
+            accountNumber: dva.accountNumber,
+            accountName: dva.accountName,
+            bankName: dva.bankName,
+          },
+        });
+        this.logger.log(`DVA provisioned for group ${groupId}: ${dva.accountNumber} (${dva.bankName})`);
+      } catch (err: unknown) {
+        this.logger.warn(`DVA provisioning failed for group ${groupId}: ${(err as Error).message}`);
+      }
+    }
 
     const evt: GroupStartedEvent = {
       memberUserIds: activeMembers.map((m) => m.userId),
@@ -372,6 +417,91 @@ export class GroupsService {
     this.eventEmitter.emit(NOTIFICATION_EVENTS.GROUP_STARTED, evt);
 
     return { message: 'Group started successfully', cyclesGenerated: activeMembers.length };
+  }
+
+  async getGroupHistory(groupId: string, userId: string) {
+    const group = await this.prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) throw new NotFoundException('Group not found');
+
+    const myMember = await this.prisma.groupMember.findFirst({ where: { groupId, userId } });
+    if (!myMember) throw new ForbiddenException('Not a member of this group');
+
+    const [contributions, payouts, penalties, allMembers, potAgg] = await Promise.all([
+      this.prisma.contribution.findMany({
+        where: { cycle: { groupId } },
+        include: {
+          member: { include: { user: { select: { id: true, fullName: true } } } },
+          cycle: { select: { cycleNumber: true, status: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.payout.findMany({
+        where: { cycle: { groupId } },
+        include: {
+          recipient: { select: { id: true, fullName: true } },
+          cycle: { select: { cycleNumber: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.penalty.findMany({
+        where: { member: { groupId } },
+        include: {
+          member: { include: { user: { select: { id: true, fullName: true } } } },
+          contribution: { include: { cycle: { select: { cycleNumber: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.groupMember.findMany({
+        where: { groupId },
+        include: { user: { select: { id: true, fullName: true, email: true } } },
+        orderBy: { rotationPosition: 'asc' },
+      }),
+      this.prisma.contribution.aggregate({
+        where: { cycle: { groupId, status: CycleStatus.ACTIVE }, status: ContribStatus.PAID },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return {
+      contributions,
+      payouts,
+      penalties,
+      allMembers,
+      potValueNgn: Number(potAgg._sum.amount ?? 0),
+    };
+  }
+
+  private async emitMemberJoined(groupId: string, userId: string): Promise<void> {
+    const [user, group, others] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { fullName: true } }),
+      this.prisma.group.findUniqueOrThrow({ where: { id: groupId }, select: { name: true } }),
+      this.prisma.groupMember.findMany({
+        where: { groupId, memberStatus: MemberStatus.ACTIVE, userId: { not: userId } },
+        select: { userId: true },
+      }),
+    ]);
+    const evt: MemberJoinedEvent = {
+      memberName: user.fullName,
+      groupName: group.name,
+      otherMemberUserIds: others.map((m) => m.userId),
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.MEMBER_JOINED, evt);
+  }
+
+  private async emitMemberLeft(groupId: string, userId: string, groupName: string): Promise<void> {
+    const [user, others] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { fullName: true } }),
+      this.prisma.groupMember.findMany({
+        where: { groupId, memberStatus: MemberStatus.ACTIVE },
+        select: { userId: true },
+      }),
+    ]);
+    const evt: MemberLeftEvent = {
+      memberName: user.fullName,
+      groupName,
+      otherMemberUserIds: others.map((m) => m.userId),
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.MEMBER_LEFT, evt);
   }
 
   private async ensureAdmin(groupId: string, userId: string) {

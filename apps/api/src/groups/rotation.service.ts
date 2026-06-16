@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Frequency, GroupStatus, MemberStatus } from "@prisma/client";
+import { ContribStatus, Frequency, GroupStatus, MemberStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
 
@@ -8,9 +8,11 @@ interface GroupForRotation {
   frequency: Frequency;
   startDate: Date;
   status: GroupStatus;
+  contributionAmount: number;
 }
 
 interface MemberForRotation {
+  id: string;
   userId: string;
   rotationPosition: number;
   memberStatus: MemberStatus;
@@ -28,17 +30,37 @@ export class RotationService {
       (a, b) => a.rotationPosition - b.rotationPosition,
     );
 
-    const cycleData = sorted.map((member, index) => ({
-      groupId: group.id,
-      recipientId: member.userId,
-      cycleNumber: index + 1,
-      dueDate: addInterval(group.startDate, group.frequency, index),
-      status: "PENDING" as const,
-    }));
-
     await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
-      for (const data of cycleData) {
-        await tx.cycle.create({ data });
+      for (let index = 0; index < sorted.length; index++) {
+        const member = sorted[index];
+        const dueDate = addInterval(group.startDate, group.frequency, index);
+        const isFirst = index === 0;
+
+        const cycle = await tx.cycle.create({
+          data: {
+            groupId: group.id,
+            recipientId: member.userId,
+            cycleNumber: index + 1,
+            dueDate,
+            status: isFirst ? 'ACTIVE' : 'PENDING',
+          },
+        });
+
+        // Pre-create a PENDING contribution for every member in the first cycle
+        // so the dashboard shows upcoming payments immediately after the group starts.
+        if (isFirst) {
+          for (const m of sorted) {
+            await tx.contribution.create({
+              data: {
+                cycleId: cycle.id,
+                memberId: m.id,
+                amount: group.contributionAmount,
+                dueAt: dueDate,
+                status: ContribStatus.PENDING,
+              },
+            });
+          }
+        }
       }
     });
   }
@@ -49,6 +71,6 @@ function addInterval(base: Date, frequency: Frequency, index: number): Date {
   if (frequency === Frequency.WEEKLY) d.setDate(d.getDate() + index * 7);
   else if (frequency === Frequency.BIWEEKLY)
     d.setDate(d.getDate() + index * 14);
-  else d.setMonth(d.getMonth() + index); // MONTHLY
+  else d.setMonth(d.getMonth() + index);
   return d;
 }

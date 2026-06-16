@@ -11,6 +11,10 @@ import {
   GroupStartedEvent,
   KycApprovedEvent,
   KycRejectedEvent,
+  MemberContributedEvent,
+  MemberJoinedEvent,
+  MemberLeftEvent,
+  MemberPayoutReceivedEvent,
   PenaltyAppliedEvent,
   PayoutFailedAdminEvent,
   PayoutReceivedEvent,
@@ -101,6 +105,32 @@ export class NotificationsListener {
     );
   }
 
+  // ── Group Membership Events ───────────────────────────────────────────────────
+
+  @OnEvent(NOTIFICATION_EVENTS.MEMBER_JOINED)
+  async onMemberJoined(event: MemberJoinedEvent): Promise<void> {
+    const title = `New member joined "${event.groupName}"`;
+    const body = `${event.memberName} has joined the group.`;
+    await Promise.allSettled(
+      event.otherMemberUserIds.flatMap((userId) => [
+        this.notifs.persist(userId, title, body, NotifChannel.IN_APP),
+        this.notifs.sendPush(userId, title, body),
+      ]),
+    );
+  }
+
+  @OnEvent(NOTIFICATION_EVENTS.MEMBER_LEFT)
+  async onMemberLeft(event: MemberLeftEvent): Promise<void> {
+    const title = `Member left "${event.groupName}"`;
+    const body = `${event.memberName} has left the group.`;
+    await Promise.allSettled(
+      event.otherMemberUserIds.flatMap((userId) => [
+        this.notifs.persist(userId, title, body, NotifChannel.IN_APP),
+        this.notifs.sendPush(userId, title, body),
+      ]),
+    );
+  }
+
   // ── Contribution Events ───────────────────────────────────────────────────────
 
   @OnEvent(NOTIFICATION_EVENTS.CONTRIBUTION_REMINDER)
@@ -136,6 +166,21 @@ export class NotificationsListener {
     ]);
   }
 
+  @OnEvent(NOTIFICATION_EVENTS.MEMBER_CONTRIBUTED)
+  async onMemberContributed(event: MemberContributedEvent): Promise<void> {
+    const formatted = new Intl.NumberFormat('en-NG', {
+      style: 'currency', currency: 'NGN', minimumFractionDigits: 0,
+    }).format(event.amountNgn);
+    const title = `Contribution made in "${event.groupName}"`;
+    const body = `${event.payerName} paid ${formatted}. The group pot is growing!`;
+    await Promise.allSettled(
+      event.otherMemberUserIds.flatMap((userId) => [
+        this.notifs.persist(userId, title, body, NotifChannel.IN_APP),
+        this.notifs.sendPush(userId, title, body),
+      ]),
+    );
+  }
+
   // ── Payout Events ─────────────────────────────────────────────────────────────
 
   @OnEvent(NOTIFICATION_EVENTS.PAYOUT_RECEIVED)
@@ -152,6 +197,21 @@ export class NotificationsListener {
       this.notifs.sendSms(event.userId, body),
       this.email.sendPayoutReceived(event.email, event.fullName, event.amountNgn, event.groupName),
     ]);
+  }
+
+  @OnEvent(NOTIFICATION_EVENTS.MEMBER_PAYOUT_RECEIVED)
+  async onMemberPayoutReceived(event: MemberPayoutReceivedEvent): Promise<void> {
+    const formatted = new Intl.NumberFormat('en-NG', {
+      style: 'currency', currency: 'NGN', minimumFractionDigits: 0,
+    }).format(event.amountNgn);
+    const title = `Payout sent in "${event.groupName}"`;
+    const body = `${event.recipientName} received their payout of ${formatted}.`;
+    await Promise.allSettled(
+      event.otherMemberUserIds.flatMap((userId) => [
+        this.notifs.persist(userId, title, body, NotifChannel.IN_APP),
+        this.notifs.sendPush(userId, title, body),
+      ]),
+    );
   }
 
   @OnEvent(NOTIFICATION_EVENTS.PENALTY_APPLIED)
@@ -183,6 +243,20 @@ export class NotificationsListener {
         event.cycleNumber,
         event.error,
       ),
+    ]);
+  }
+
+  @OnEvent('notification.payout.bank_required')
+  async onPayoutBankRequired(event: { userId: string; groupName: string; amountNgn: number }): Promise<void> {
+    const formatted = new Intl.NumberFormat('en-NG', {
+      style: 'currency', currency: 'NGN', minimumFractionDigits: 0,
+    }).format(event.amountNgn);
+    const title = 'Action required: Add bank account to receive payout';
+    const body = `Your payout of ${formatted} from "${event.groupName}" is ready. Add your bank account in Settings to receive it.`;
+    await Promise.allSettled([
+      this.notifs.persist(event.userId, title, body, NotifChannel.IN_APP),
+      this.notifs.sendPush(event.userId, title, body),
+      this.notifs.sendSms(event.userId, body),
     ]);
   }
 
