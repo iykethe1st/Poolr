@@ -4,8 +4,17 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { HTTPError } from 'ky';
-import { Loader2, ShieldAlert, Users } from 'lucide-react';
+import { Loader2, ShieldCheck, TriangleAlert, Users } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { isAuthenticated } from '@/lib/auth';
 import { useGroup, useJoinGroup, useDeclineInvite } from '@/hooks/use-group';
 import { useCurrentUser } from '@/hooks/use-dashboard';
@@ -88,11 +97,13 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
   const joinGroup = useJoinGroup(groupId);
   const declineInvite = useDeclineInvite(groupId);
   const [error, setError] = useState('');
-  const [kycRequired, setKycRequired] = useState(false);
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
 
   const myMember = group?.members.find((m) => m.userId === me?.id);
   const isInvited = myMember?.memberStatus === 'INVITED';
   const isActive = myMember?.memberStatus === 'ACTIVE';
+
+  const kycRedirect = encodeURIComponent(`/groups/${groupId}/join${token ? `?token=${token}` : ''}`);
 
   useEffect(() => {
     if (isActive) {
@@ -100,40 +111,41 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
     }
   }, [isActive, groupId, router]);
 
-  async function handleAccept() {
+  function handleAccept() {
     setError('');
-    setKycRequired(false);
-    try {
-      await joinGroup.mutateAsync(token);
-      router.push(`/groups/${groupId}`);
-      router.refresh();
-    } catch (err) {
-      if (err instanceof HTTPError) {
-        const body = await err.response.json<{ message?: string }>().catch(() => ({} as { message?: string }));
-        if (err.response.status === 403 && body.message?.toLowerCase().includes('kyc')) {
-          setKycRequired(true);
-        } else {
+    joinGroup.mutate(token, {
+      onSuccess: () => {
+        router.push(`/groups/${groupId}`);
+        router.refresh();
+      },
+      onError: async (err) => {
+        if (err instanceof HTTPError) {
+          const body: { message?: string } = await err.response.json().catch(() => ({}));
+          if (err.response.status === 403 && body.message?.toLowerCase().includes('kyc')) {
+            setKycDialogOpen(true);
+            return;
+          }
           setError(body.message ?? 'Failed to accept. The invite link may have expired.');
+        } else {
+          setError('Something went wrong. Please try again.');
         }
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
-    }
+      },
+    });
   }
 
-  async function handleDecline() {
+  function handleDecline() {
     setError('');
-    try {
-      await declineInvite.mutateAsync();
-      router.push('/groups');
-    } catch (err) {
-      if (err instanceof HTTPError) {
-        const body = await err.response.json<{ message?: string }>().catch(() => ({} as { message?: string }));
-        setError(body.message ?? 'Failed to decline invitation.');
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
-    }
+    declineInvite.mutate(undefined, {
+      onSuccess: () => router.push('/groups'),
+      onError: async (err) => {
+        if (err instanceof HTTPError) {
+          const body: { message?: string } = await err.response.json().catch(() => ({}));
+          setError(body.message ?? 'Failed to decline invitation.');
+        } else {
+          setError('Something went wrong. Please try again.');
+        }
+      },
+    });
   }
 
   if (groupLoading) {
@@ -179,68 +191,77 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
   const busy = joinGroup.isPending || declineInvite.isPending;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <span className="text-2xl font-bold tracking-tight">Poolr</span>
-        </div>
-
-        <div className="rounded-2xl border bg-card p-8 shadow-sm space-y-6">
-          <div className="text-center space-y-2">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10">
-              <Users className="size-7 text-primary" />
+    <>
+      <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <div className="mb-2 flex size-12 items-center justify-center rounded-2xl bg-amber-100">
+              <ShieldCheck className="size-6 text-amber-600" />
             </div>
-            <h1 className="text-xl font-semibold">{group.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {formatFrequency(group.frequency)} &nbsp;·&nbsp;{' '}
-              {formatCurrency(group.contributionAmount, group.currency)} per member
-            </p>
-            <p className="text-sm">You&apos;ve been invited to join this savings circle.</p>
+            <DialogTitle>Identity verification required</DialogTitle>
+            <DialogDescription>
+              You need to verify your identity before joining a savings group. This protects
+              everyone in the circle and is required for all members.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKycDialogOpen(false)}>
+              Not now
+            </Button>
+            <Button asChild>
+              <Link href={`/kyc?redirect=${kycRedirect}`}>Verify identity</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-6 text-center">
+            <span className="text-2xl font-bold tracking-tight">Poolr</span>
           </div>
 
-          {kycRequired && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-              <span>
-                Identity verification is required to join.{' '}
-                <Link
-                  href={`/kyc?redirect=${encodeURIComponent(`/groups/${groupId}/join${token ? `?token=${token}` : ''}`)}`}
-                  className="font-medium underline underline-offset-4"
-                >
-                  Verify now
-                </Link>
-              </span>
+          <div className="rounded-2xl border bg-card p-8 shadow-sm space-y-6">
+            <div className="text-center space-y-2">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10">
+                <Users className="size-7 text-primary" />
+              </div>
+              <h1 className="text-xl font-semibold">{group.name}</h1>
+              <p className="text-sm text-muted-foreground">
+                {formatFrequency(group.frequency)} &nbsp;·&nbsp;{' '}
+                {formatCurrency(group.contributionAmount, group.currency)} per member
+              </p>
+              <p className="text-sm">You&apos;ve been invited to join this savings circle.</p>
             </div>
-          )}
 
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
 
-          <div className="space-y-3">
-            {kycRequired ? (
-              <Button className="w-full" asChild>
-                <Link
-                  href={`/kyc?redirect=${encodeURIComponent(`/groups/${groupId}/join${token ? `?token=${token}` : ''}`)}`}
-                >
-                  Complete verification
-                </Link>
-              </Button>
-            ) : (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <p>
+                By joining, you commit to contributing every cycle for the full duration.{' '}
+                <strong>Any losses from members who default are shared by the entire group,
+                including you.</strong>
+              </p>
+            </div>
+
+            <div className="space-y-3">
               <Button className="w-full" onClick={handleAccept} disabled={busy}>
                 {joinGroup.isPending && <Loader2 className="size-4 animate-spin" />}
                 Accept invitation
               </Button>
-            )}
-            <Button variant="outline" className="w-full" onClick={handleDecline} disabled={busy}>
-              {declineInvite.isPending && <Loader2 className="size-4 animate-spin" />}
-              Decline
-            </Button>
+              <Button variant="outline" className="w-full" onClick={handleDecline} disabled={busy}>
+                {declineInvite.isPending && <Loader2 className="size-4 animate-spin" />}
+                Decline
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -131,6 +130,7 @@ model User {
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
   kycProfile        KycProfile?
+  bankAccount       BankAccount?
   groupsAdminOf     Group[]        @relation("GroupAdmin")
   groupMemberships  GroupMember[]
   cyclesAsRecipient Cycle[]        @relation("CycleRecipient")
@@ -173,11 +173,26 @@ model Group {
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
 
-  admin   User          @relation("GroupAdmin", fields: [adminId], references: [id])
-  members GroupMember[]
-  cycles  Cycle[]
+  admin        User          @relation("GroupAdmin", fields: [adminId], references: [id])
+  members      GroupMember[]
+  cycles       Cycle[]
+  groupAccount GroupAccount?
 
   @@map("groups")
+}
+
+model GroupAccount {
+  id                   String   @id @default(cuid())
+  groupId              String   @unique @map("group_id")
+  paystackCustomerCode String   @map("paystack_customer_code")
+  accountNumber        String   @map("account_number")
+  accountName          String   @map("account_name")
+  bankName             String   @map("bank_name")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("group_accounts")
 }
 
 model GroupMember {
@@ -299,6 +314,22 @@ model WalletTransaction {
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@map("wallet_transactions")
+}
+
+model BankAccount {
+  id                    String   @id @default(cuid())
+  userId                String   @unique @map("user_id")
+  bankCode              String   @map("bank_code")
+  bankName              String   @map("bank_name")
+  accountNumber         String   @map("account_number")
+  accountName           String   @map("account_name")
+  paystackRecipientCode String   @map("paystack_recipient_code")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bank_accounts")
 }
 
 model Notification {

@@ -9,6 +9,7 @@
     "dev:web": "turbo dev --filter=@poolr/web",
     "dev:admin": "turbo dev --filter=@poolr/admin",
     "dev:mobile": "turbo dev --filter=@poolr/mobile",
+    "db:studio": "turbo dev --filter=@poolr/database -- prisma studio",
     "lint": "turbo lint",
     "test": "turbo test",
     "clean": "turbo clean"

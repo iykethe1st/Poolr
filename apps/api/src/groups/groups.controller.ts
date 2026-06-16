@@ -124,4 +124,10 @@ export class GroupsController {
   start(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {
     return this.groups.startGroup(groupId, user.id);
   }
+
+  @Get(':id/history')
+  @ApiOperation({ summary: 'Get group history: contributions, payouts, penalties, members' })
+  getHistory(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {
+    return this.groups.getGroupHistory(groupId, user.id);
+  }
 }

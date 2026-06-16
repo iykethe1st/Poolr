@@ -1,11 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, Loader2, Mail, Plus, Users, X } from 'lucide-react';
+import { HTTPError } from 'ky';
+import { Check, Loader2, Mail, Plus, ShieldCheck, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { PageHeader } from '@/components/layout/page-shell';
 import { useGroups, useCurrentUser, type GroupWithMembers } from '@/hooks/use-dashboard';
 import { useAcceptInvite, useDeclineInvite } from '@/hooks/use-group';
@@ -89,62 +99,107 @@ function InviteCard({ group }: { group: GroupWithMembers }) {
   const router = useRouter();
   const accept = useAcceptInvite(group.id);
   const decline = useDeclineInvite(group.id);
-  const activeCount = group.members.filter((m) => m.memberStatus === 'ACTIVE').length;
+  const [error, setError] = useState('');
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const busy = accept.isPending || decline.isPending;
 
-  async function handleAccept(e: React.MouseEvent) {
+  const kycRedirect = encodeURIComponent(`/groups/${group.id}`);
+
+  function handleAccept(e: React.MouseEvent) {
     e.preventDefault();
-    await accept.mutateAsync();
-    router.push(`/groups/${group.id}`);
+    setError('');
+    accept.mutate(undefined, {
+      onSuccess: () => router.push(`/groups/${group.id}`),
+      onError: async (err) => {
+        if (err instanceof HTTPError) {
+          const body: { message?: string } = await err.response.json().catch(() => ({}));
+          if (err.response.status === 403 && body.message?.toLowerCase().includes('kyc')) {
+            setKycDialogOpen(true);
+            return;
+          }
+          setError(body.message ?? 'Failed to accept. Please try again.');
+        } else {
+          setError('Failed to accept. Please try again.');
+        }
+      },
+    });
   }
 
-  async function handleDecline(e: React.MouseEvent) {
+  function handleDecline(e: React.MouseEvent) {
     e.preventDefault();
-    await decline.mutateAsync();
+    decline.mutate(undefined, {
+      onError: () => setError('Failed to decline. Please try again.'),
+    });
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-dashed bg-card p-5 shadow-sm">
-      <Link href={`/groups/${group.id}`} className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate font-semibold">{group.name}</p>
-          <p className="text-xs text-muted-foreground">{formatFrequency(group.frequency)}</p>
+    <>
+      <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <div className="mb-2 flex size-12 items-center justify-center rounded-2xl bg-amber-100">
+              <ShieldCheck className="size-6 text-amber-600" />
+            </div>
+            <DialogTitle>Identity verification required</DialogTitle>
+            <DialogDescription>
+              You need to verify your identity before joining a savings group. This protects
+              everyone in the circle and is required for all members.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKycDialogOpen(false)}>
+              Not now
+            </Button>
+            <Button asChild>
+              <Link href={`/kyc?redirect=${kycRedirect}`}>Verify identity</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-dashed bg-card p-5 shadow-sm">
+        <Link href={`/groups/${group.id}`} className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{group.name}</p>
+            <p className="text-xs text-muted-foreground">{formatFrequency(group.frequency)}</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+            Invited
+          </span>
+        </Link>
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xl font-bold">
+              {formatCurrency(group.contributionAmount, group.currency)}
+            </p>
+            <p className="text-xs text-muted-foreground">per member</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-medium">{group.members.filter((m) => m.memberStatus === 'ACTIVE').length} / {group.maxMembers}</p>
+            <p className="text-xs text-muted-foreground">members</p>
+          </div>
         </div>
-        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-          Invited
-        </span>
-      </Link>
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-xl font-bold">
-            {formatCurrency(group.contributionAmount, group.currency)}
-          </p>
-          <p className="text-xs text-muted-foreground">per member</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-medium">{activeCount} / {group.maxMembers}</p>
-          <p className="text-xs text-muted-foreground">members</p>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex gap-2 border-t pt-3">
+          <Button size="sm" className="flex-1" onClick={handleAccept} disabled={busy}>
+            {accept.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Check className="size-3.5" />
+            )}
+            Accept
+          </Button>
+          <Button size="sm" variant="outline" className="flex-1" onClick={handleDecline} disabled={busy}>
+            {decline.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <X className="size-3.5" />
+            )}
+            Decline
+          </Button>
         </div>
       </div>
-      <div className="flex gap-2 border-t pt-3">
-        <Button size="sm" className="flex-1" onClick={handleAccept} disabled={busy}>
-          {accept.isPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Check className="size-3.5" />
-          )}
-          Accept
-        </Button>
-        <Button size="sm" variant="outline" className="flex-1" onClick={handleDecline} disabled={busy}>
-          {decline.isPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <X className="size-3.5" />
-          )}
-          Decline
-        </Button>
-      </div>
-    </div>
+    </>
   );
 }
 

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContribStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
+import { ContribStatus, CycleStatus, GroupStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -16,6 +16,8 @@ import { WalletService } from '../wallet/wallet.service';
 import {
   NOTIFICATION_EVENTS,
   ContributionReceivedEvent,
+  MemberContributedEvent,
+  MemberPayoutReceivedEvent,
 } from '../notifications/events/notification.events';
 
 const WEBHOOK_TTL = 60 * 60 * 24 * 30; // 30 days
@@ -122,7 +124,11 @@ export class PaymentsService {
     this.logger.log(`Paystack event: ${event}`);
     switch (event) {
       case 'charge.success':
-        await this.handleChargeSuccess(data);
+        if ((data['channel'] as string) === 'dedicated_nuban') {
+          await this.handleDvaCharge(data);
+        } else {
+          await this.handleChargeSuccess(data);
+        }
         break;
       case 'transfer.success':
         await this.handleTransferSuccess(data);
@@ -130,6 +136,9 @@ export class PaymentsService {
       case 'transfer.failed':
       case 'transfer.reversed':
         await this.handleTransferFailed(data);
+        break;
+      case 'dedicated_account.assign.success':
+        this.logger.log(`DVA assigned: ${JSON.stringify(data['dedicated_account'])}`);
         break;
       default:
         this.logger.debug(`Unhandled Paystack event: ${event}`);
@@ -184,7 +193,140 @@ export class PaymentsService {
         groupName: cycle.group.name,
       };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_RECEIVED, evt);
+      this.emitMemberContributed(contribution.member.userId, cycle.groupId, cycle.group.name, amountNgn).catch(() => null);
     }
+
+    const unpaid = await this.prisma.contribution.count({
+      where: { cycleId: contribution.cycleId, status: { not: ContribStatus.PAID } },
+    });
+
+    if (unpaid === 0) {
+      await this.triggerPayout(contribution.cycleId).catch((err: Error) =>
+        this.logger.error(`Payout trigger failed for cycle ${contribution.cycleId}: ${err.message}`),
+      );
+    }
+  }
+
+  async handleDvaCharge(data: Record<string, unknown>): Promise<void> {
+    const reference = data['reference'] as string;
+    const idempotencyKey = `webhook:dva:${reference}`;
+
+    if (await this.redis.get(idempotencyKey)) return;
+
+    const amountNgn = ((data['amount'] as number) ?? 0) / 100;
+
+    // Identify the group from the Paystack customer code
+    const customer = (data['customer'] as Record<string, unknown>) ?? {};
+    const customerCode = customer['customer_code'] as string | undefined;
+
+    if (!customerCode) {
+      this.logger.warn(`DVA ${reference}: no customer_code in payload`);
+      await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+      return;
+    }
+
+    const groupAccount = await this.prisma.groupAccount.findFirst({
+      where: { paystackCustomerCode: customerCode },
+      select: { groupId: true },
+    });
+
+    if (!groupAccount) {
+      this.logger.warn(`DVA ${reference}: no group for customer ${customerCode}`);
+      await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+      return;
+    }
+
+    const { groupId } = groupAccount;
+
+    // ── Match the contribution ──────────────────────────────────────────────────
+
+    let contributionId: string | null = null;
+
+    // Primary: our reference embedded in the transfer narration
+    const authorization = (data['authorization'] as Record<string, unknown>) ?? {};
+    const narration = (authorization['narration'] as string | undefined) ?? '';
+    const refMatch = narration.match(/contrib_[a-z0-9_]+/i);
+
+    if (refMatch?.[0]) {
+      const found = await this.prisma.contribution.findFirst({
+        where: { paystackRef: refMatch[0], status: { not: ContribStatus.PAID } },
+        select: { id: true },
+      });
+      contributionId = found?.id ?? null;
+    }
+
+    // Secondary: single pending contribution in the current active/pending cycle
+    if (!contributionId) {
+      const activeCycle = await this.prisma.cycle.findFirst({
+        where: { groupId, status: { in: [CycleStatus.ACTIVE, CycleStatus.PENDING] } },
+        orderBy: { cycleNumber: 'asc' },
+        select: { id: true },
+      });
+
+      if (activeCycle) {
+        const pending = await this.prisma.contribution.findMany({
+          where: { cycleId: activeCycle.id, status: ContribStatus.PENDING },
+          select: { id: true, amount: true },
+        });
+
+        const matching = pending.filter((c) => Number(c.amount) === amountNgn);
+
+        if (matching.length === 1) {
+          contributionId = matching[0].id;
+        } else {
+          this.logger.warn(
+            `DVA ${reference}: ${matching.length} matching pending contributions ` +
+              `for group ${groupId} (₦${amountNgn}) — needs manual reconciliation`,
+          );
+          await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+          return;
+        }
+      }
+    }
+
+    if (!contributionId) {
+      this.logger.warn(
+        `DVA ${reference}: no matching contribution for group ${groupId} (₦${amountNgn})`,
+      );
+      await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+      return;
+    }
+
+    // ── Apply payment ───────────────────────────────────────────────────────────
+
+    const contribution = await this.prisma.contribution.findUniqueOrThrow({
+      where: { id: contributionId },
+      include: { member: true, cycle: { include: { group: { select: { name: true } } } } },
+    });
+
+    if (contribution.status === ContribStatus.PAID) {
+      await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+      return;
+    }
+
+    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.contribution.update({
+        where: { id: contribution.id },
+        data: { status: ContribStatus.PAID, paidAt: new Date(), paystackRef: reference },
+      });
+      await this.walletService.credit(
+        contribution.member.userId,
+        amountNgn,
+        `wt_contrib_${reference}`,
+        TxType.CONTRIBUTION,
+        tx,
+      );
+    });
+
+    await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+
+    const evt: ContributionReceivedEvent = {
+      userId: contribution.member.userId,
+      amountNgn,
+      groupName: contribution.cycle.group.name,
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_RECEIVED, evt);
+    this.emitMemberContributed(contribution.member.userId, groupId, contribution.cycle.group.name, amountNgn).catch(() => null);
 
     const unpaid = await this.prisma.contribution.count({
       where: { cycleId: contribution.cycleId, status: { not: ContribStatus.PAID } },
@@ -290,30 +432,152 @@ export class PaymentsService {
       _sum: { amount: true },
     });
     const payoutAmount = Number(agg._sum.amount ?? 0);
-
     const payoutRef = `payout_${cycleId.slice(-8)}_${Date.now()}`;
 
-    const payout = await this.prisma.payout.create({
-      data: {
-        cycleId,
-        recipientId: cycle.recipientId,
-        amount: payoutAmount,
-        status: PayoutStatus.INITIATED,
-        initiatedAt: new Date(),
-      },
+    // ── 1. Create payout record and initiate transfer ─────────────────────────
+    const bankAccount = await this.prisma.bankAccount.findUnique({
+      where: { userId: cycle.recipientId },
     });
 
-    const { transferCode } = await this.paystack.initiateTransfer({
-      amountNgn: payoutAmount,
-      recipientCode: `rcpt_${cycle.recipientId}`,
-      reference: payoutRef,
-      reason: `Poolr payout — cycle ${cycle.cycleNumber}`,
+    if (!bankAccount) {
+      // Hold payout — recipient hasn't registered a bank account
+      await this.prisma.payout.create({
+        data: {
+          cycleId,
+          recipientId: cycle.recipientId,
+          amount: payoutAmount,
+          status: PayoutStatus.PENDING,
+          initiatedAt: new Date(),
+        },
+      });
+      this.logger.warn(
+        `Payout for cycle ${cycle.cycleNumber} held — recipient ${cycle.recipientId} has no bank account`,
+      );
+      // Notify the recipient to add their bank details
+      this.eventEmitter.emit('notification.payout.bank_required', {
+        userId: cycle.recipientId,
+        groupName: cycle.group.name,
+        amountNgn: payoutAmount,
+      });
+      // Still advance to next cycle below — fall through after early return of payout creation
+    } else {
+      const payout = await this.prisma.payout.create({
+        data: {
+          cycleId,
+          recipientId: cycle.recipientId,
+          amount: payoutAmount,
+          status: PayoutStatus.INITIATED,
+          initiatedAt: new Date(),
+        },
+      });
+
+      const { transferCode } = await this.paystack.initiateTransfer({
+        amountNgn: payoutAmount,
+        recipientCode: bankAccount.paystackRecipientCode,
+        reference: payoutRef,
+        reason: `Poolr payout — cycle ${cycle.cycleNumber}`,
+      });
+
+      await this.prisma.payout.update({
+        where: { id: payout.id },
+        data: { paystackTransferCode: transferCode },
+      });
+    }
+
+    // ── 2. Mark current cycle COMPLETED ──────────────────────────────────────
+    await this.prisma.cycle.update({
+      where: { id: cycleId },
+      data: { status: CycleStatus.COMPLETED, payoutDate: new Date() },
     });
 
-    await this.prisma.payout.update({
-      where: { id: payout.id },
-      data: { paystackTransferCode: transferCode },
+    // ── 3. Activate next cycle (or complete the group) ────────────────────────
+    const nextCycle = await this.prisma.cycle.findFirst({
+      where: { groupId: cycle.groupId, status: CycleStatus.PENDING },
+      orderBy: { cycleNumber: 'asc' },
     });
+
+    if (nextCycle) {
+      // Activate next cycle and pre-create contributions for all active members
+      const activeMembers = await this.prisma.groupMember.findMany({
+        where: { groupId: cycle.groupId, memberStatus: MemberStatus.ACTIVE },
+        select: { id: true },
+      });
+
+      await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.cycle.update({
+          where: { id: nextCycle.id },
+          data: { status: CycleStatus.ACTIVE },
+        });
+        for (const member of activeMembers) {
+          await tx.contribution.upsert({
+            where: { cycleId_memberId: { cycleId: nextCycle.id, memberId: member.id } },
+            create: {
+              cycleId: nextCycle.id,
+              memberId: member.id,
+              amount: cycle.group.contributionAmount,
+              dueAt: nextCycle.dueDate,
+              status: ContribStatus.PENDING,
+            },
+            update: {},
+          });
+        }
+      });
+
+      this.logger.log(`Cycle ${cycle.cycleNumber} completed → cycle ${nextCycle.cycleNumber} now ACTIVE`);
+    } else {
+      // All cycles done — close the group
+      await this.prisma.group.update({
+        where: { id: cycle.groupId },
+        data: { status: GroupStatus.COMPLETED },
+      });
+      this.logger.log(`All cycles completed for group ${cycle.groupId} — group marked COMPLETED`);
+    }
+
+    this.emitMemberPayoutReceived(cycle.recipientId, cycle.groupId, cycle.group.name, payoutAmount).catch(() => null);
+  }
+
+  private async emitMemberContributed(
+    payerUserId: string,
+    groupId: string,
+    groupName: string,
+    amountNgn: number,
+  ): Promise<void> {
+    const [payer, others] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: payerUserId }, select: { fullName: true } }),
+      this.prisma.groupMember.findMany({
+        where: { groupId, memberStatus: MemberStatus.ACTIVE, userId: { not: payerUserId } },
+        select: { userId: true },
+      }),
+    ]);
+    const evt: MemberContributedEvent = {
+      payerName: payer.fullName,
+      groupName,
+      amountNgn,
+      otherMemberUserIds: others.map((m) => m.userId),
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.MEMBER_CONTRIBUTED, evt);
+  }
+
+  private async emitMemberPayoutReceived(
+    recipientUserId: string,
+    groupId: string,
+    groupName: string,
+    amountNgn: number,
+  ): Promise<void> {
+    const [recipient, others] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: recipientUserId }, select: { fullName: true } }),
+      this.prisma.groupMember.findMany({
+        where: { groupId, memberStatus: MemberStatus.ACTIVE, userId: { not: recipientUserId } },
+        select: { userId: true },
+      }),
+    ]);
+    const evt: MemberPayoutReceivedEvent = {
+      recipientName: recipient.fullName,
+      groupName,
+      amountNgn,
+      otherMemberUserIds: others.map((m) => m.userId),
+    };
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.MEMBER_PAYOUT_RECEIVED, evt);
   }
 
   private async getContributionAmount(cycleId: string): Promise<number> {

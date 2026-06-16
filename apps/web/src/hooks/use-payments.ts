@@ -19,6 +19,27 @@ export function useInitializeContribution() {
   });
 }
 
+export type MyPayout = {
+  id: string;
+  amount: number;
+  status: string;
+  initiatedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  cycle: {
+    cycleNumber: number;
+    group: { id: string; name: string };
+  };
+};
+
+export function useMyPayouts() {
+  return useQuery<MyPayout[]>({
+    queryKey: ['my-payouts'],
+    queryFn: () => apiClient.get('payments/payouts').json<MyPayout[]>(),
+    staleTime: 30_000,
+  });
+}
+
 export function useVerifyPayment(reference: string | null) {
   const qc = useQueryClient();
 

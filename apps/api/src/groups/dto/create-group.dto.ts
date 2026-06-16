@@ -28,9 +28,9 @@ export class CreateGroupDto {
   @IsEnum(Frequency)
   frequency!: Frequency;
 
-  @ApiProperty({ minimum: 2, maximum: 50 })
+  @ApiProperty({ minimum: 3, maximum: 50 })
   @IsInt()
-  @Min(2)
+  @Min(3)
   @Max(50)
   maxMembers!: number;
 

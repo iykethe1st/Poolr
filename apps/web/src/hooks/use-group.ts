@@ -36,6 +36,12 @@ export type Cycle = {
   updatedAt: string;
 };
 
+export type GroupVirtualAccount = {
+  accountNumber: string;
+  accountName: string;
+  bankName: string;
+};
+
 export type GroupDetail = {
   id: string;
   adminId: string;
@@ -51,6 +57,64 @@ export type GroupDetail = {
   updatedAt: string;
   members: GroupMember[];
   cycles: Cycle[];
+  groupAccount: GroupVirtualAccount | null;
+};
+
+// ─── History Types ────────────────────────────────────────────────────────────
+
+export type HistoryMember = {
+  id: string;
+  userId: string;
+  rotationPosition: number;
+  memberStatus: string;
+  joinedAt: string;
+  user: { id: string; fullName: string; email: string };
+};
+
+export type GroupContribution = {
+  id: string;
+  cycleId: string;
+  memberId: string;
+  amount: number;
+  status: string;
+  paidAt: string | null;
+  dueAt: string;
+  createdAt: string;
+  member: { user: { id: string; fullName: string } };
+  cycle: { cycleNumber: number; status: string };
+};
+
+export type GroupPayout = {
+  id: string;
+  cycleId: string;
+  recipientId: string;
+  amount: number;
+  status: string;
+  initiatedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  recipient: { id: string; fullName: string };
+  cycle: { cycleNumber: number };
+};
+
+export type GroupPenalty = {
+  id: string;
+  memberId: string;
+  penaltyAmount: number;
+  reason: string;
+  status: string;
+  appliedAt: string | null;
+  createdAt: string;
+  member: { user: { id: string; fullName: string } };
+  contribution: { dueAt: string; cycle: { cycleNumber: number } };
+};
+
+export type GroupHistory = {
+  contributions: GroupContribution[];
+  payouts: GroupPayout[];
+  penalties: GroupPenalty[];
+  allMembers: HistoryMember[];
+  potValueNgn: number;
 };
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
@@ -61,6 +125,15 @@ export function useGroup(id: string) {
     queryFn: () => apiClient.get(`groups/${id}`).json<GroupDetail>(),
     staleTime: STALE,
     enabled: !!id,
+  });
+}
+
+export function useGroupHistory(id: string, enabled = true) {
+  return useQuery<GroupHistory>({
+    queryKey: ['group-history', id],
+    queryFn: () => apiClient.get(`groups/${id}/history`).json<GroupHistory>(),
+    staleTime: STALE,
+    enabled: !!id && enabled,
   });
 }
 

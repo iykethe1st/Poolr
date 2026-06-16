@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { HTTPError } from 'ky';
-import { Loader2 } from 'lucide-react';
+import { Loader2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ApiResponse } from '@poolr/types';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ const schema = z.object({
   maxMembers: z
     .number({ message: 'Enter a valid number' })
     .int()
-    .min(2, 'Minimum 2 members')
+    .min(3, 'Minimum 3 members')
     .max(50, 'Maximum 50 members'),
   startDate: z.string().optional(),
   penaltyEnabled: z.boolean(),
@@ -202,6 +202,15 @@ export function CreateGroupForm() {
             <FieldError message={errors.penaltyPercentage?.message} />
           </div>
         )}
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+        <p>
+          Only invite people you personally trust. If a member collects their payout and stops
+          contributing, <strong>the loss is shared by everyone in the group.</strong> Poolr cannot
+          recover funds from dishonest members.
+        </p>
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>
