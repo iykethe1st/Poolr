@@ -6,13 +6,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { HTTPError } from 'ky';
-import { Loader2, TriangleAlert } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ApiResponse } from '@poolr/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useCreateGroup } from '@/hooks/use-group';
+import { useCurrentUser } from '@/hooks/use-dashboard';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -39,8 +41,31 @@ function FieldError({ message }: { message?: string }) {
 
 export function CreateGroupForm() {
   const router = useRouter();
+  const { data: me } = useCurrentUser();
   const { mutateAsync, isPending } = useCreateGroup();
   const [serverError, setServerError] = useState('');
+
+  if (me && me.kycProfile?.kycStatus !== 'VERIFIED') {
+    return (
+      <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card py-12 text-center px-6">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-amber-100">
+          <ShieldCheck className="size-7 text-amber-600" />
+        </div>
+        <div>
+          <p className="font-semibold">Identity verification required</p>
+          <p className="mt-1 text-sm text-muted-foreground max-w-xs">
+            You need to verify your identity before creating a savings group. This protects
+            all members of your circle.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href={`/kyc?redirect=${encodeURIComponent('/groups/new')}`}>
+            Verify identity
+          </Link>
+        </Button>
+      </div>
+    );
+  }
 
   const {
     register,

@@ -19,6 +19,23 @@ export function useInitializeContribution() {
   });
 }
 
+export type NextPayout = {
+  groupId: string;
+  groupName: string;
+  cycleNumber: number;
+  amountNgn: number;
+  dueDate: string;
+  isActive: boolean;
+};
+
+export function useNextPayout() {
+  return useQuery<NextPayout | null>({
+    queryKey: ['next-payout'],
+    queryFn: () => apiClient.get('payments/next-payout').json<NextPayout | null>(),
+    staleTime: 30_000,
+  });
+}
+
 export type MyPayout = {
   id: string;
   amount: number;

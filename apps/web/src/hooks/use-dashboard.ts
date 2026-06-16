@@ -15,13 +15,6 @@ export type CurrentUser = {
   kycProfile: { kycStatus: string } | null;
 };
 
-export type WalletData = {
-  id: string;
-  userId: string;
-  balance: number;
-  currency: string;
-};
-
 export type GroupMemberSlim = {
   id: string;
   userId: string;
@@ -77,14 +70,6 @@ export function useCurrentUser() {
   return useQuery<CurrentUser>({
     queryKey: ['me'],
     queryFn: () => apiClient.get('users/me').json<CurrentUser>(),
-    staleTime: STALE,
-  });
-}
-
-export function useWallet() {
-  return useQuery<WalletData>({
-    queryKey: ['wallet'],
-    queryFn: () => apiClient.get('wallet').json<WalletData>(),
     staleTime: STALE,
   });
 }

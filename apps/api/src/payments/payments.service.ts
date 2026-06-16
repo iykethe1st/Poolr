@@ -419,6 +419,45 @@ export class PaymentsService {
     });
   }
 
+  async getNextPayout(userId: string) {
+    const groupSelect = {
+      select: {
+        id: true,
+        name: true,
+        contributionAmount: true,
+        members: { where: { memberStatus: MemberStatus.ACTIVE }, select: { id: true } },
+      },
+    } as const;
+
+    // Active cycle takes precedence — collection is happening right now
+    const active = await this.prisma.cycle.findFirst({
+      where: { recipientId: userId, status: CycleStatus.ACTIVE },
+      include: { group: groupSelect },
+    });
+
+    const cycle =
+      active ??
+      (await this.prisma.cycle.findFirst({
+        where: { recipientId: userId, status: CycleStatus.PENDING },
+        orderBy: { cycleNumber: 'asc' },
+        include: { group: groupSelect },
+      }));
+
+    if (!cycle) return null;
+
+    const memberCount = cycle.group.members.length;
+    const amountNgn = Number(cycle.group.contributionAmount) * memberCount;
+
+    return {
+      groupId: cycle.groupId,
+      groupName: cycle.group.name,
+      cycleNumber: cycle.cycleNumber,
+      amountNgn,
+      dueDate: cycle.dueDate.toISOString(),
+      isActive: cycle.status === CycleStatus.ACTIVE,
+    };
+  }
+
   // ── Private helpers ─────────────────────────────────────────────────────────
 
   private async triggerPayout(cycleId: string): Promise<void> {

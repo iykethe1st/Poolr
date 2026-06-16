@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
@@ -15,10 +15,11 @@ import {
   Users,
   Wallet,
   Zap,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
@@ -26,18 +27,19 @@ function LandingNav() {
   return (
     <header className="fixed top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <span className="flex size-7 items-center justify-center rounded-md bg-foreground text-background text-sm font-black">
-            P
-          </span>
+        <Link
+          href="/"
+          className="flex items-center text-xl font-bold tracking-tight"
+        >
+          <Image src="/favicon.png" alt="Poolr Logo" width={45} height={45} />
           Poolr
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
           {[
-            ['Features', '#features'],
-            ['How it works', '#how-it-works'],
-            ['Pricing', '#pricing'],
+            ["Features", "#features"],
+            ["How it works", "#how-it-works"],
+            ["Pricing", "#pricing"],
           ].map(([label, href]) => (
             <a
               key={href}
@@ -50,7 +52,12 @@ function LandingNav() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="hidden sm:inline-flex"
+          >
             <Link href="/login">Sign in</Link>
           </Button>
           <Button size="sm" asChild>
@@ -78,11 +85,14 @@ function HeroSection() {
       {/* Radial fade */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,oklch(0.97_0_0),transparent)]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,var(--background),transparent)]"
       />
 
       <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
-        <Badge variant="secondary" className="mb-5 gap-1.5 px-3 py-1 text-xs font-medium">
+        <Badge
+          variant="secondary"
+          className="mb-5 gap-1.5 px-3 py-1 text-xs font-medium"
+        >
           <Sparkles className="size-3" />
           Now available in Nigeria
         </Badge>
@@ -94,8 +104,9 @@ function HeroSection() {
         </h1>
 
         <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-          Poolr brings the power of community savings circles — ajo, esusu, tontine — into the
-          digital age. Automated contributions, full transparency, and on-time payouts.
+          Poolr brings the power of community savings circles — ajo, esusu,
+          tontine — into the digital age. Automated contributions, full
+          transparency, and on-time payouts.
         </p>
 
         <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -105,7 +116,12 @@ function HeroSection() {
               <ArrowRight className="size-4" />
             </Link>
           </Button>
-          <Button variant="outline" size="lg" asChild className="h-12 px-8 text-base">
+          <Button
+            variant="outline"
+            size="lg"
+            asChild
+            className="h-12 px-8 text-base"
+          >
             <a href="#how-it-works">See how it works</a>
           </Button>
         </div>
@@ -128,8 +144,8 @@ function AppPreview() {
     <div className="overflow-hidden rounded-2xl border bg-card shadow-2xl shadow-black/5">
       {/* Fake browser chrome */}
       <div className="flex h-10 items-center gap-2 border-b bg-muted/50 px-4">
-        {['bg-red-400', 'bg-yellow-400', 'bg-green-400'].map((c, i) => (
-          <span key={i} className={cn('size-2.5 rounded-full', c)} />
+        {["bg-red-400", "bg-yellow-400", "bg-green-400"].map((c, i) => (
+          <span key={i} className={cn("size-2.5 rounded-full", c)} />
         ))}
         <div className="mx-auto flex h-5 w-48 items-center justify-center rounded-sm bg-background/80 text-[10px] text-muted-foreground">
           app.poolr.ng/dashboard
@@ -140,8 +156,11 @@ function AppPreview() {
         {/* Sidebar */}
         <div className="hidden p-4 md:block bg-sidebar">
           <div className="mb-4 h-4 w-12 rounded bg-muted" />
-          {['Dashboard', 'Groups', 'Wallet', 'History'].map((item) => (
-            <div key={item} className="mb-2 flex items-center gap-2 rounded-md px-2 py-1.5">
+          {["Dashboard", "Groups", "Wallet", "History"].map((item) => (
+            <div
+              key={item}
+              className="mb-2 flex items-center gap-2 rounded-md px-2 py-1.5"
+            >
               <div className="size-3 rounded-sm bg-muted" />
               <div className="h-2.5 w-14 rounded bg-muted" />
             </div>
@@ -152,14 +171,28 @@ function AppPreview() {
           <div className="mb-4 h-4 w-28 rounded bg-muted" />
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: 'Balance', value: '₦124,000', color: 'text-emerald-600' },
-              { label: 'Next payout', value: 'Aug 15', color: 'text-foreground' },
-              { label: 'My groups', value: '3', color: 'text-foreground' },
-              { label: 'This month', value: '₦20,000', color: 'text-foreground' },
+              {
+                label: "Balance",
+                value: "₦124,000",
+                color: "text-emerald-600",
+              },
+              {
+                label: "Next payout",
+                value: "Aug 15",
+                color: "text-foreground",
+              },
+              { label: "My groups", value: "3", color: "text-foreground" },
+              {
+                label: "This month",
+                value: "₦20,000",
+                color: "text-foreground",
+              },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-xl border bg-background p-3">
-                <p className="mb-1 text-[10px] text-muted-foreground">{label}</p>
-                <p className={cn('text-sm font-bold', color)}>{value}</p>
+                <p className="mb-1 text-[10px] text-muted-foreground">
+                  {label}
+                </p>
+                <p className={cn("text-sm font-bold", color)}>{value}</p>
               </div>
             ))}
           </div>
@@ -189,10 +222,10 @@ function AppPreview() {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 const STATS = [
-  { value: '₦2.4B+', label: 'Total saved by members' },
-  { value: '50,000+', label: 'Active members' },
-  { value: '12,000+', label: 'Completed circles' },
-  { value: '99.8%', label: 'On-time payout rate' },
+  { value: "₦2.4B+", label: "Total saved by members" },
+  { value: "50,000+", label: "Active members" },
+  { value: "12,000+", label: "Completed circles" },
+  { value: "99.8%", label: "On-time payout rate" },
 ];
 
 function StatsSection() {
@@ -202,7 +235,9 @@ function StatsSection() {
         <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
           {STATS.map(({ value, label }) => (
             <div key={label} className="text-center">
-              <p className="text-3xl font-extrabold tracking-tight sm:text-4xl">{value}</p>
+              <p className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                {value}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">{label}</p>
             </div>
           ))}
@@ -217,39 +252,39 @@ function StatsSection() {
 const FEATURES = [
   {
     icon: RefreshCw,
-    title: 'Automated contributions',
+    title: "Automated contributions",
     description:
-      'No more chasing members. Set it up once and contributions are automatically collected and recorded on schedule.',
+      "No more chasing members. Set it up once and contributions are automatically collected and recorded on schedule.",
   },
   {
     icon: TrendingUp,
-    title: 'Full transparency',
+    title: "Full transparency",
     description:
-      'Every naira is accounted for in real time. See who has paid, who is next in the rotation, and your complete history.',
+      "Every naira is accounted for in real time. See who has paid, who is next in the rotation, and your complete history.",
   },
   {
     icon: Zap,
-    title: 'Fast payouts',
+    title: "Fast payouts",
     description:
-      'When it is your turn, your payout is initiated instantly and lands in your account within minutes.',
+      "When it is your turn, your payout is initiated instantly and lands in your account within minutes.",
   },
   {
     icon: Lock,
-    title: 'Secure & trustworthy',
+    title: "Secure & trustworthy",
     description:
-      'Bank-grade encryption, BVN verification, and escrow-style fund handling keep every circle safe.',
+      "Bank-grade encryption, BVN verification, and escrow-style fund handling keep every circle safe.",
   },
   {
     icon: Users,
-    title: 'Flexible group sizes',
+    title: "Flexible group sizes",
     description:
-      'Run intimate circles of 5 friends or large workplace pools of 50. Monthly, bi-weekly, or weekly — you decide.',
+      "Run intimate circles of 5 friends or large workplace pools of 50. Monthly, bi-weekly, or weekly — you decide.",
   },
   {
     icon: Smartphone,
-    title: 'Works everywhere',
+    title: "Works everywhere",
     description:
-      'Manage your circles from the web or our mobile app. Notifications keep everyone on the same page.',
+      "Manage your circles from the web or our mobile app. Notifications keep everyone on the same page.",
   },
 ];
 
@@ -258,13 +293,16 @@ function FeaturesSection() {
     <section id="features" className="py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">Features</Badge>
+          <Badge variant="secondary" className="mb-3">
+            Features
+          </Badge>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
             Everything your circle needs
           </h2>
           <p className="text-muted-foreground">
-            From creation to payout, Poolr handles the operational complexity so you can focus
-            on what matters — building trust and growing wealth together.
+            From creation to payout, Poolr handles the operational complexity so
+            you can focus on what matters — building trust and growing wealth
+            together.
           </p>
         </div>
 
@@ -278,7 +316,9 @@ function FeaturesSection() {
                 <Icon className="size-5" />
               </div>
               <h3 className="mb-2 font-semibold">{title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {description}
+              </p>
             </div>
           ))}
         </div>
@@ -291,32 +331,32 @@ function FeaturesSection() {
 
 const STEPS = [
   {
-    step: '01',
+    step: "01",
     icon: LayoutGrid,
-    title: 'Create or join a circle',
+    title: "Create or join a circle",
     description:
       "Start a new savings circle and invite your friends, family, or colleagues — or join one you've been invited to.",
   },
   {
-    step: '02',
+    step: "02",
     icon: CircleDollarSign,
-    title: 'Make your contribution',
+    title: "Make your contribution",
     description:
-      'Pay your agreed amount on schedule. We remind you before it is due and accept payment via card, bank transfer, or Paystack.',
+      "Pay your agreed amount on schedule. We remind you before it is due and accept payment via card, bank transfer, or Paystack.",
   },
   {
-    step: '03',
+    step: "03",
     icon: Globe,
-    title: 'The pool grows',
+    title: "The pool grows",
     description:
       "Every member's contribution is pooled together each cycle. The full amount goes to the designated recipient for that round.",
   },
   {
-    step: '04',
+    step: "04",
     icon: Wallet,
-    title: 'Receive your payout',
+    title: "Receive your payout",
     description:
-      'When it is your turn in the rotation, the total pool is sent directly to your bank account or Poolr wallet.',
+      "When it is your turn in the rotation, the total pool is sent directly to your bank account or Poolr wallet.",
   },
 ];
 
@@ -325,13 +365,15 @@ function HowItWorksSection() {
     <section id="how-it-works" className="bg-muted/30 py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">How it works</Badge>
+          <Badge variant="secondary" className="mb-3">
+            How it works
+          </Badge>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
             Simple as 1, 2, 3, 4
           </h2>
           <p className="text-muted-foreground">
-            Poolr takes the centuries-old tradition of community savings and makes it
-            effortless, fair, and fully digital.
+            Poolr takes the centuries-old tradition of community savings and
+            makes it effortless, fair, and fully digital.
           </p>
         </div>
 
@@ -348,12 +390,14 @@ function HowItWorksSection() {
               <div className="flex flex-col items-center text-center">
                 <div className="relative mb-4 flex size-12 items-center justify-center rounded-2xl border bg-background shadow-sm">
                   <Icon className="size-5" />
-                  <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-foreground text-[10px] font-bold text-background">
+                  <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                     {i + 1}
                   </span>
                 </div>
                 <h3 className="mb-2 font-semibold">{title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {description}
+                </p>
               </div>
             </div>
           ))}
@@ -369,23 +413,23 @@ const TESTIMONIALS = [
   {
     quote:
       "I've been doing ajo with my market women for 20 years. Poolr made it digital and I never have to argue about who paid again.",
-    name: 'Amaka O.',
-    role: 'Market trader, Lagos',
-    initials: 'AO',
+    name: "Amaka O.",
+    role: "Market trader, Lagos",
+    initials: "AO",
   },
   {
     quote:
-      'Our office ajo used to be a headache every month. Now Poolr handles everything and we all get notified automatically.',
-    name: 'Chidi N.',
-    role: 'Software engineer, Abuja',
-    initials: 'CN',
+      "Our office ajo used to be a headache every month. Now Poolr handles everything and we all get notified automatically.",
+    name: "Chidi N.",
+    role: "Software engineer, Abuja",
+    initials: "CN",
   },
   {
     quote:
-      'Received my first payout of ₦600,000 last month! The transparency is amazing — I could track every kobo.',
-    name: 'Funke A.',
-    role: 'Small business owner, Ibadan',
-    initials: 'FA',
+      "Received my first payout of ₦600,000 last month! The transparency is amazing — I could track every kobo.",
+    name: "Funke A.",
+    role: "Small business owner, Ibadan",
+    initials: "FA",
   },
 ];
 
@@ -394,7 +438,9 @@ function TestimonialsSection() {
     <section className="py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">Testimonials</Badge>
+          <Badge variant="secondary" className="mb-3">
+            Testimonials
+          </Badge>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
             Trusted by thousands
           </h2>
@@ -410,7 +456,7 @@ function TestimonialsSection() {
                 &ldquo;{quote}&rdquo;
               </blockquote>
               <figcaption className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
+                <div className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                   {initials}
                 </div>
                 <div>
@@ -430,43 +476,48 @@ function TestimonialsSection() {
 
 const PLANS = [
   {
-    name: 'Starter',
-    price: 'Free',
-    description: 'Perfect for small friend and family circles.',
-    features: ['Up to 5 members', 'Monthly cycles', 'Basic analytics', 'Email notifications'],
-    cta: 'Get started free',
-    href: '/register',
+    name: "Starter",
+    price: "Free",
+    description: "Perfect for small friend and family circles.",
+    features: [
+      "Up to 5 members",
+      "Monthly cycles",
+      "Basic analytics",
+      "Email notifications",
+    ],
+    cta: "Get started free",
+    href: "/register",
     highlighted: false,
   },
   {
-    name: 'Community',
-    price: '₦2,500',
-    period: '/month',
-    description: 'For larger groups and more flexible settings.',
+    name: "Community",
+    price: "₦2,500",
+    period: "/month",
+    description: "For larger groups and more flexible settings.",
     features: [
-      'Up to 25 members',
-      'Weekly, bi-weekly, or monthly',
-      'Advanced analytics',
-      'SMS + push notifications',
-      'Priority support',
+      "Up to 25 members",
+      "Weekly, bi-weekly, or monthly",
+      "Advanced analytics",
+      "SMS + push notifications",
+      "Priority support",
     ],
-    cta: 'Start free trial',
-    href: '/register?plan=community',
+    cta: "Start free trial",
+    href: "/register?plan=community",
     highlighted: true,
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    description: 'For organisations running multiple large circles.',
+    name: "Enterprise",
+    price: "Custom",
+    description: "For organisations running multiple large circles.",
     features: [
-      'Unlimited members',
-      'Custom cycle frequency',
-      'White-label option',
-      'Dedicated account manager',
-      'SLA guarantee',
+      "Unlimited members",
+      "Custom cycle frequency",
+      "White-label option",
+      "Dedicated account manager",
+      "SLA guarantee",
     ],
-    cta: 'Contact us',
-    href: 'mailto:hello@poolr.ng',
+    cta: "Contact us",
+    href: "mailto:hello@poolr.ng",
     highlighted: false,
   },
 ];
@@ -476,7 +527,9 @@ function PricingSection() {
     <section id="pricing" className="bg-muted/30 py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">Pricing</Badge>
+          <Badge variant="secondary" className="mb-3">
+            Pricing
+          </Badge>
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
             Transparent pricing
           </h2>
@@ -486,56 +539,105 @@ function PricingSection() {
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {PLANS.map(({ name, price, period, description, features, cta, href, highlighted }) => (
-            <div
-              key={name}
-              className={cn(
-                'relative flex flex-col rounded-2xl border p-6',
-                highlighted
-                  ? 'border-foreground bg-foreground text-background shadow-xl'
-                  : 'bg-card shadow-sm',
-              )}
-            >
-              {highlighted && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-background px-3 py-0.5 text-xs font-semibold text-foreground">
-                  Most popular
-                </span>
-              )}
-              <div className="mb-6">
-                <p className={cn('mb-1 text-sm font-medium', highlighted ? 'text-background/70' : 'text-muted-foreground')}>
-                  {name}
-                </p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold">{price}</span>
-                  {period && (
-                    <span className={cn('text-sm', highlighted ? 'text-background/60' : 'text-muted-foreground')}>
-                      {period}
-                    </span>
-                  )}
-                </div>
-                <p className={cn('mt-2 text-sm', highlighted ? 'text-background/70' : 'text-muted-foreground')}>
-                  {description}
-                </p>
-              </div>
-
-              <ul className="mb-8 flex-1 space-y-2.5">
-                {features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <BadgeCheck className={cn('size-4 shrink-0', highlighted ? 'text-background/80' : 'text-foreground')} />
-                    <span className={highlighted ? 'text-background/90' : ''}>{f}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <Button
-                variant={highlighted ? 'secondary' : 'default'}
-                className="w-full"
-                asChild
+          {PLANS.map(
+            ({
+              name,
+              price,
+              period,
+              description,
+              features,
+              cta,
+              href,
+              highlighted,
+            }) => (
+              <div
+                key={name}
+                className={cn(
+                  "relative flex flex-col rounded-2xl border p-6",
+                  highlighted
+                    ? "border-primary bg-primary text-primary-foreground shadow-xl"
+                    : "bg-card shadow-sm",
+                )}
               >
-                <Link href={href}>{cta}</Link>
-              </Button>
-            </div>
-          ))}
+                {highlighted && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary-foreground px-3 py-0.5 text-xs font-semibold text-primary">
+                    Most popular
+                  </span>
+                )}
+                <div className="mb-6">
+                  <p
+                    className={cn(
+                      "mb-1 text-sm font-medium",
+                      highlighted
+                        ? "text-primary-foreground/70"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {name}
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-extrabold">{price}</span>
+                    {period && (
+                      <span
+                        className={cn(
+                          "text-sm",
+                          highlighted
+                            ? "text-primary-foreground/60"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {period}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={cn(
+                      "mt-2 text-sm",
+                      highlighted
+                        ? "text-primary-foreground/70"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {description}
+                  </p>
+                </div>
+
+                <ul className="mb-8 flex-1 space-y-2.5">
+                  {features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm">
+                      <BadgeCheck
+                        className={cn(
+                          "size-4 shrink-0",
+                          highlighted
+                            ? "text-primary-foreground/80"
+                            : "text-foreground",
+                        )}
+                      />
+                      <span
+                        className={
+                          highlighted ? "text-primary-foreground/90" : ""
+                        }
+                      >
+                        {f}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                <Button
+                  variant={highlighted ? "secondary" : "default"}
+                  className={cn(
+                    "w-full",
+                    highlighted &&
+                      "bg-primary-foreground text-primary hover:bg-primary-foreground/90",
+                  )}
+                  asChild
+                >
+                  <Link href={href}>{cta}</Link>
+                </Button>
+              </div>
+            ),
+          )}
         </div>
       </div>
     </section>
@@ -548,16 +650,20 @@ function CTASection() {
   return (
     <section className="py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="overflow-hidden rounded-3xl bg-foreground px-8 py-16 text-center text-background sm:px-16">
+        <div className="overflow-hidden rounded-3xl bg-primary px-8 py-16 text-center text-primary-foreground sm:px-16">
           <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
             Ready to start your circle?
           </h2>
-          <p className="mx-auto mb-8 max-w-xl text-background/70">
-            Join thousands of Nigerians already saving smarter with Poolr. Set up your first
-            circle in under two minutes.
+          <p className="mx-auto mb-8 max-w-xl text-primary-foreground/70">
+            Join thousands of Nigerians already saving smarter with Poolr. Set
+            up your first circle in under two minutes.
           </p>
           <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button size="lg" variant="secondary" asChild className="h-12 px-8 text-base">
+            <Button
+              size="lg"
+              asChild
+              className="h-12 bg-primary-foreground px-8 text-base text-primary hover:bg-primary-foreground/90"
+            >
               <Link href="/register">
                 Create your circle
                 <ArrowRight className="size-4" />
@@ -567,7 +673,7 @@ function CTASection() {
               size="lg"
               variant="outline"
               asChild
-              className="h-12 border-background/20 bg-transparent px-8 text-base text-background hover:bg-background/10 hover:text-background"
+              className="h-12 border-primary-foreground/30 bg-transparent px-8 text-base text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
             >
               <Link href="/login">Sign in</Link>
             </Button>
@@ -586,10 +692,13 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Link href="/" className="mb-3 flex items-center gap-2 text-lg font-bold">
-              <span className="flex size-6 items-center justify-center rounded bg-foreground text-background text-xs font-black">
-                P
-              </span>
+            <Link href="/" className="mb-3 flex items-center text-lg font-bold">
+              <Image
+                src="/favicon.png"
+                alt="Poolr Logo"
+                width={45}
+                height={45}
+              />
               Poolr
             </Link>
             <p className="text-sm text-muted-foreground">
@@ -599,16 +708,16 @@ function Footer() {
 
           {[
             {
-              title: 'Product',
-              links: ['Features', 'How it works', 'Pricing', 'Security'],
+              title: "Product",
+              links: ["Features", "How it works", "Pricing", "Security"],
             },
             {
-              title: 'Company',
-              links: ['About', 'Blog', 'Careers', 'Contact'],
+              title: "Company",
+              links: ["About", "Blog", "Careers", "Contact"],
             },
             {
-              title: 'Legal',
-              links: ['Privacy policy', 'Terms of service', 'Cookie policy'],
+              title: "Legal",
+              links: ["Privacy policy", "Terms of service", "Cookie policy"],
             },
           ].map(({ title, links }) => (
             <div key={title}>
@@ -631,7 +740,8 @@ function Footer() {
 
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t pt-8 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Poolr Technologies Ltd. All rights reserved.
+            © {new Date().getFullYear()} Poolr Technologies Ltd. All rights
+            reserved.
           </p>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Made with</span>

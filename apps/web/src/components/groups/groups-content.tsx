@@ -30,9 +30,19 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'outline' | 'destru
 };
 
 export function GroupsContent() {
+  const router = useRouter();
   const { data: groups, isLoading } = useGroups();
   const { data: me } = useCurrentUser();
   const userId = me?.id;
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
+
+  function handleNewGroup() {
+    if (me && me.kycProfile?.kycStatus !== 'VERIFIED') {
+      setKycDialogOpen(true);
+    } else {
+      router.push('/groups/new');
+    }
+  }
 
   const myGroups = groups?.filter((g) => {
     const m = g.members.find((m) => m.userId === userId);
@@ -45,13 +55,35 @@ export function GroupsContent() {
   });
 
   return (
+    <>
+    <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <div className="mb-2 flex size-12 items-center justify-center rounded-2xl bg-amber-100">
+            <ShieldCheck className="size-6 text-amber-600" />
+          </div>
+          <DialogTitle>Identity verification required</DialogTitle>
+          <DialogDescription>
+            You need to verify your identity before creating a savings group. This protects
+            all members of your circle.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setKycDialogOpen(false)}>
+            Not now
+          </Button>
+          <Button asChild>
+            <Link href={`/kyc?redirect=${encodeURIComponent('/groups/new')}`}>Verify identity</Link>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <div className="space-y-8">
       <PageHeader title="Groups" description="Your savings circles">
-        <Button size="sm" asChild>
-          <Link href="/groups/new">
-            <Plus className="size-3.5" />
-            New group
-          </Link>
+        <Button size="sm" onClick={handleNewGroup}>
+          <Plus className="size-3.5" />
+          New group
         </Button>
       </PageHeader>
 
@@ -82,7 +114,7 @@ export function GroupsContent() {
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}
           </div>
         ) : !myGroups?.length ? (
-          <EmptyGroups />
+          <EmptyGroups onCreateGroup={handleNewGroup} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {myGroups.map((group) => (
@@ -92,6 +124,7 @@ export function GroupsContent() {
         )}
       </section>
     </div>
+    </>
   );
 }
 
@@ -246,7 +279,7 @@ function GroupCard({ group, currentUserId }: { group: GroupWithMembers; currentU
   );
 }
 
-function EmptyGroups() {
+function EmptyGroups({ onCreateGroup }: { onCreateGroup: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card py-16 text-center shadow-sm">
       <Users className="size-10 text-muted-foreground/40" />
@@ -256,11 +289,9 @@ function EmptyGroups() {
           Create a group to start saving with your community.
         </p>
       </div>
-      <Button size="sm" asChild>
-        <Link href="/groups/new">
-          <Plus className="size-3.5" />
-          Create group
-        </Link>
+      <Button size="sm" onClick={onCreateGroup}>
+        <Plus className="size-3.5" />
+        Create group
       </Button>
     </div>
   );

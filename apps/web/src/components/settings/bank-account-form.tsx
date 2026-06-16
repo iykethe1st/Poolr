@@ -286,7 +286,7 @@ function AddBankAccountFlow({
               </Button>
               <Button
                 variant="outline"
-                onClick={() => { setResolvedName(''); setConfirmed(false); }}
+                onClick={() => { setResolvedName(''); }}
                 disabled={save.isPending}
               >
                 Change

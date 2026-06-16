@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { MobileNav } from './mobile-nav';
 import { clearToken } from '@/lib/auth';
 
@@ -38,6 +39,7 @@ export function Navbar({ title }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1">
+        <ThemeToggle />
         <NotificationBell />
 
         <DropdownMenu>
