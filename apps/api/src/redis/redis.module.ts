@@ -10,16 +10,20 @@ import { RedisService } from './redis.service';
       provide: 'REDIS',
       useFactory: (config: ConfigService) => {
         const logger = new Logger('RedisModule');
-        const redisUrl = config.getOrThrow<string>('REDIS_URL');
-        const tls = redisUrl.startsWith('rediss://');
-        const redis = new Redis(redisUrl, {
+        const raw = config.getOrThrow<string>('REDIS_URL');
+        const parsed = new URL(raw);
+        const tls = parsed.protocol === 'rediss:';
+        const redis = new Redis({
+          host: parsed.hostname,
+          port: Number(parsed.port) || (tls ? 6380 : 6379),
+          password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+          ...(tls ? { tls: {} } : {}),
           lazyConnect: true,
           maxRetriesPerRequest: null,
           enableOfflineQueue: true,
           retryStrategy: (times: number) => Math.min(times * 200, 5_000),
           reconnectOnError: () => true,
           keepAlive: 30_000,
-          ...(tls ? { tls: {} } : {}),
         });
         redis.on('connect', () => logger.log('Redis connected'));
         redis.on('error', (err: Error) => logger.error(`Redis error: ${err.message || String(err)}`));
