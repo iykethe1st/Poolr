@@ -77,7 +77,7 @@ async function bootstrap() {
 
   // ── Listen ──────────────────────────────────────────────────────────────────
   const port = process.env.PORT ?? 3002;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   // Keep-alive timeout must exceed Render/proxy LB timeout (60 s) to avoid ECONNRESET noise
   const httpServer = app.getHttpServer();
