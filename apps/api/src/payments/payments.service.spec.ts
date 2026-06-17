@@ -2,15 +2,17 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContribStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
+import { ContribStatus, MemberStatus, PaymentSource, PayoutStatus, TxType } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaystackService } from './paystack.service';
 import { WalletService } from '../wallet/wallet.service';
+import { ConfigService } from '@nestjs/config';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -26,7 +28,7 @@ const MOCK_GROUP = { id: 'group-1', name: 'Test Pool', contributionAmount: 5000 
 const MOCK_CYCLE = { id: CYCLE_ID, groupId: 'group-1', recipientId: 'user-2', cycleNumber: 1, dueDate: new Date(), group: MOCK_GROUP };
 const MOCK_MEMBER = { id: MEMBER_ID, groupId: 'group-1', userId: USER_ID, rotationPosition: 1, memberStatus: MemberStatus.ACTIVE };
 const MOCK_USER = { id: USER_ID, email: 'user@example.com' };
-const MOCK_WALLET = { id: 'wallet-1', userId: USER_ID, balance: 0 };
+const MOCK_WALLET = { id: 'wallet-1', userId: USER_ID, balance: 10000, version: 0 };
 
 const MOCK_CONTRIBUTION = {
   id: CONTRIBUTION_ID,
@@ -41,6 +43,16 @@ const MOCK_CONTRIBUTION = {
   cycle: MOCK_CYCLE,
 };
 
+const MOCK_BANK_ACCOUNT = {
+  id: 'bank-1',
+  userId: 'user-2',
+  bankCode: '044',
+  bankName: 'Access Bank',
+  accountNumber: '0123456789',
+  accountName: 'Test User',
+  paystackRecipientCode: 'RCP_test123',
+};
+
 const MOCK_PAYOUT = {
   id: PAYOUT_ID,
   cycleId: CYCLE_ID,
@@ -53,16 +65,29 @@ const MOCK_PAYOUT = {
 };
 
 function makeWalletMock() {
-  return { credit: jest.fn().mockResolvedValue(undefined) };
+  return {
+    credit: jest.fn().mockResolvedValue(undefined),
+    debit: jest.fn().mockResolvedValue(undefined),
+  };
 }
 
 function makePrismaMock() {
   const txClient = {
-    contribution: { update: jest.fn().mockResolvedValue({}) },
+    contribution: {
+      update: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockResolvedValue(MOCK_CONTRIBUTION),
+    },
     payout: { update: jest.fn().mockResolvedValue({}) },
   };
   return {
-    cycle: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_CYCLE) },
+    cycle: {
+      findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_CYCLE),
+      findFirst: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    group: { update: jest.fn().mockResolvedValue({}) },
+    bankAccount: { findUnique: jest.fn().mockResolvedValue(MOCK_BANK_ACCOUNT) },
     groupMember: {
       findUnique: jest.fn().mockResolvedValue(MOCK_MEMBER),
       findMany: jest.fn().mockResolvedValue([MOCK_MEMBER]),
@@ -81,6 +106,7 @@ function makePrismaMock() {
       create: jest.fn().mockResolvedValue(MOCK_PAYOUT),
       update: jest.fn().mockResolvedValue(MOCK_PAYOUT),
     },
+    wallet: { findUnique: jest.fn().mockResolvedValue(MOCK_WALLET) },
     user: { findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_USER) },
     $: {
       $transaction: jest.fn().mockImplementation(
@@ -131,6 +157,7 @@ describe('PaymentsService', () => {
         { provide: PaystackService, useValue: paystack },
         { provide: WalletService, useValue: wallet },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('http://localhost:3000') } },
       ],
     }).compile();
 
@@ -184,6 +211,90 @@ describe('PaymentsService', () => {
         status: ContribStatus.PAID,
       });
       await expect(service.initializeContribution(USER_ID, CYCLE_ID)).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  // ── initializeContribution (WALLET) ──────────────────────────────────────
+
+  describe('initializeContribution — WALLET source', () => {
+    beforeEach(() => {
+      prisma.cycle.findUnique.mockResolvedValue(MOCK_CYCLE);
+      prisma.contribution.findUnique.mockResolvedValue(null);
+    });
+
+    it('debits wallet and marks contribution PAID in a single transaction', async () => {
+      const result = await service.initializeContribution(USER_ID, CYCLE_ID, PaymentSource.WALLET);
+
+      expect(prisma.$.$transaction).toHaveBeenCalled();
+      expect(prisma._txClient.contribution.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ContribStatus.PAID,
+            paymentSource: PaymentSource.WALLET,
+          }),
+        }),
+      );
+      expect(wallet.debit).toHaveBeenCalledWith(
+        USER_ID,
+        5000,
+        expect.stringContaining('contrib_wallet_'),
+        TxType.CONTRIBUTION,
+        expect.anything(), // tx client
+      );
+      expect(result).toMatchObject({ paid: true, paymentSource: PaymentSource.WALLET });
+    });
+
+    it('updates existing PENDING contribution instead of creating a new one', async () => {
+      prisma.contribution.findUnique.mockResolvedValue(MOCK_CONTRIBUTION);
+
+      await service.initializeContribution(USER_ID, CYCLE_ID, PaymentSource.WALLET);
+
+      expect(prisma._txClient.contribution.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: CONTRIBUTION_ID },
+          data: expect.objectContaining({ status: ContribStatus.PAID, paymentSource: PaymentSource.WALLET }),
+        }),
+      );
+      expect(prisma._txClient.contribution.create).not.toHaveBeenCalled();
+    });
+
+    it('throws 422 INSUFFICIENT_WALLET_BALANCE when balance is too low', async () => {
+      prisma.wallet.findUnique.mockResolvedValue({ ...MOCK_WALLET, balance: 1000 }); // less than 5000
+
+      const error = await service
+        .initializeContribution(USER_ID, CYCLE_ID, PaymentSource.WALLET)
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(UnprocessableEntityException);
+      expect((error as UnprocessableEntityException).getResponse()).toMatchObject({
+        error: 'INSUFFICIENT_WALLET_BALANCE',
+      });
+      expect(prisma.$.$transaction).not.toHaveBeenCalled();
+      expect(wallet.debit).not.toHaveBeenCalled();
+    });
+
+    it('throws 422 when wallet does not exist', async () => {
+      prisma.wallet.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.initializeContribution(USER_ID, CYCLE_ID, PaymentSource.WALLET),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('triggers payout when wallet payment completes the last unpaid contribution', async () => {
+      prisma.contribution.count.mockResolvedValue(0); // all paid after this one
+
+      await service.initializeContribution(USER_ID, CYCLE_ID, PaymentSource.WALLET);
+
+      expect(paystack.initiateTransfer).toHaveBeenCalled();
+    });
+
+    it('does not trigger payout when other contributions remain unpaid', async () => {
+      prisma.contribution.count.mockResolvedValue(2);
+
+      await service.initializeContribution(USER_ID, CYCLE_ID, PaymentSource.WALLET);
+
+      expect(paystack.initiateTransfer).not.toHaveBeenCalled();
     });
   });
 

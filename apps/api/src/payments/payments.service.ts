@@ -4,10 +4,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContribStatus, CycleStatus, GroupStatus, MemberStatus, PayoutStatus, TxType } from '@prisma/client';
+import { ContribStatus, CycleStatus, GroupStatus, MemberStatus, PaymentSource, PayoutStatus, TxType } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -37,7 +38,11 @@ export class PaymentsService {
 
   // ── Contribute ──────────────────────────────────────────────────────────────
 
-  async initializeContribution(userId: string, cycleId: string) {
+  async initializeContribution(
+    userId: string,
+    cycleId: string,
+    paymentSource: PaymentSource = PaymentSource.PAYSTACK,
+  ) {
     const cycle = await this.prisma.cycle.findUnique({
       where: { id: cycleId },
       include: { group: true },
@@ -58,6 +63,12 @@ export class PaymentsService {
     if (existing?.status === ContribStatus.PAID) {
       throw new BadRequestException('Contribution for this cycle is already paid');
     }
+
+    if (paymentSource === PaymentSource.WALLET) {
+      return this.initializeWalletContribution(userId, cycleId, member.id, cycle, existing?.id);
+    }
+
+    // ── Paystack path ────────────────────────────────────────────────────────
 
     let reference: string;
 
@@ -97,6 +108,69 @@ export class PaymentsService {
     });
 
     return { authorizationUrl, reference };
+  }
+
+  private async initializeWalletContribution(
+    userId: string,
+    cycleId: string,
+    memberId: string,
+    cycle: { groupId: string; dueDate: Date; group: { contributionAmount: unknown; name: string } },
+    existingContributionId?: string,
+  ) {
+    const amount = Number(cycle.group.contributionAmount);
+    const reference = `contrib_wallet_${cycleId.slice(-8)}_${userId.slice(-8)}_${Date.now()}`;
+
+    // Pre-flight balance check for a clear 422 before opening a transaction
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet || Number(wallet.balance) < amount) {
+      throw new UnprocessableEntityException({
+        error: 'INSUFFICIENT_WALLET_BALANCE',
+        message: `Wallet balance ₦${Number(wallet?.balance ?? 0).toFixed(2)} is less than the required ₦${amount.toFixed(2)}`,
+      });
+    }
+
+    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (existingContributionId) {
+        await tx.contribution.update({
+          where: { id: existingContributionId },
+          data: { status: ContribStatus.PAID, paymentSource: PaymentSource.WALLET, paidAt: new Date() },
+        });
+      } else {
+        await tx.contribution.create({
+          data: {
+            cycleId,
+            memberId,
+            amount: cycle.group.contributionAmount as number,
+            dueAt: cycle.dueDate,
+            status: ContribStatus.PAID,
+            paymentSource: PaymentSource.WALLET,
+            paystackRef: reference,
+            paidAt: new Date(),
+          },
+        });
+      }
+
+      // Atomic debit — throws UnprocessableEntityException if balance changed since pre-flight check
+      await this.walletService.debit(userId, amount, reference, TxType.CONTRIBUTION, tx);
+    });
+
+    this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_RECEIVED, {
+      userId,
+      amountNgn: amount,
+      groupName: cycle.group.name,
+    } satisfies ContributionReceivedEvent);
+    this.emitMemberContributed(userId, cycle.groupId, cycle.group.name, amount).catch(() => null);
+
+    const unpaid = await this.prisma.contribution.count({
+      where: { cycleId, status: { not: ContribStatus.PAID } },
+    });
+    if (unpaid === 0) {
+      await this.triggerPayout(cycleId).catch((err: Error) =>
+        this.logger.error(`Payout trigger failed for cycle ${cycleId}: ${err.message}`),
+      );
+    }
+
+    return { paid: true, paymentSource: PaymentSource.WALLET, reference };
   }
 
   // ── Verify ──────────────────────────────────────────────────────────────────
