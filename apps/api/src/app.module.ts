@@ -46,11 +46,18 @@ import { envValidationSchema } from './config/env.validation';
     BullModule.forRootAsync({
       useFactory: (config: ConfigService) => {
         const redisUrl = new URL(config.getOrThrow<string>('REDIS_URL'));
+        const tls = redisUrl.protocol === 'rediss:';
         return {
           connection: {
             host: redisUrl.hostname,
-            port: Number(redisUrl.port) || 6379,
+            port: Number(redisUrl.port) || (tls ? 6380 : 6379),
             ...(redisUrl.password ? { password: redisUrl.password } : {}),
+            ...(tls ? { tls: {} } : {}),
+            keepAlive: 30_000,
+            retryStrategy: (times: number) => Math.min(times * 200, 5_000),
+            reconnectOnError: () => true,
+            enableOfflineQueue: true,
+            maxRetriesPerRequest: null,
           },
         };
       },
