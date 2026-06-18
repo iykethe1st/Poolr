@@ -6,10 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PayoutStatus } from '@prisma/client';
+import { PayoutStatus, TxType } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaystackService } from '../payments/paystack.service';
+import { WalletService } from '../wallet/wallet.service';
 import {
   NOTIFICATION_EVENTS,
   PayoutReceivedEvent,
@@ -28,6 +29,7 @@ export class BankAccountsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly paystack: PaystackService,
+    private readonly walletService: WalletService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -81,14 +83,14 @@ export class BankAccountsService {
     // Dispatch any payouts that were held pending bank account registration.
     // Awaited synchronously so the DB is updated before the HTTP response returns —
     // the frontend refetch then sees INITIATED, not PENDING.
-    await this.dispatchHeldPayouts(userId, recipientCode).catch((err: Error) =>
+    await this.dispatchHeldPayouts(userId).catch((err: Error) =>
       this.logger.error(`Failed to dispatch held payouts for user ${userId}: ${err.message}`),
     );
 
     return account;
   }
 
-  private async dispatchHeldPayouts(userId: string, recipientCode: string): Promise<void> {
+  private async dispatchHeldPayouts(userId: string): Promise<void> {
     const pending = await this.prisma.payout.findMany({
       where: { recipientId: userId, status: PayoutStatus.PENDING },
       include: { cycle: { select: { cycleNumber: true, group: { select: { name: true } } } } },
@@ -103,29 +105,28 @@ export class BankAccountsService {
 
     for (const payout of pending) {
       try {
-        const payoutRef = `payout_${payout.cycleId.slice(-8)}_${Date.now()}`;
-        const { transferCode } = await this.paystack.initiateTransfer({
-          amountNgn: Number(payout.amount),
-          recipientCode,
-          reference: payoutRef,
-          reason: `Poolr payout — cycle ${payout.cycle.cycleNumber}`,
-        });
+        const amountNgn = Number(payout.amount);
+        const payoutRef = `payout_held_${payout.id.slice(-8)}_${Date.now()}`;
+        const now = new Date();
 
-        await this.prisma.payout.update({
-          where: { id: payout.id },
-          data: { status: PayoutStatus.INITIATED, paystackTransferCode: transferCode },
+        await this.prisma.$.$transaction(async (tx) => {
+          await tx.payout.update({
+            where: { id: payout.id },
+            data: { status: PayoutStatus.COMPLETED, completedAt: now },
+          });
+          await this.walletService.credit(userId, amountNgn, payoutRef, TxType.PAYOUT, tx);
         });
 
         const evt: PayoutReceivedEvent = {
           userId,
           email: user.email,
           fullName: user.fullName,
-          amountNgn: Number(payout.amount),
+          amountNgn,
           groupName: payout.cycle.group.name,
         };
         this.eventEmitter.emit(NOTIFICATION_EVENTS.PAYOUT_RECEIVED, evt);
 
-        this.logger.log(`Dispatched held payout ${payout.id} → ₦${Number(payout.amount)} for user ${userId}`);
+        this.logger.log(`Settled held payout ${payout.id} → ₦${amountNgn} credited to wallet for user ${userId}`);
       } catch (err: unknown) {
         this.logger.error(`Failed to dispatch held payout ${payout.id}: ${(err as Error).message}`);
       }

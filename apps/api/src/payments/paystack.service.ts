@@ -104,8 +104,9 @@ export class PaystackService {
 
   async initiateTransfer(params: TransferParams): Promise<TransferResult> {
     const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+    const isDev = this.config.get<string>('NODE_ENV', 'development') === 'development';
 
-    if (!secretKey) {
+    if (!secretKey || isDev) {
       const mockCode = `TRF_mock_${Date.now()}`;
       this.logger.debug(`[DEV] Paystack mock transfer ${params.reference} → ${mockCode}`);
       return { transferCode: mockCode, reference: params.reference };

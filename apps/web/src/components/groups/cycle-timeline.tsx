@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { HTTPError } from 'ky';
-import { CheckCircle2, Circle, Clock, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, AlertCircle, CreditCard, Loader2, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/format';
-import { useInitializeContribution } from '@/hooks/use-payments';
+import { useInitializeContribution, useWalletContribute } from '@/hooks/use-payments';
+import { useWallet } from '@/hooks/use-wallet';
 import type { Cycle, GroupMember } from '@/hooks/use-group';
 
 interface CycleTimelineProps {
@@ -119,7 +120,12 @@ function PayButton({
 }) {
   const router = useRouter();
   const init = useInitializeContribution();
+  const walletPay = useWalletContribute();
+  const { data: wallet } = useWallet();
   const [paid, setPaid] = useState(false);
+
+  const walletBalance = Number(wallet?.balance ?? 0);
+  const canPayFromWallet = walletBalance >= contributionAmount;
 
   if (paid) {
     return (
@@ -130,7 +136,15 @@ function PayButton({
     );
   }
 
-  function handlePay() {
+  function handleAlreadyPaid(err: unknown) {
+    if (err instanceof HTTPError) {
+      err.response.json().then((body: { message?: string }) => {
+        if (body.message?.toLowerCase().includes('already paid')) setPaid(true);
+      }).catch(() => null);
+    }
+  }
+
+  function handlePaystack() {
     init.mutate(cycleId, {
       onSuccess: ({ authorizationUrl }) => {
         if (process.env.NODE_ENV === 'development' && !authorizationUrl.startsWith('https://checkout.paystack')) {
@@ -139,26 +153,37 @@ function PayButton({
           window.location.href = authorizationUrl;
         }
       },
-      onError: async (err) => {
-        if (err instanceof HTTPError) {
-          const body: { message?: string } = await err.response.json().catch(() => ({}));
-          if (body.message?.toLowerCase().includes('already paid')) {
-            setPaid(true);
-            return;
-          }
-        }
-      },
+      onError: handleAlreadyPaid,
     });
   }
 
+  function handleWallet() {
+    walletPay.mutate(cycleId, {
+      onSuccess: () => setPaid(true),
+      onError: handleAlreadyPaid,
+    });
+  }
+
+  const isBusy = init.isPending || walletPay.isPending;
+
   return (
-    <Button size="sm" className="h-7 px-3 text-xs" onClick={handlePay} disabled={init.isPending}>
-      {init.isPending ? (
-        <Loader2 className="size-3 animate-spin" />
-      ) : (
-        <CreditCard className="size-3" />
+    <div className="flex flex-col items-end gap-1">
+      <Button size="sm" className="h-7 px-3 text-xs" onClick={handlePaystack} disabled={isBusy}>
+        {init.isPending ? <Loader2 className="size-3 animate-spin" /> : <CreditCard className="size-3" />}
+        Pay {formatCurrency(contributionAmount, currency)}
+      </Button>
+      {canPayFromWallet && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-3 text-xs"
+          onClick={handleWallet}
+          disabled={isBusy}
+        >
+          {walletPay.isPending ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
+          Wallet
+        </Button>
       )}
-      Pay {formatCurrency(contributionAmount, currency)}
-    </Button>
+    </div>
   );
 }

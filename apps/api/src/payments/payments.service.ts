@@ -238,19 +238,9 @@ export class PaymentsService {
     const rawKobo = (data['amount'] as number | undefined) ?? 0;
     const amountNgn = rawKobo > 0 ? rawKobo / 100 : await this.getContributionAmount(contribution.cycleId);
 
-    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.contribution.update({
-        where: { id: contribution.id },
-        data: { status: ContribStatus.PAID, paidAt: new Date() },
-      });
-
-      await this.walletService.credit(
-        contribution.member.userId,
-        amountNgn,
-        `wt_contrib_${reference}`,
-        TxType.CONTRIBUTION,
-        tx,
-      );
+    await this.prisma.contribution.update({
+      where: { id: contribution.id },
+      data: { status: ContribStatus.PAID, paidAt: new Date() },
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
@@ -378,18 +368,9 @@ export class PaymentsService {
       return;
     }
 
-    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.contribution.update({
-        where: { id: contribution.id },
-        data: { status: ContribStatus.PAID, paidAt: new Date(), paystackRef: reference },
-      });
-      await this.walletService.credit(
-        contribution.member.userId,
-        amountNgn,
-        `wt_contrib_${reference}`,
-        TxType.CONTRIBUTION,
-        tx,
-      );
+    await this.prisma.contribution.update({
+      where: { id: contribution.id },
+      data: { status: ContribStatus.PAID, paidAt: new Date(), paystackRef: reference },
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
@@ -454,6 +435,7 @@ export class PaymentsService {
 
     if (await this.redis.get(idempotencyKey)) return;
 
+    // Check if this is a group payout transfer
     const payout = await this.prisma.payout.findFirst({
       where: { paystackTransferCode: transferCode },
     });
@@ -464,6 +446,18 @@ export class PaymentsService {
         data: { status: PayoutStatus.FAILED },
       });
       this.logger.warn(`Transfer failed: payout ${payout.id} (${transferCode}) — manual review needed`);
+    }
+
+    // Check if this is a wallet withdrawal transfer — if so, reverse the debit
+    if (!payout) {
+      const withdrawalRaw = await this.redis.get(`wallet:withdraw:transfer:${transferCode}`);
+      if (withdrawalRaw) {
+        const { userId, amount, reference } = JSON.parse(withdrawalRaw) as { userId: string; amount: number; reference: string };
+        await this.walletService
+          .credit(userId, amount, `reversal_${reference}`, TxType.WITHDRAWAL)
+          .catch((err: Error) => this.logger.error(`Withdrawal reversal failed for ${userId}: ${err.message}`));
+        this.logger.warn(`Withdrawal transfer failed — reversed ₦${amount} to wallet for user ${userId}`);
+      }
     }
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
@@ -547,55 +541,28 @@ export class PaymentsService {
     const payoutAmount = Number(agg._sum.amount ?? 0);
     const payoutRef = `payout_${cycleId.slice(-8)}_${Date.now()}`;
 
-    // ── 1. Create payout record and initiate transfer ─────────────────────────
-    const bankAccount = await this.prisma.bankAccount.findUnique({
-      where: { userId: cycle.recipientId },
-    });
-
-    if (!bankAccount) {
-      // Hold payout — recipient hasn't registered a bank account
-      await this.prisma.payout.create({
+    // ── 1. Create payout record + credit recipient's wallet atomically ─────────
+    const now = new Date();
+    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.payout.create({
         data: {
           cycleId,
           recipientId: cycle.recipientId,
           amount: payoutAmount,
-          status: PayoutStatus.PENDING,
-          initiatedAt: new Date(),
+          status: PayoutStatus.COMPLETED,
+          initiatedAt: now,
+          completedAt: now,
         },
       });
-      this.logger.warn(
-        `Payout for cycle ${cycle.cycleNumber} held — recipient ${cycle.recipientId} has no bank account`,
+
+      await this.walletService.credit(
+        cycle.recipientId,
+        payoutAmount,
+        payoutRef,
+        TxType.PAYOUT,
+        tx,
       );
-      // Notify the recipient to add their bank details
-      this.eventEmitter.emit('notification.payout.bank_required', {
-        userId: cycle.recipientId,
-        groupName: cycle.group.name,
-        amountNgn: payoutAmount,
-      });
-      // Still advance to next cycle below — fall through after early return of payout creation
-    } else {
-      const payout = await this.prisma.payout.create({
-        data: {
-          cycleId,
-          recipientId: cycle.recipientId,
-          amount: payoutAmount,
-          status: PayoutStatus.INITIATED,
-          initiatedAt: new Date(),
-        },
-      });
-
-      const { transferCode } = await this.paystack.initiateTransfer({
-        amountNgn: payoutAmount,
-        recipientCode: bankAccount.paystackRecipientCode,
-        reference: payoutRef,
-        reason: `Poolr payout — cycle ${cycle.cycleNumber}`,
-      });
-
-      await this.prisma.payout.update({
-        where: { id: payout.id },
-        data: { paystackTransferCode: transferCode },
-      });
-    }
+    });
 
     // ── 2. Mark current cycle COMPLETED ──────────────────────────────────────
     await this.prisma.cycle.update({

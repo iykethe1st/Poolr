@@ -48,8 +48,8 @@ export function CreateGroupForm() {
   if (me && me.kycProfile?.kycStatus !== 'VERIFIED') {
     return (
       <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card py-12 text-center px-6">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-amber-100">
-          <ShieldCheck className="size-7 text-amber-600" />
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-950/40">
+          <ShieldCheck className="size-7 text-amber-600 dark:text-amber-400" />
         </div>
         <div>
           <p className="font-semibold">Identity verification required</p>
@@ -99,7 +99,7 @@ export function CreateGroupForm() {
         penaltyConfig,
       });
 
-      router.push(`/groups/${group.id}`);
+      router.push(`/groups/${group.id}/invite`);
     } catch (err) {
       if (err instanceof HTTPError) {
         const body = await err.response.json<ApiResponse>();
@@ -229,7 +229,7 @@ export function CreateGroupForm() {
         )}
       </div>
 
-      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 p-3 text-sm text-amber-800 dark:text-amber-300">
         <TriangleAlert className="mt-0.5 size-4 shrink-0" />
         <p>
           Only invite people you personally trust. If a member collects their payout and stops

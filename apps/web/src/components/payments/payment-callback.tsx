@@ -12,17 +12,19 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVerifyPayment } from '@/hooks/use-payments';
-import { formatCurrency } from '@/lib/format';
+import { useVerifyTopUp } from '@/hooks/use-wallet';
 
 export function PaymentCallback() {
   const searchParams = useSearchParams();
   // Paystack sends both ?reference= and ?trxref= — check both
   const reference = searchParams.get('reference') ?? searchParams.get('trxref');
 
-  const router = useRouter();
-
   if (!reference) {
     return <InvalidCallback />;
+  }
+
+  if (reference.startsWith('topup_')) {
+    return <VerifyTopUpState reference={reference} />;
   }
 
   return <VerifyState reference={reference} />;
@@ -138,6 +140,70 @@ function VerifyState({ reference }: { reference: string }) {
         <Button asChild>
           <Link href="/dashboard">Dashboard</Link>
         </Button>
+      </div>
+    </CallbackShell>
+  );
+}
+
+function VerifyTopUpState({ reference }: { reference: string }) {
+  const router = useRouter();
+  const { data, isLoading, isError, refetch, isFetching } = useVerifyTopUp(reference);
+
+  useEffect(() => {
+    if (data?.status === 'success') {
+      const t = setTimeout(() => router.push('/wallet'), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [data?.status, router]);
+
+  if (isLoading || isFetching) {
+    return (
+      <CallbackShell>
+        <Loader2 className="size-12 animate-spin text-muted-foreground" />
+        <p className="mt-4 text-lg font-semibold">Verifying top-up&hellip;</p>
+        <p className="text-sm text-muted-foreground">Please wait while we confirm your payment.</p>
+      </CallbackShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <CallbackShell>
+        <AlertCircle className="size-12 text-destructive" />
+        <p className="mt-4 text-lg font-semibold">Verification failed</p>
+        <p className="text-sm text-muted-foreground">Could not confirm your top-up. Check your wallet for the latest balance.</p>
+        <div className="mt-6 flex gap-3">
+          <Button variant="outline" onClick={() => refetch()}>
+            <RotateCcw className="size-4" />
+            Try again
+          </Button>
+          <Button asChild><Link href="/wallet">Go to wallet</Link></Button>
+        </div>
+      </CallbackShell>
+    );
+  }
+
+  if (data?.status === 'success') {
+    return (
+      <CallbackShell>
+        <CheckCircle2 className="size-12 text-emerald-500" />
+        <p className="mt-4 text-lg font-semibold">Top-up successful!</p>
+        <p className="text-sm text-muted-foreground">
+          Your wallet has been credited. You&apos;ll be redirected shortly.
+        </p>
+        <Button className="mt-6" asChild><Link href="/wallet">Go to wallet</Link></Button>
+      </CallbackShell>
+    );
+  }
+
+  return (
+    <CallbackShell>
+      <AlertCircle className="size-12 text-destructive" />
+      <p className="mt-4 text-lg font-semibold">Top-up {data?.status ?? 'failed'}</p>
+      <p className="text-sm text-muted-foreground">Your top-up was not completed.</p>
+      <div className="mt-6 flex gap-3">
+        <Button asChild variant="outline"><Link href="/wallet">Try again</Link></Button>
+        <Button asChild><Link href="/dashboard">Dashboard</Link></Button>
       </div>
     </CallbackShell>
   );
