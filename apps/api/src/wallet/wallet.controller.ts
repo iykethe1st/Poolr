@@ -1,9 +1,11 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { WalletService } from './wallet.service';
 import { ListTransactionsDto } from './dto/list-transactions.dto';
+import { TopUpDto } from './dto/topup.dto';
+import { WithdrawDto } from './dto/withdraw.dto';
 
 @ApiTags('wallet')
 @ApiBearerAuth()
@@ -25,5 +27,26 @@ export class WalletController {
     @Query() dto: ListTransactionsDto,
   ) {
     return this.walletService.listTransactions(user.id, dto.page ?? 1, dto.limit ?? 20);
+  }
+
+  @Post('topup')
+  @ApiOperation({ summary: 'Initialize Paystack top-up for wallet' })
+  topUp(@CurrentUser() user: { id: string }, @Body() dto: TopUpDto) {
+    return this.walletService.topUp(user.id, dto.amountNgn);
+  }
+
+  @Get('topup/verify/:reference')
+  @ApiOperation({ summary: 'Verify wallet top-up after Paystack callback' })
+  verifyTopUp(
+    @CurrentUser() user: { id: string },
+    @Param('reference') reference: string,
+  ) {
+    return this.walletService.verifyTopUp(user.id, reference);
+  }
+
+  @Post('withdraw')
+  @ApiOperation({ summary: 'Withdraw from wallet to registered bank account' })
+  withdraw(@CurrentUser() user: { id: string }, @Body() dto: WithdrawDto) {
+    return this.walletService.withdraw(user.id, dto.amountNgn);
   }
 }

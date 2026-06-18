@@ -9,6 +9,7 @@ import {
   Bell,
   Settings,
   ShieldCheck,
+  Wallet,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import Image from "next/image";
 const mainNav = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/groups", icon: Users, label: "Groups" },
+  { href: "/wallet", icon: Wallet, label: "Wallet" },
   { href: "/notifications", icon: Bell, label: "Notifications" },
   { href: "/kyc", icon: ShieldCheck, label: "Identity verification" },
 ];

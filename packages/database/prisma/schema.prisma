@@ -114,6 +114,11 @@ enum NotifStatus {
   READ
 }
 
+enum PaymentSource {
+  PAYSTACK
+  WALLET
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -238,8 +243,9 @@ model Contribution {
   cycleId     String        @map("cycle_id")
   memberId    String        @map("member_id")
   amount      Decimal       @db.Decimal(12, 2)
-  status      ContribStatus @default(PENDING)
-  paystackRef String?       @map("paystack_ref")
+  status        ContribStatus  @default(PENDING)
+  paymentSource PaymentSource  @default(PAYSTACK) @map("payment_source")
+  paystackRef   String?        @map("paystack_ref")
   paidAt      DateTime?     @map("paid_at")
   dueAt       DateTime      @map("due_at")
   createdAt   DateTime      @default(now()) @map("created_at")

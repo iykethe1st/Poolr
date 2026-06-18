@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Menu, Settings, Users, Bell } from "lucide-react";
+import { LayoutDashboard, Menu, Settings, Users, Bell, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -12,6 +12,7 @@ import Image from "next/image";
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/groups", icon: Users, label: "Groups" },
+  { href: "/wallet", icon: Wallet, label: "Wallet" },
   { href: "/notifications", icon: Bell, label: "Notifications" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];

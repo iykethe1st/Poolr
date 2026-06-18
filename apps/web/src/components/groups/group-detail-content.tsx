@@ -533,8 +533,8 @@ function ActivityTab({
           return (
             <ActivityRow
               key={i}
-              icon={<CircleDollarSign className="size-4 text-green-600" />}
-              iconBg="bg-green-100"
+              icon={<CircleDollarSign className="size-4 text-green-600 dark:text-green-400" />}
+              iconBg="bg-green-100 dark:bg-green-950/40"
               title={`${item.memberName} paid`}
               sub={`Cycle ${item.cycleNumber}`}
               right={formatCurrency(item.amountNgn, currency)}
@@ -547,12 +547,12 @@ function ActivityTab({
           return (
             <ActivityRow
               key={i}
-              icon={<ArrowUpRight className="size-4 text-blue-600" />}
-              iconBg="bg-blue-100"
+              icon={<ArrowUpRight className="size-4 text-blue-600 dark:text-blue-400" />}
+              iconBg="bg-blue-100 dark:bg-blue-950/40"
               title={`${item.recipientName} received payout`}
               sub={`Cycle ${item.cycleNumber}`}
               right={formatCurrency(item.amountNgn, currency)}
-              rightClass="text-blue-600 font-semibold"
+              rightClass="text-blue-600 dark:text-blue-400 font-semibold"
               date={item.date}
             />
           );
@@ -572,11 +572,11 @@ function ActivityTab({
           return (
             <ActivityRow
               key={i}
-              icon={<AlertTriangle className="size-4 text-amber-600" />}
-              iconBg="bg-amber-100"
+              icon={<AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />}
+              iconBg="bg-amber-100 dark:bg-amber-950/40"
               title={`Penalty applied to ${item.memberName}`}
               right={formatCurrency(item.amountNgn, currency)}
-              rightClass="text-amber-600 font-semibold"
+              rightClass="text-amber-600 dark:text-amber-400 font-semibold"
               date={item.date}
             />
           );
@@ -639,9 +639,9 @@ function PayoutsTab({
     <div className="space-y-2">
       {payouts.map((p) => (
         <div key={p.id} className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/40">
             {p.status === 'COMPLETED' ? (
-              <CheckCircle2 className="size-4 text-blue-600" />
+              <CheckCircle2 className="size-4 text-blue-600 dark:text-blue-400" />
             ) : p.status === 'FAILED' ? (
               <BadgeAlert className="size-4 text-destructive" />
             ) : (

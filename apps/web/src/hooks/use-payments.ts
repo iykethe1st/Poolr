@@ -8,6 +8,12 @@ export type InitContribResult = {
   reference: string;
 };
 
+export type WalletContribResult = {
+  paid: true;
+  paymentSource: 'WALLET';
+  reference: string;
+};
+
 export type VerifyResult = {
   status: 'success' | 'failed' | 'pending' | 'abandoned';
 };
@@ -16,6 +22,20 @@ export function useInitializeContribution() {
   return useMutation({
     mutationFn: (cycleId: string) =>
       apiClient.post(`payments/contribute/${cycleId}`).json<InitContribResult>(),
+  });
+}
+
+export function useWalletContribute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (cycleId: string) =>
+      apiClient
+        .post(`payments/contribute/${cycleId}`, { json: { paymentSource: 'WALLET' } })
+        .json<WalletContribResult>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group'] });
+      qc.invalidateQueries({ queryKey: ['wallet'] });
+    },
   });
 }
 

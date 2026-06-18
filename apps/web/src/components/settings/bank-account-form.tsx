@@ -47,7 +47,7 @@ export function BankAccountSection() {
         <CreditCard className="mx-auto mb-2 size-8 text-muted-foreground/40" />
         <p className="text-sm font-medium">No bank account saved</p>
         <p className="mt-0.5 text-xs text-muted-foreground mb-4">
-          Required to receive your group payouts
+          Required to withdraw funds from your Poolr wallet
         </p>
         <Button size="sm" onClick={() => setStep('form')}>
           Add bank account
@@ -81,8 +81,8 @@ function ExistingAccount({
   return (
     <div className="rounded-xl border bg-card px-4 py-4">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100">
-          <BadgeCheck className="size-5 text-green-600" />
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/40">
+          <BadgeCheck className="size-5 text-green-600 dark:text-green-400" />
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">{account.accountName}</p>
@@ -205,10 +205,10 @@ function AddBankAccountFlow({
         <h3 className="text-sm font-semibold">Add bank account</h3>
       </div>
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex gap-2">
-        <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
-        <p className="text-xs text-amber-800">
-          Payouts can only be sent to <strong>your own bank account</strong>. Make sure the account name matches your verified identity.
+      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 flex gap-2">
+        <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-amber-800 dark:text-amber-300">
+          Withdrawals can only be sent to <strong>your own bank account</strong>. Make sure the account name matches your verified identity.
         </p>
       </div>
 
@@ -259,12 +259,12 @@ function AddBankAccountFlow({
 
         {/* Step 2 — confirm account name */}
         {isStep2 && (
-          <div className="rounded-xl border bg-green-50 border-green-200 px-4 py-3 space-y-3">
+          <div className="rounded-xl border bg-green-50 border-green-200 dark:bg-green-950/40 dark:border-green-800 px-4 py-3 space-y-3">
             <div className="flex items-start gap-2">
-              <CheckCircle2 className="size-4 text-green-600 shrink-0 mt-0.5" />
+              <CheckCircle2 className="size-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs text-muted-foreground">Account name</p>
-                <p className="text-sm font-semibold text-green-800">{resolvedName}</p>
+                <p className="text-sm font-semibold text-green-800 dark:text-green-300">{resolvedName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {selectedBank?.name} · {accountNumber}
                 </p>

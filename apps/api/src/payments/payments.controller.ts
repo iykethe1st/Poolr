@@ -1,8 +1,9 @@
-import { Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
+import { InitiateContributionDto } from './dto/initiate-contribution.dto';
 
 interface AuthUser {
   id: string;
@@ -19,9 +20,13 @@ export class PaymentsController {
 
   @Post('contribute/:cycleId')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Initialise Paystack transaction for a cycle contribution' })
-  contribute(@Param('cycleId') cycleId: string, @CurrentUser() user: AuthUser) {
-    return this.payments.initializeContribution(user.id, cycleId);
+  @ApiOperation({ summary: 'Initiate a cycle contribution via Paystack checkout or wallet balance' })
+  contribute(
+    @Param('cycleId') cycleId: string,
+    @Body() dto: InitiateContributionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.payments.initializeContribution(user.id, cycleId, dto.paymentSource);
   }
 
   @Get('verify/:reference')
