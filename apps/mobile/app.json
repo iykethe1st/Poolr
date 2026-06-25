@@ -4,17 +4,56 @@
     "slug": "poolr",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "scheme": "poolr",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#155e3e",
+          "sounds": []
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.poolr.app"
+      "bundleIdentifier": "com.iykethe1st.poolr",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#155e3e"
       },
-      "package": "com.poolr.app"
+      "googleServicesFile": "./google-services.json",
+      "package": "com.poolr.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "poolr"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
-    "scheme": "poolr"
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f8753f3c-dc07-4439-857e-8c942c4a4572"
+      }
+    }
   }
 }
