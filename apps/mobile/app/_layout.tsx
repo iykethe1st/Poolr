@@ -19,8 +19,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="kyc" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-          <Stack.Screen name="kyc-webview" options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal', headerShown: false }} />
-          <Stack.Screen name="kyc-callback" />
+<Stack.Screen name="kyc-callback" />
           <Stack.Screen name="groups/[id]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="payment-callback" />
           <Stack.Screen name="topup-callback" />

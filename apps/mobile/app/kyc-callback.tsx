@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useVerifyKyc } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
 
@@ -13,6 +14,8 @@ export default function KycCallbackScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
+    void WebBrowser.dismissBrowser();
+
     if (status === 'closed') {
       setState('closed');
       setTimeout(() => router.replace('/(tabs)/'), 1500);

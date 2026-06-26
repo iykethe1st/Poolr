@@ -8,8 +8,10 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useCurrentUser } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
+import { API_BASE_URL } from '@/api/client';
 import { StatusBar } from 'expo-status-bar';
 
 const STEPS = [
@@ -29,7 +31,11 @@ export default function KycScreen() {
 
   function handleStart() {
     if (!me?.id) return;
-    router.push({ pathname: '/kyc-webview', params: { user_id: me.id } });
+    const widgetUrl = `${API_BASE_URL}/users/kyc/widget?user_id=${encodeURIComponent(me.id)}`;
+    void WebBrowser.openBrowserAsync(widgetUrl, {
+      dismissButtonStyle: 'cancel',
+      toolbarColor: '#155e3e',
+    });
   }
 
   if (isLoading) {
