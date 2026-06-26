@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,11 +8,8 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useCurrentUser } from '@/hooks/use-dashboard';
-import { useVerifyKyc } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
-import { API_BASE_URL } from '@/api/client';
 import { StatusBar } from 'expo-status-bar';
 
 const STEPS = [
@@ -27,41 +23,13 @@ export default function KycScreen() {
   const verifyKyc = useVerifyKyc();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [busy, setBusy] = useState(false);
-
   const kycStatus = me?.kycProfile?.kycStatus ?? 'UNVERIFIED';
   const isVerified = kycStatus === 'VERIFIED';
   const isPending = kycStatus === 'PENDING' || kycStatus === 'UNDER_REVIEW';
 
-  async function handleStart() {
+  function handleStart() {
     if (!me?.id) return;
-    setBusy(true);
-    try {
-      const widgetUrl = `${API_BASE_URL}/users/kyc/widget?user_id=${encodeURIComponent(me.id)}`;
-      const result = await WebBrowser.openAuthSessionAsync(widgetUrl, 'poolr://kyc-callback');
-
-      if (result.type === 'success' && result.url) {
-        const url = new URL(result.url);
-        const status = url.searchParams.get('status');
-        const referenceId = url.searchParams.get('reference_id') ?? '';
-
-        if (status === 'success' && referenceId) {
-          await verifyKyc.mutateAsync(referenceId);
-        } else if (status === 'error') {
-          Alert.alert(
-            'Verification failed',
-            'Something went wrong with the identity check. Please try again.',
-          );
-        }
-        // 'closed' means user cancelled — no alert needed
-      } else if (result.type === 'cancel') {
-        // dismissed by user — no alert
-      }
-    } catch (err) {
-      Alert.alert('Error', 'Could not open the verification flow. Please check your connection and try again.');
-    } finally {
-      setBusy(false);
-    }
+    router.push({ pathname: '/kyc-webview', params: { user_id: me.id } });
   }
 
   if (isLoading) {
