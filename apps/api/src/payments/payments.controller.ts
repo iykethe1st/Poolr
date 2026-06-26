@@ -26,7 +26,7 @@ export class PaymentsController {
     @Body() dto: InitiateContributionDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.payments.initializeContribution(user.id, cycleId, dto.paymentSource);
+    return this.payments.initializeContribution(user.id, cycleId, dto.paymentSource, dto.callbackUrl);
   }
 
   @Get('verify/:reference')

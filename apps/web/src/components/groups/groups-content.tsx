@@ -7,6 +7,8 @@ import { HTTPError } from 'ky';
 import { Check, Loader2, Mail, Plus, ShieldCheck, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
@@ -18,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/layout/page-shell';
 import { useGroups, useCurrentUser, type GroupWithMembers } from '@/hooks/use-dashboard';
-import { useAcceptInvite, useDeclineInvite } from '@/hooks/use-group';
+import { useAcceptInvite, useDeclineInvite, useJoinByToken } from '@/hooks/use-group';
 import { formatCurrency, formatFrequency, formatGroupStatus } from '@/lib/format';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'outline' | 'destructive' | 'default'> = {
@@ -35,6 +37,7 @@ export function GroupsContent() {
   const { data: me } = useCurrentUser();
   const userId = me?.id;
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
   function handleNewGroup() {
     if (me && me.kycProfile?.kycStatus !== 'VERIFIED') {
@@ -80,7 +83,11 @@ export function GroupsContent() {
     </Dialog>
 
     <div className="space-y-8">
+      <JoinByTokenDialog open={joinDialogOpen} onClose={() => setJoinDialogOpen(false)} />
       <PageHeader title="Groups" description="Your savings circles">
+        <Button size="sm" variant="outline" onClick={() => setJoinDialogOpen(true)}>
+          Join group
+        </Button>
         <Button size="sm" onClick={handleNewGroup}>
           <Plus className="size-3.5" />
           New group
@@ -294,5 +301,69 @@ function EmptyGroups({ onCreateGroup }: { onCreateGroup: () => void }) {
         Create group
       </Button>
     </div>
+  );
+}
+
+function JoinByTokenDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [token, setToken] = useState('');
+  const [error, setError] = useState('');
+  const join = useJoinByToken();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token.trim()) return;
+    setError('');
+    join.mutate(token.trim(), {
+      onSuccess: () => {
+        setToken('');
+        onClose();
+      },
+      onError: async (err) => {
+        if (err instanceof HTTPError) {
+          const body: { message?: string } = await err.response.json().catch(() => ({}));
+          setError(body.message ?? 'Invalid or expired invite token. Please try again.');
+        } else {
+          setError('Invalid or expired invite token. Please try again.');
+        }
+      },
+    });
+  }
+
+  function handleClose() {
+    setToken('');
+    setError('');
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Join a group</DialogTitle>
+          <DialogDescription>
+            Enter the invite token sent to you via SMS or email from your group admin.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="invite-token">Invite token</Label>
+            <Input
+              id="invite-token"
+              placeholder="Paste your invite token here"
+              value={token}
+              onChange={(e) => { setToken(e.target.value); setError(''); }}
+            />
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+            <Button type="submit" disabled={!token.trim() || join.isPending}>
+              {join.isPending && <Loader2 className="size-4 animate-spin" />}
+              Join group
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

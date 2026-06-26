@@ -70,7 +70,7 @@ export default function HomeScreen() {
               </Text>
               <Text style={styles.kycBannerSub}>
                 {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
-                  ? 'We'll notify you when approved'
+                  ? "We'll notify you when approved"
                   : 'Required to create or join groups'}
               </Text>
             </View>

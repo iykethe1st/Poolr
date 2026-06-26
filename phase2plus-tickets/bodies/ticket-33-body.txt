@@ -1,0 +1,15 @@
+## Overview
+Register Poolr as a data controller with the Nigeria Data Protection Commission (NDPC) as required under the Nigeria Data Protection Act (NDPA) 2023.
+
+## Tasks
+- [ ] Confirm registration requirements and fee on the NDPC portal (ndpc.gov.ng)
+- [ ] Prepare required documentation: company registration details, data processing activities summary, DPO (Data Protection Officer) appointment if required
+- [ ] Complete NDPC registration and obtain Data Controller registration certificate
+- [ ] Appoint or designate a Data Protection Officer (can be internal for a startup)
+- [ ] Conduct a basic Data Protection Impact Assessment (DPIA) covering BVN/NIN collection, ID document storage, and third-party data sharing (Smile ID, Paystack, Termii)
+- [ ] Document data retention policies: how long KYC documents, transaction records, and user data are kept, and deletion procedures
+
+## Acceptance criteria
+- NDPC registration certificate obtained
+- DPIA document completed and stored in company records
+- Data retention policy documented and reflected in the privacy policy

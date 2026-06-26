@@ -1,0 +1,22 @@
+## Overview
+Prepare and submit the Poolr Android app to the Google Play Store via Expo EAS.
+
+## Tasks
+- [ ] Create a Google Play Developer account (if not already done) - $25 one-time fee
+- [ ] Configure `app.json` / `eas.json` with correct Android package name, version code, and version name
+- [ ] Generate and configure required Play Store assets:
+  - [ ] App icon: 512x512 PNG
+  - [ ] Feature graphic: 1024x500 PNG (required for Play Store listing)
+  - [ ] Screenshots: at least 2 phone screenshots (16:9 or 9:16)
+  - [ ] Android adaptive icon: foreground layer (use the `poolr-icon-android-adaptive-432.png` from the icon assets package)
+- [ ] Write Play Store listing: title, short description (80 chars), full description, app category (Finance)
+- [ ] Declare sensitive permissions in Play Console: camera (KYC selfie), storage (ID document upload)
+- [ ] Complete Play Store data safety form: declare all data collected (name, email, phone, financial info, government ID) and data sharing (Paystack, Smile ID, Termii, Firebase)
+- [ ] Configure Expo EAS production build: `eas build --platform android --profile production`
+- [ ] Submit to Play Console: `eas submit --platform android`
+- [ ] Set up internal testing track first, then promote to production after final validation
+
+## Acceptance criteria
+- App is approved and live on Google Play Store
+- Data safety form is fully completed and accurate
+- Adaptive icon renders correctly on all Android launcher shapes (circle, square, squircle, teardrop)

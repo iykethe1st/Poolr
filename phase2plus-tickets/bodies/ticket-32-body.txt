@@ -1,0 +1,20 @@
+## Overview
+Engage a lawyer with Nigerian fintech and CBN regulatory experience to advise on Poolr's licensing requirements, wallet structure, and data protection obligations before public launch.
+
+## Topics to cover with legal counsel
+- [ ] CBN licensing assessment: does Poolr's wallet model (holding customer funds between payout and withdrawal) require a PSP, PSSP, or other CBN license, or can it operate under Paystack's existing licenses as a platform?
+- [ ] Paystack's terms of service: confirm Poolr's use case (rotating savings circles, wallet, transfers) is permitted under Paystack's platform terms
+- [ ] Smile ID data handling: confirm BVN and NIN data handling complies with CBN KYC guidelines and the Nigeria Data Protection Act (NDPA) 2023
+- [ ] S3 document storage: confirm storing Nigerian government ID documents in AWS S3 (likely us-east-1) satisfies NDPA data residency considerations or advise on alternatives
+- [ ] Penalty fees: confirm that charging a penalty fee for missed contributions is legally permissible and does not require additional licensing
+- [ ] Transaction fee: confirm that charging a 1% fee on payouts is permissible under current CBN guidelines
+
+## Deliverables expected from legal counsel
+- A written legal opinion covering the above topics
+- A list of any licenses to apply for before or shortly after public launch
+- Draft terms of service and privacy policy (or review of internally drafted ones)
+
+## Acceptance criteria
+- Written legal opinion received and reviewed
+- All identified licensing actions are filed as separate GitHub issues with deadlines
+- Terms of service and privacy policy are drafted and reviewed by legal counsel

@@ -42,6 +42,18 @@ export function DashboardContent() {
         title={greeting}
         description="Here's an overview of your savings."
       >
+        {user?.contributionStats && user.contributionStats.tier !== 'NEW' && (
+          <span className={[
+            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold',
+            user.contributionStats.tier === 'PLATINUM' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400' :
+            user.contributionStats.tier === 'GOLD'     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-400' :
+            user.contributionStats.tier === 'SILVER'   ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' :
+                                                          'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400',
+          ].join(' ')}>
+            {user.contributionStats.tier === 'PLATINUM' ? '💎' : user.contributionStats.tier === 'GOLD' ? '🥇' : user.contributionStats.tier === 'SILVER' ? '🥈' : '🥉'}
+            {user.contributionStats.tier.charAt(0) + user.contributionStats.tier.slice(1).toLowerCase()} member
+          </span>
+        )}
         {!kycVerified && user && (
           <Button size="sm" variant="outline" asChild>
             <Link href="/kyc">

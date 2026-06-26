@@ -21,6 +21,7 @@
       ]
     ],
     "ios": {
+      "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "bundleIdentifier": "com.iykethe1st.poolr",
       "infoPlist": {
@@ -42,10 +43,7 @@
               "scheme": "poolr"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },

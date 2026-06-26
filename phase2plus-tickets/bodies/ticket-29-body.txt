@@ -1,0 +1,25 @@
+## Overview
+Run real money through the full Paystack contribution and payout flow during beta to validate reliability before public launch.
+
+## Test scenarios to validate
+- [ ] Member initiates contribution via Paystack checkout - charge succeeds, contribution marked PAID
+- [ ] Member initiates contribution via Paystack checkout - charge fails, contribution remains PENDING, member is notified
+- [ ] All members in a cycle pay, payout scheduler triggers on due date, recipient receives money in Poolr Wallet
+- [ ] Recipient manually withdraws payout from Poolr Wallet to bank account via Paystack transfer
+- [ ] Member pays contribution from Poolr Wallet balance (wallet-funded path)
+- [ ] Member misses contribution - penalty engine applies penalty the next day
+- [ ] Paystack transfer to recipient fails - admin is notified, retry is triggered
+- [ ] Duplicate Paystack webhook is received - confirmed safely ignored (idempotency)
+
+## Tasks
+- [ ] Run each test scenario above manually with real testers
+- [ ] Document the result of each scenario (pass/fail, any unexpected behaviour)
+- [ ] File a GitHub issue for every failure
+- [ ] Confirm Paystack dashboard reconciles with Poolr DB records for every transaction
+- [ ] Confirm all webhook events are logged and traceable in Sentry
+
+## Acceptance criteria
+- All 8 test scenarios pass without data inconsistency
+- Zero cases of wallet balance out of sync with WalletTransaction log
+- Sentry captures any unhandled exceptions during test runs
+- Paystack dashboard and Poolr DB agree on transaction status for every test transaction

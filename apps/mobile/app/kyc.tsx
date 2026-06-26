@@ -16,7 +16,7 @@ import { API_BASE_URL } from '@/api/client';
 import { StatusBar } from 'expo-status-bar';
 
 const STEPS = [
-  { icon: '🪪', label: 'Government-issued ID', desc: 'National ID, passport, or driver's licence' },
+  { icon: '🪪', label: 'Government-issued ID', desc: "National ID, passport, or driver's licence" },
   { icon: '🤳', label: 'Selfie check', desc: 'A quick photo to match your ID' },
   { icon: '⏱️', label: 'Takes ~2 minutes', desc: 'Instant result in most cases' },
 ];

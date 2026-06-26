@@ -3,7 +3,9 @@
     "allow": [
       "WebFetch(domain:docs.withpersona.com)",
       "WebFetch(domain:withpersona.com)",
-      "WebFetch(domain:docs.dojah.io)"
+      "WebFetch(domain:docs.dojah.io)",
+      "Bash(grep -a \"POOLR\\\\|transformFile\\\\|Failed to construct\\\\|Cannot read\\\\|transformer_load\" /tmp/eas_build8.log | head -30)",
+      "Read(//tmp/**)"
     ]
   }
 }

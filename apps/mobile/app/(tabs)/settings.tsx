@@ -117,7 +117,7 @@ export default function SettingsScreen() {
               </Text>
               <Text style={styles.kycRowSub}>
                 {kycStatus === 'PENDING'
-                  ? 'We'll notify you when approved'
+                  ? "We'll notify you when approved"
                   : 'Takes ~2 minutes · Government ID required'}
               </Text>
             </View>

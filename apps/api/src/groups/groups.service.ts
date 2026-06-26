@@ -27,6 +27,7 @@ import type { UpdateGroupDto } from './dto/update-group.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
 import type { JoinGroupDto } from './dto/join-group.dto';
 import type { UpdatePositionDto } from './dto/update-position.dto';
+import { computeTier } from '../users/users.service';
 
 const INVITE_TTL = 60 * 60 * 24 * 7; // 7 days
 
@@ -100,7 +101,7 @@ export class GroupsService {
         members: {
           where: { memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
           include: {
-            user: { select: { id: true, fullName: true, email: true, phone: true } },
+            user: { select: { id: true, fullName: true, email: true, phone: true, kycProfile: { select: { kycStatus: true } } } },
           },
           orderBy: { rotationPosition: 'asc' },
         },
@@ -113,7 +114,36 @@ export class GroupsService {
     const isMember = group.members.some((m) => m.userId === userId);
     if (!isMember) throw new ForbiddenException('Not a member of this group');
 
-    return group;
+    // Batch-compute cross-group contribution tier for all members
+    const memberUserIds = group.members.map((m) => m.userId);
+    const [paidContribs, penaltyCounts] = await Promise.all([
+      this.prisma.contribution.findMany({
+        where: { member: { userId: { in: memberUserIds } }, status: 'PAID' },
+        select: { paidAt: true, dueAt: true, member: { select: { userId: true } } },
+      }),
+      this.prisma.penalty.findMany({
+        where: { member: { userId: { in: memberUserIds } }, status: 'APPLIED' },
+        select: { member: { select: { userId: true } } },
+      }),
+    ]);
+    const tierStats: Record<string, { paid: number; onTime: number; penalties: number }> = {};
+    for (const c of paidContribs) {
+      const uid = c.member.userId;
+      if (!tierStats[uid]) tierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
+      tierStats[uid].paid++;
+      if (c.paidAt && c.paidAt <= c.dueAt) tierStats[uid].onTime++;
+    }
+    for (const p of penaltyCounts) {
+      const uid = p.member.userId;
+      if (!tierStats[uid]) tierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
+      tierStats[uid].penalties++;
+    }
+    const membersWithTier = group.members.map((m) => {
+      const s = tierStats[m.userId] ?? { paid: 0, onTime: 0, penalties: 0 };
+      return { ...m, tier: computeTier(s.paid, s.onTime, s.penalties) };
+    });
+
+    return { ...group, members: membersWithTier };
   }
 
   async update(groupId: string, adminId: string, dto: UpdateGroupDto) {
@@ -238,6 +268,32 @@ export class GroupsService {
         data: { memberStatus: MemberStatus.ACTIVE },
       }),
       this.redis.del(`invite:${dto.token}`),
+    ]);
+
+    this.emitMemberJoined(groupId, userId).catch(() => null);
+
+    return { message: 'Joined group successfully' };
+  }
+
+  async joinByToken(userId: string, token: string) {
+    const raw = await this.redis.get(`invite:${token}`);
+    if (!raw) throw new BadRequestException('Invalid or expired invitation token');
+
+    const { groupId, memberId } = JSON.parse(raw) as { groupId: string; memberId: string };
+
+    const member = await this.prisma.groupMember.findUnique({ where: { id: memberId } });
+    if (!member) throw new NotFoundException('Invitation not found');
+    if (member.userId !== userId) throw new ForbiddenException('This invitation is not for you');
+    if (member.memberStatus !== MemberStatus.INVITED) {
+      throw new BadRequestException('Invitation has already been used');
+    }
+
+    await Promise.all([
+      this.prisma.groupMember.update({
+        where: { id: memberId },
+        data: { memberStatus: MemberStatus.ACTIVE },
+      }),
+      this.redis.del(`invite:${token}`),
     ]);
 
     this.emitMemberJoined(groupId, userId).catch(() => null);
@@ -453,7 +509,7 @@ export class GroupsService {
       }),
       this.prisma.groupMember.findMany({
         where: { groupId },
-        include: { user: { select: { id: true, fullName: true, email: true } } },
+        include: { user: { select: { id: true, fullName: true, email: true, kycProfile: { select: { kycStatus: true } } } } },
         orderBy: { rotationPosition: 'asc' },
       }),
       this.prisma.contribution.aggregate({
@@ -462,11 +518,40 @@ export class GroupsService {
       }),
     ]);
 
+    // Batch-compute cross-group tier for each member
+    const histUserIds = allMembers.map((m) => m.userId);
+    const [histPaidContribs, histPenalties] = await Promise.all([
+      this.prisma.contribution.findMany({
+        where: { member: { userId: { in: histUserIds } }, status: 'PAID' },
+        select: { paidAt: true, dueAt: true, member: { select: { userId: true } } },
+      }),
+      this.prisma.penalty.findMany({
+        where: { member: { userId: { in: histUserIds } }, status: 'APPLIED' },
+        select: { member: { select: { userId: true } } },
+      }),
+    ]);
+    const histTierStats: Record<string, { paid: number; onTime: number; penalties: number }> = {};
+    for (const c of histPaidContribs) {
+      const uid = c.member.userId;
+      if (!histTierStats[uid]) histTierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
+      histTierStats[uid].paid++;
+      if (c.paidAt && c.paidAt <= c.dueAt) histTierStats[uid].onTime++;
+    }
+    for (const p of histPenalties) {
+      const uid = p.member.userId;
+      if (!histTierStats[uid]) histTierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
+      histTierStats[uid].penalties++;
+    }
+    const allMembersWithTier = allMembers.map((m) => {
+      const s = histTierStats[m.userId] ?? { paid: 0, onTime: 0, penalties: 0 };
+      return { ...m, tier: computeTier(s.paid, s.onTime, s.penalties) };
+    });
+
     return {
       contributions,
       payouts,
       penalties,
-      allMembers,
+      allMembers: allMembersWithTier,
       potValueNgn: Number(potAgg._sum.amount ?? 0),
     };
   }

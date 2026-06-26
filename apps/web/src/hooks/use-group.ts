@@ -21,6 +21,7 @@ export type GroupMember = {
   rotationPosition: number;
   memberStatus: string;
   joinedAt: string;
+  tier?: string;
   user: GroupMemberUser;
 };
 
@@ -68,7 +69,8 @@ export type HistoryMember = {
   rotationPosition: number;
   memberStatus: string;
   joinedAt: string;
-  user: { id: string; fullName: string; email: string };
+  tier?: string;
+  user: { id: string; fullName: string; email: string; kycProfile?: { kycStatus: string } };
 };
 
 export type GroupContribution = {
@@ -219,6 +221,19 @@ export function useStartGroup(groupId: string) {
         .json<{ message: string; cyclesGenerated: number }>(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', groupId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useJoinByToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiClient
+        .post('groups/join', { json: { token } })
+        .json<{ message: string }>(),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['groups'] });
     },
   });

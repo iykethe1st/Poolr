@@ -1,0 +1,21 @@
+## Overview
+Recruit a small, trusted group of real users for the private beta. The goal is to put real-world human behaviour through the app before public launch.
+
+## Target beta group profile
+- 2-3 complete Ajo groups (8-10 members each)
+- Mix of segments: at least one market/trader group and one friend/individual group
+- At least one group with real NGN contributions (even a small amount like 1,000 per person) to test real Paystack flows
+- Testers should be people willing to give honest feedback, not just friends who will be polite
+
+## Tasks
+- [ ] Define beta tester criteria and write a simple onboarding brief explaining what they are testing and what to expect
+- [ ] Set up a feedback channel (WhatsApp group or simple Tally/Google Form) for testers to report bugs and suggestions
+- [ ] Recruit at least 2 complete groups (16-20 testers total)
+- [ ] Onboard testers: walk them through registration, KYC, and group setup
+- [ ] Run at least 2 full contribution cycles per group during beta
+- [ ] Collect structured feedback at the end of beta on: trust in the platform, clarity of the UI, any bugs or unexpected behaviour
+
+## Acceptance criteria
+- At least 2 complete groups have completed at least 1 full cycle (all members contribute, payout is received by the correct recipient)
+- All critical bugs discovered during beta are filed as GitHub issues and triaged
+- A beta retrospective document is written summarising findings before public launch

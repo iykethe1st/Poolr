@@ -8,7 +8,7 @@
     "dev:api": "turbo dev --filter=@poolr/api",
     "dev:web": "turbo dev --filter=@poolr/web",
     "dev:admin": "turbo dev --filter=@poolr/admin",
-    "dev:mobile": "turbo dev --filter=@poolr/mobile",
+    "dev:mobile": "pnpm --filter @poolr/mobile exec expo start",
     "db:studio": "turbo dev --filter=@poolr/database -- prisma studio",
     "lint": "turbo lint",
     "test": "turbo test",

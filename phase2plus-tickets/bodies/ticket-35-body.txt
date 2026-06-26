@@ -1,0 +1,26 @@
+## Overview
+Conduct a basic security audit of the Poolr API and infrastructure before public launch. This is especially critical given that the app handles KYC identity documents, BVN/NIN data, and real money transfers.
+
+## Areas to audit
+- [ ] JWT implementation: token expiry, refresh token rotation, revocation on logout
+- [ ] Paystack webhook HMAC verification: confirm signature check cannot be bypassed
+- [ ] Smile ID webhook: confirm webhook origin is validated
+- [ ] S3 bucket permissions: confirm KYC document buckets are private, not publicly listable
+- [ ] Prisma query safety: confirm no raw SQL injection vectors in any `$queryRaw` calls
+- [ ] Rate limiting: confirm auth endpoints (login, OTP) are rate-limited to prevent brute force
+- [ ] CORS configuration: confirm only permitted origins are whitelisted
+- [ ] Environment variables: confirm no secrets are exposed in client-side bundles (Next.js public env vars)
+- [ ] Dependency audit: run `pnpm audit` and resolve any high/critical vulnerabilities
+- [ ] Consider engaging an external penetration testing service for a lightweight pentest
+
+## Tasks
+- [ ] Complete internal security checklist above
+- [ ] Run `pnpm audit --audit-level=high` and resolve all high/critical findings
+- [ ] Run OWASP ZAP or similar against the staging API for automated vulnerability scanning
+- [ ] Document findings and resolutions
+
+## Acceptance criteria
+- All checklist items reviewed and documented
+- Zero high or critical npm vulnerabilities in production dependencies
+- S3 buckets confirmed private
+- OWASP scan returns no high or critical findings

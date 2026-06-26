@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1085614328476",
+    "project_id": "poolr-9103e",
+    "storage_bucket": "poolr-9103e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085614328476:android:12f66183399e200ed83b59",
+        "android_client_info": {
+          "package_name": "com.vellumandcode.poolr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAi66i1zsSDu_sidS9eaTRTTORdCSZ-Ws8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

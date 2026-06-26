@@ -1,0 +1,17 @@
+## Overview
+Draft, have legally reviewed, and publish Poolr's Terms of Service and Privacy Policy before public launch.
+
+## Tasks
+- [ ] Draft Terms of Service covering: user eligibility, group rules, contribution obligations, penalty policy, Poolr's liability limits, wallet and withdrawal terms, account termination
+- [ ] Draft Privacy Policy covering: what data is collected (BVN, NIN, phone, email, transaction history), why it is collected, who it is shared with (Smile ID, Paystack, Termii, Firebase, AWS), how long it is kept, user rights under NDPA
+- [ ] Have both documents reviewed by legal counsel from ticket #32
+- [ ] Add Terms of Service and Privacy Policy pages to the web app
+- [ ] Add acceptance checkbox to registration flow (users must accept ToS and Privacy Policy to create an account)
+- [ ] Store acceptance timestamp and version number per user in the database
+- [ ] Add `terms_accepted_at` and `terms_version` fields to `User` model
+
+## Acceptance criteria
+- Both documents are published at public URLs before any public-facing launch
+- Registration flow requires explicit acceptance, not just a passive link
+- Legal counsel has reviewed and signed off on both documents
+- `terms_accepted_at` is recorded for every new user from launch onwards

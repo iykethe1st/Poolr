@@ -1,0 +1,19 @@
+## Overview
+Convert the waitlist built during the pre-launch period into active Poolr users with a launch email sequence and social media announcement.
+
+## Tasks
+- [ ] Write launch email sequence (3 emails via Resend):
+  - Email 1: You're in - Poolr is live, here is how to get started
+  - Email 2: 3 days later - how to create your first group
+  - Email 3: 7 days later - invite your savings circle (referral prompt)
+- [ ] Design email templates using React Email (consistent with Poolr brand colors)
+- [ ] Segment waitlist by source if applicable (diaspora vs Nigeria, individual vs trader/corporate)
+- [ ] Send launch email to full waitlist on launch day
+- [ ] Prepare social media launch posts: Twitter/X, LinkedIn, Instagram, WhatsApp status
+- [ ] Reach out to Nigerian fintech journalists and newsletters (Techpoint, Nairametrics, The Aza Report) with a press release or product brief
+- [ ] Monitor signups and conversion rate from waitlist email open to completed registration in the 72 hours post-launch
+
+## Acceptance criteria
+- Launch email delivered to 100% of waitlist with under 2% bounce rate
+- Conversion rate from waitlist email to completed registration is tracked
+- At least one Nigerian tech media outlet covers or acknowledges the launch

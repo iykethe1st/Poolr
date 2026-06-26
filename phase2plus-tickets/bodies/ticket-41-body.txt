@@ -1,0 +1,35 @@
+## Overview
+Build a referral programme that rewards existing Poolr users with a wallet credit for every new verified user they refer who completes their first full contribution cycle.
+
+## How it works
+- Every user gets a unique referral code and shareable link on their profile
+- When a new user signs up via a referral link, the referral is tracked
+- When the referred user completes their first contribution in any group, the referrer receives a wallet credit (e.g. 500 NGN)
+- The referred user optionally receives a welcome bonus too (e.g. 200 NGN wallet credit on first contribution)
+
+## Schema changes
+- [ ] Add `referral_code` (unique string) to `User` model
+- [ ] Add `referred_by_id` (FK to User) to `User` model
+- [ ] Add `Referral` table: id, referrer_id, referred_id, status (PENDING, REWARDED), rewarded_at
+
+## API tasks
+- [ ] Generate unique referral code on user creation (e.g. POOLR-ABCD1234)
+- [ ] Accept `referral_code` as an optional param on `POST /auth/register`
+- [ ] Create referral record on signup if a valid code is provided
+- [ ] Trigger referral reward in `PaymentsService` when a referred user's first contribution is marked PAID:
+  - Credit referrer wallet via `WalletService.credit()`
+  - Credit referred user wallet (welcome bonus)
+  - Update `Referral.status` to REWARDED
+- [ ] Expose `GET /referrals` - list own referrals with status and earnings
+- [ ] Write unit tests for referral reward logic
+
+## Frontend tasks (web + mobile)
+- [ ] Add referral section to user profile page: unique link, copy button, QR code
+- [ ] Show referral history and total earnings from referrals
+- [ ] Add referral code field to registration screen (auto-populated if arriving via referral link)
+
+## Acceptance criteria
+- Referrer receives wallet credit only after the referred user completes their first contribution (not on signup)
+- A user cannot refer themselves (same email/phone check)
+- Referral rewards are idempotent - no double crediting if events fire multiple times
+- Referral earnings are clearly itemised in the wallet transaction history
