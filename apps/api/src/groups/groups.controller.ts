@@ -46,6 +46,14 @@ export class GroupsController {
     return this.groups.findAll(user.id);
   }
 
+  @Post('join')
+  @HttpCode(200)
+  @UseGuards(KycGuard)
+  @ApiOperation({ summary: 'Join a group using an invitation token (no group ID needed)' })
+  joinByToken(@CurrentUser() user: AuthUser, @Body() dto: JoinGroupDto) {
+    return this.groups.joinByToken(user.id, dto.token);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get group details' })
   findOne(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {

@@ -1,0 +1,24 @@
+## Overview
+Prepare and submit the Poolr iOS app to the Apple App Store via Expo EAS.
+
+## Tasks
+- [ ] Create an Apple Developer account (if not already done) - $99/year
+- [ ] Configure `app.json` / `eas.json` in `apps/mobile` with correct bundle ID, version, and build number
+- [ ] Generate and configure required App Store assets:
+  - [ ] App icon: 1024x1024 PNG (no alpha, no rounded corners - Apple adds them)
+  - [ ] Screenshots: at least 3 per device size (6.7", 6.1", 5.5" iPhone)
+  - [ ] App preview video (optional but recommended)
+- [ ] Write App Store listing copy: name ("Poolr"), subtitle, description, keywords, support URL, privacy policy URL
+- [ ] Configure Expo EAS production build: `eas build --platform ios --profile production`
+- [ ] Submit to App Store Connect: `eas submit --platform ios`
+- [ ] Prepare for Apple review: ensure KYC, financial, and payment flows are clearly explained in the review notes
+- [ ] Monitor review status - allow 1-3 business days for initial review
+- [ ] Respond promptly to any Apple review questions or rejections
+
+## Acceptance criteria
+- App is approved and live on the iOS App Store
+- All App Store screenshots show real app UI (not placeholder)
+- Privacy policy URL is live and linked correctly in App Store Connect
+
+## Note
+Apple commonly rejects fintech apps for: missing privacy policy, unclear explanation of KYC/financial features, or test account not provided. Prepare a demo account for the reviewer with a pre-verified KYC status and a pre-created group.

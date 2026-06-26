@@ -21,10 +21,21 @@ export const metadata: Metadata = {
   description: 'Rotating savings circles, reimagined for the modern age.',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon-256.png', sizes: '256x256', type: 'image/png' },
+      { url: '/favicon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: { url: '/favicon-512.png', sizes: '512x512', type: 'image/png' },
+    shortcut: '/favicon.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'Poolr',
+    startupImage: '/favicon-512.png',
   },
   formatDetection: {
     telephone: false,

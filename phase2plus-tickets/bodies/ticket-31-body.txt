@@ -1,0 +1,16 @@
+## Overview
+Establish baseline performance metrics before public launch so you have a reference point for detecting degradation as user numbers grow.
+
+## Tasks
+- [ ] Use k6 or Artillery to run a basic load test against the staging API
+- [ ] Test key endpoints under load: `POST /auth/login`, `POST /payments/contribute/:cycleId`, `GET /groups/:id`, `POST /payments/webhook`
+- [ ] Establish baseline: p95 response time, error rate at 100 concurrent users
+- [ ] Identify any obvious N+1 query issues in Prisma (use `prisma.$queryRaw` logging or Prisma's query event)
+- [ ] Set up basic uptime monitoring (Railway's built-in or BetterUptime) on the API `/health` endpoint
+- [ ] Configure Sentry performance monitoring with transaction tracing on the API
+
+## Acceptance criteria
+- p95 response time for all key endpoints is under 500ms at 100 concurrent users
+- Zero 5xx errors under baseline load
+- Uptime monitoring is configured and sending alerts to a nominated Slack/email
+- Sentry performance dashboard is live

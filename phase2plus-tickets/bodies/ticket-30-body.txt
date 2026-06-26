@@ -1,0 +1,18 @@
+## Overview
+A dedicated sprint for triaging all bugs discovered during private beta, fixing them, and confirming regressions are resolved before public launch.
+
+## Process
+- Bugs are filed as separate GitHub issues tagged `bug` during beta testing
+- This ticket tracks the triage and resolution process, not individual bugs
+
+## Tasks
+- [ ] Triage all bugs from beta feedback into: Critical (blocks launch), High (fix before launch), Medium (fix post-launch), Low (backlog)
+- [ ] Resolve all Critical and High bugs
+- [ ] Re-run end-to-end payment test scenarios from ticket #29 after bug fixes to confirm no regressions
+- [ ] Run smoke tests across all four apps (API, web, mobile, admin) after final fix
+- [ ] Get sign-off from at least one beta tester that their reported bug is resolved
+
+## Acceptance criteria
+- Zero Critical or High bugs remain open at the end of this ticket
+- All payment flow test scenarios from #29 pass on the fixed codebase
+- Beta testers confirm their key reported issues are resolved

@@ -1,0 +1,36 @@
+## Overview
+Build a trust score system that rewards users for reliable contribution behaviour and unlocks perks as the score increases.
+
+## How the score works
+- Every user starts with a base trust score of 50
+- Score increases for: on-time contributions (+5 per cycle), completing a full group cycle (+20), receiving no penalties in a cycle (+3)
+- Score decreases for: missed contribution (-15), late contribution (-5), penalty waived by admin (no change - neutral)
+- Score is capped between 0 and 100
+- Score is visible to the user and optionally visible to group admins when reviewing membership requests
+
+## Perks unlocked by trust score
+- 0-39 (New): Standard - can join groups up to 10 members, no preferred rotation position
+- 40-59 (Trusted): Can join groups up to 20 members, reduced penalty fee (50% discount)
+- 60-79 (Reliable): Can join groups up to 50 members, eligible for early rotation position preference
+- 80-100 (Elite): Unlimited group size, zero platform fees on one group per month, priority payout scheduling
+
+## Schema changes
+- [ ] Add `trust_score` (int, default 50) to `User` model
+- [ ] Add `TrustScoreEvent` table: id, user_id, event_type, points_delta, reason, created_at
+
+## API tasks
+- [ ] Create `TrustScoreService`
+- [ ] Trigger score update events from: `PaymentsService` (on-time vs late contribution), `PenaltyService` (missed contribution), `GroupsService` (cycle completion)
+- [ ] Expose `GET /users/me/trust-score` - current score, tier, and recent score events
+- [ ] Factor trust score into group join eligibility checks in `GroupsService`
+
+## Frontend tasks
+- [ ] Add trust score badge to user profile (show tier name and score)
+- [ ] Show score history with event descriptions ("On-time contribution +5", "Missed contribution -15")
+- [ ] Show locked and unlocked perks per tier
+
+## Acceptance criteria
+- Score updates are triggered correctly by all relevant events
+- Score never goes below 0 or above 100
+- Group join is blocked with a clear message if trust score is below the group's minimum (if admin has set one)
+- Trust score events are always logged to `TrustScoreEvent` for auditability

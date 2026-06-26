@@ -7,12 +7,21 @@ const STALE = 30_000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type ContributionStats = {
+  tier: 'NEW' | 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  totalPaid: number;
+  onTimePaid: number;
+  onTimeRate: number;
+  totalPenalties: number;
+};
+
 export type CurrentUser = {
   id: string;
   fullName: string;
   email: string;
   avatarUrl: string | null;
   kycProfile: { kycStatus: string } | null;
+  contributionStats?: ContributionStats;
 };
 
 export type GroupMemberSlim = {

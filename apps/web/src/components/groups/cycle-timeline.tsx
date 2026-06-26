@@ -109,7 +109,7 @@ export function CycleTimeline({ cycles, members, contributionAmount, currency, c
   );
 }
 
-function PayButton({
+export function PayButton({
   cycleId,
   currency,
   contributionAmount,

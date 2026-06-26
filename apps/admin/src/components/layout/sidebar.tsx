@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -82,11 +83,14 @@ export function Sidebar() {
         )}
       >
         {collapsed ? (
-          <span className="text-lg font-bold">P</span>
+          <Image src="/favicon.png" alt="Poolr" width={28} height={28} />
         ) : (
-          <span className="text-lg font-bold tracking-tight">
-            Poolr <span className="text-xs font-normal text-muted-foreground">Admin</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <Image src="/favicon.png" alt="Poolr" width={32} height={32} />
+            <span className="text-lg font-bold tracking-tight">
+              Poolr <span className="text-xs font-normal text-muted-foreground">Admin</span>
+            </span>
+          </div>
         )}
       </div>
 

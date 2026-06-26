@@ -1,0 +1,69 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useVerifyPayment } from '@/hooks/use-payments';
+import { useColors } from '@/lib/colors';
+
+export default function PaymentCallbackScreen() {
+  const { reference } = useLocalSearchParams<{ reference?: string }>();
+  const verify = useVerifyPayment();
+  const [status, setStatus] = useState<'verifying' | 'success' | 'failed'>('verifying');
+
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  useEffect(() => {
+    if (!reference) {
+      setStatus('failed');
+      return;
+    }
+
+    verify.mutate(reference, {
+      onSuccess: (result) => {
+        setStatus(result.status === 'success' ? 'success' : 'failed');
+        setTimeout(() => router.replace('/(tabs)/'), 2000);
+      },
+      onError: () => {
+        setStatus('failed');
+        setTimeout(() => router.replace('/(tabs)/'), 2000);
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reference]);
+
+  return (
+    <View style={styles.root}>
+      {status === 'verifying' && (
+        <>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.title}>Verifying payment…</Text>
+          <Text style={styles.sub}>Please wait</Text>
+        </>
+      )}
+      {status === 'success' && (
+        <>
+          <Text style={styles.icon}>✓</Text>
+          <Text style={styles.title}>Payment successful!</Text>
+          <Text style={styles.sub}>Redirecting you back…</Text>
+        </>
+      )}
+      {status === 'failed' && (
+        <>
+          <Text style={[styles.icon, styles.iconFail]}>✕</Text>
+          <Text style={styles.title}>Payment could not be verified</Text>
+          <Text style={styles.sub}>Redirecting you back…</Text>
+        </>
+      )}
+    </View>
+  );
+}
+
+function createStyles(colors: import('@/lib/colors').Colors) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 12 },
+    icon: { fontSize: 56, color: colors.primary },
+    iconFail: { color: colors.destructive },
+    title: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
+    sub: { fontSize: 14, color: colors.textMuted },
+  });
+}

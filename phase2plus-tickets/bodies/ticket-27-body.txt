@@ -1,0 +1,17 @@
+## Overview
+Set up a dedicated staging environment that mirrors production, to be used for private beta testing. This must be completely isolated from any future production environment.
+
+## Tasks
+- [ ] Create a separate Railway project for staging (staging API + staging PostgreSQL + staging Redis)
+- [ ] Create a separate Vercel project for staging web and admin apps
+- [ ] Configure staging environment variables (separate Paystack test keys, separate Smile ID sandbox, separate Termii test account)
+- [ ] Set up staging branch in GitHub (`staging`) that auto-deploys to staging environments via existing CI/CD workflows
+- [ ] Add staging-specific seed script that creates realistic test groups, members, and cycles
+- [ ] Confirm Paystack test mode works end to end in staging (test card charges, test transfers)
+- [ ] Add staging banner to web and admin UI so testers are always aware they are on staging
+
+## Acceptance criteria
+- Merging to `staging` branch auto-deploys all apps to staging environments
+- Paystack test transactions work end to end in staging without touching real money
+- Staging DB is fully isolated from any production data
+- Staging URL is accessible to invited beta testers

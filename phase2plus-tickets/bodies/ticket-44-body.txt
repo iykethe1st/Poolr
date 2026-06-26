@@ -1,0 +1,35 @@
+## Overview
+Build a lightweight B2B onboarding flow for corporate HR teams and large market cooperatives who want to run Ajo groups for their members/employees at scale.
+
+## What B2B adds over the standard product
+- A verified "Organisation" entity that owns and manages multiple groups
+- Bulk member import (CSV upload of employee/member list)
+- Organisation-level admin dashboard showing all groups, total pooled, and payout schedule across groups
+- Custom branding option (organisation logo on group invite emails)
+- Flat monthly fee billing instead of per-transaction fee (negotiated per organisation)
+
+## Schema changes
+- [ ] Add `Organisation` table: id, name, logo_url, contact_email, billing_type (TRANSACTION_FEE, FLAT_MONTHLY), monthly_fee, created_at
+- [ ] Add `organisation_id` (optional FK) to `Group` model
+- [ ] Add `ORG_ADMIN` to `Role` enum
+
+## API tasks
+- [ ] `POST /organisations` - create organisation (super admin only)
+- [ ] `POST /organisations/:id/members/import` - bulk import members via CSV (name, email, phone)
+- [ ] `GET /organisations/:id/dashboard` - aggregate stats across all groups
+- [ ] Adjust fee calculation to use flat monthly billing for organisation-owned groups
+
+## Frontend tasks (admin dashboard)
+- [ ] Organisation overview page: all groups, total members, total pooled this month
+- [ ] Bulk member import UI: CSV upload with preview and validation before import
+- [ ] Organisation settings: logo upload, contact info, billing type
+
+## Sales tasks
+- [ ] Identify 5-10 target organisations for B2B pilot: market cooperatives (Alaba, Balogun, Computer Village), corporate HR teams (mid-size Lagos companies)
+- [ ] Prepare a one-page B2B product brief explaining Poolr for organisations
+- [ ] Set up a B2B inquiry form on the landing page
+
+## Acceptance criteria
+- An organisation admin can import 50+ members via CSV and create a group for them without manually inviting each member
+- Organisation dashboard shows accurate aggregate stats across all groups
+- Flat monthly billing is calculated correctly and applied to organisation-owned groups

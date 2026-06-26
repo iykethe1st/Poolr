@@ -15,6 +15,7 @@ import {
   CircleDollarSign,
   Clock,
   Copy,
+  CreditCard,
   Landmark,
   Loader2,
   Pencil,
@@ -51,6 +52,8 @@ import {
   type GroupVirtualAccount,
 } from '@/hooks/use-group';
 import { useCurrentUser } from '@/hooks/use-dashboard';
+import { useInitializeContribution, useWalletContribute } from '@/hooks/use-payments';
+import { useWallet } from '@/hooks/use-wallet';
 import { formatCurrency, formatFrequency, formatGroupStatus } from '@/lib/format';
 
 const GROUP_STATUS_VARIANT: Record<string, 'success' | 'warning' | 'outline' | 'destructive' | 'default'> = {
@@ -245,8 +248,24 @@ function LiveGroupTabs({
     { key: 'penalties', label: 'Penalties' },
   ];
 
+  const activeCycle = group.cycles.find(
+    (c) => c.status === 'ACTIVE' || c.status === 'OVERDUE',
+  );
+  const isActiveMember = me && group.members.find((m) => m.userId === me.id)?.memberStatus === 'ACTIVE';
+
   return (
     <div className="space-y-5">
+      {/* Pay CTA banner — shown when there is a payable active cycle */}
+      {activeCycle && isActiveMember && (
+        <PayCtaBanner
+          cycleId={activeCycle.id}
+          cycleNumber={activeCycle.cycleNumber}
+          dueDate={activeCycle.dueDate}
+          contributionAmount={group.contributionAmount}
+          currency={group.currency}
+        />
+      )}
+
       {/* Tab bar */}
       <div className="flex gap-1 rounded-xl border bg-muted/40 p-1">
         {tabs.map((t) => (
@@ -282,6 +301,7 @@ function LiveGroupTabs({
       {tab === 'members' && (
         <MembersTab
           allMembers={history?.allMembers ?? []}
+          contributions={history?.contributions ?? []}
           currentUserId={me?.id}
           isLoading={histLoading}
         />
@@ -376,14 +396,28 @@ function OverviewTab({
 
 function MembersTab({
   allMembers,
+  contributions,
   currentUserId,
   isLoading,
 }: {
   allMembers: GroupHistory['allMembers'];
+  contributions: GroupHistory['contributions'];
   currentUserId: string | undefined;
   isLoading: boolean;
 }) {
   if (isLoading) return <TabSkeleton />;
+
+  // Contribution reliability per member
+  const memberStats = contributions.reduce<Record<string, { paid: number; onTime: number }>>((acc, c) => {
+    if (!acc[c.memberId]) acc[c.memberId] = { paid: 0, onTime: 0 };
+    if (c.status === 'PAID') {
+      acc[c.memberId].paid++;
+      if (c.paidAt && c.dueAt && new Date(c.paidAt) <= new Date(c.dueAt)) {
+        acc[c.memberId].onTime++;
+      }
+    }
+    return acc;
+  }, {});
 
   const current = allMembers.filter((m) => ['ACTIVE', 'INVITED'].includes(m.memberStatus));
   const former = allMembers.filter((m) => ['LEFT', 'REMOVED'].includes(m.memberStatus));
@@ -398,31 +432,67 @@ function MembersTab({
           <EmptyState icon={Users} text="No current members" />
         ) : (
           <div className="space-y-2">
-            {current.map((m) => (
-              <div
-                key={m.id}
-                className={[
-                  'flex items-center gap-3 rounded-xl border bg-card px-4 py-3',
-                  m.userId === currentUserId ? 'ring-1 ring-primary/30' : '',
-                ].join(' ')}
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold">
-                  #{m.rotationPosition}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">
-                    {m.user.fullName}
-                    {m.userId === currentUserId && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
+            {current.map((m) => {
+              const stat = memberStats[m.id];
+              const onTimeRate = stat && stat.paid > 0 ? Math.round((stat.onTime / stat.paid) * 100) : null;
+              const isVerified = m.user.kycProfile?.kycStatus === 'VERIFIED';
+              return (
+                <div
+                  key={m.id}
+                  className={[
+                    'flex items-center gap-3 rounded-xl border bg-card px-4 py-3',
+                    m.userId === currentUserId ? 'ring-1 ring-primary/30' : '',
+                  ].join(' ')}
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+                    #{m.rotationPosition}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="text-sm font-medium">
+                        {m.user.fullName}
+                        {m.userId === currentUserId && (
+                          <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
+                        )}
+                      </p>
+                      {isVerified && (
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">
+                          <ShieldCheck className="mr-0.5 size-2.5" />
+                          Verified
+                        </span>
+                      )}
+                      {m.tier && m.tier !== 'NEW' && (
+                        <span className={[
+                          'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                          m.tier === 'PLATINUM' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400' :
+                          m.tier === 'GOLD'     ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-400' :
+                          m.tier === 'SILVER'   ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' :
+                                                  'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400',
+                        ].join(' ')}>
+                          {m.tier === 'PLATINUM' ? '💎' : m.tier === 'GOLD' ? '🥇' : m.tier === 'SILVER' ? '🥈' : '🥉'}{' '}
+                          {m.tier.charAt(0) + m.tier.slice(1).toLowerCase()}
+                        </span>
+                      )}
+                    </div>
+                    {onTimeRate !== null ? (
+                      <p className={[
+                        'text-xs font-medium',
+                        onTimeRate === 100 ? 'text-green-600 dark:text-green-400'
+                          : onTimeRate >= 75 ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-red-600 dark:text-red-400',
+                      ].join(' ')}>
+                        {onTimeRate}% on time · {stat!.paid} contribution{stat!.paid !== 1 ? 's' : ''}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{m.user.email}</p>
                     )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{m.user.email}</p>
+                  </div>
+                  <Badge variant={MEMBER_STATUS_VARIANT[m.memberStatus] ?? 'outline'} className="text-xs">
+                    {m.memberStatus === 'INVITED' ? 'Pending' : 'Active'}
+                  </Badge>
                 </div>
-                <Badge variant={MEMBER_STATUS_VARIANT[m.memberStatus] ?? 'outline'} className="text-xs">
-                  {m.memberStatus === 'INVITED' ? 'Pending' : 'Active'}
-                </Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -712,6 +782,88 @@ function PenaltiesTab({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Pay CTA Banner ─────────────────────────────────────────────────────────────
+
+function PayCtaBanner({
+  cycleId,
+  cycleNumber,
+  dueDate,
+  contributionAmount,
+  currency,
+}: {
+  cycleId: string;
+  cycleNumber: number;
+  dueDate: string;
+  contributionAmount: number;
+  currency: string;
+}) {
+  const router = useRouter();
+  const init = useInitializeContribution();
+  const walletPay = useWalletContribute();
+  const { data: wallet } = useWallet();
+  const [paid, setPaid] = useState(false);
+
+  const walletBalance = Number(wallet?.balance ?? 0);
+  const canPayFromWallet = walletBalance >= contributionAmount;
+  const isBusy = init.isPending || walletPay.isPending;
+
+  if (paid) return null;
+
+  function handlePaystack() {
+    init.mutate(cycleId, {
+      onSuccess: ({ authorizationUrl }) => {
+        if (process.env.NODE_ENV === 'development' && !authorizationUrl.startsWith('https://checkout.paystack')) {
+          router.push('/payments/callback?reference=dev_test');
+        } else {
+          window.location.href = authorizationUrl;
+        }
+      },
+    });
+  }
+
+  function handleWallet() {
+    walletPay.mutate(cycleId, { onSuccess: () => setPaid(true) });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl bg-primary px-5 py-4 text-primary-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="font-semibold">Cycle {cycleNumber} contribution due</p>
+        <p className="text-sm opacity-80">
+          {new Date(dueDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </p>
+      </div>
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handlePaystack}
+            disabled={isBusy}
+            className="bg-white/20 text-white hover:bg-white/30 border-white/30"
+          >
+            {init.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CreditCard className="size-3.5" />}
+            Pay {formatCurrency(contributionAmount, currency)}
+          </Button>
+          {canPayFromWallet && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleWallet}
+              disabled={isBusy}
+              className="bg-white/10 text-white hover:bg-white/20 border-white/20"
+            >
+              {walletPay.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" />}
+              Wallet
+            </Button>
+          )}
+        </div>
+        <p className="text-[11px] opacity-60">🔒 Payments secured by Paystack</p>
+      </div>
     </div>
   );
 }

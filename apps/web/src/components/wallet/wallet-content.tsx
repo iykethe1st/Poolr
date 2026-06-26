@@ -33,6 +33,7 @@ import {
   useWithdrawFromWallet,
   type WalletTransaction,
 } from '@/hooks/use-wallet';
+import { useMyBankAccount } from '@/hooks/use-bank-account';
 
 const TX_LABEL: Record<WalletTransaction['type'], string> = {
   CONTRIBUTION: 'Contribution',
@@ -46,6 +47,7 @@ const TX_LABEL: Record<WalletTransaction['type'], string> = {
 export function WalletContent() {
   const { data: wallet, isLoading: walletLoading } = useWallet();
   const { data: txPage, isLoading: txLoading } = useWalletTransactions(1, 20);
+  const { data: bankAccount } = useMyBankAccount();
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
@@ -106,6 +108,29 @@ export function WalletContent() {
           </div>
         )}
       </div>
+
+      {/* Bank account card */}
+      {bankAccount ? (
+        <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <ArrowUpRight className="size-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{bankAccount.accountName}</p>
+            <p className="text-xs text-muted-foreground">{bankAccount.bankName} · {bankAccount.accountNumber}</p>
+          </div>
+          <span className="text-xs text-muted-foreground shrink-0">Withdrawal account</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl border border-dashed bg-card px-4 py-3">
+          <AlertCircle className="size-4 text-muted-foreground/60 shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            No bank account linked —{' '}
+            <a href="/settings" className="text-primary underline underline-offset-2">add one in Settings</a>
+            {' '}to withdraw.
+          </p>
+        </div>
+      )}
 
       <TopUpDialog open={topUpOpen} onClose={() => setTopUpOpen(false)} />
       <WithdrawDialog open={withdrawOpen} onClose={() => setWithdrawOpen(false)} balance={balance} />
@@ -178,6 +203,18 @@ function TopUpDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
+            <div className="flex gap-2">
+              {[1000, 5000, 10000, 20000].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setAmount(String(n))}
+                  className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  ₦{(n / 1000).toFixed(0)}k
+                </button>
+              ))}
+            </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
           <DialogFooter>

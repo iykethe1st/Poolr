@@ -12,6 +12,15 @@ import type { UpdateProfileDto } from './dto/update-profile.dto';
 
 const MAX_KYC_ATTEMPTS = 3;
 
+export function computeTier(totalPaid: number, onTimePaid: number, totalPenalties: number): string {
+  if (totalPaid === 0) return 'NEW';
+  const rate = onTimePaid / totalPaid;
+  if (totalPaid >= 15 && rate === 1 && totalPenalties === 0) return 'PLATINUM';
+  if (totalPaid >= 10 && rate >= 0.9 && totalPenalties === 0) return 'GOLD';
+  if (totalPaid >= 5 && rate >= 0.75) return 'SILVER';
+  return 'BRONZE';
+}
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -21,13 +30,24 @@ export class UsersService {
   ) {}
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { kycProfile: true },
-    });
+    const [user, paidContribs, totalPenalties] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, include: { kycProfile: true } }),
+      this.prisma.contribution.findMany({
+        where: { member: { userId }, status: 'PAID' },
+        select: { paidAt: true, dueAt: true },
+      }),
+      this.prisma.penalty.count({ where: { member: { userId }, status: 'APPLIED' } }),
+    ]);
     if (!user) throw new NotFoundException('User not found');
+    const totalPaid = paidContribs.length;
+    const onTimePaid = paidContribs.filter((c) => c.paidAt && c.paidAt <= c.dueAt).length;
+    const onTimeRate = totalPaid > 0 ? Math.round((onTimePaid / totalPaid) * 100) : 0;
+    const tier = computeTier(totalPaid, onTimePaid, totalPenalties);
     const { passwordHash: _pw, ...profile } = user;
-    return profile;
+    return {
+      ...profile,
+      contributionStats: { tier, totalPaid, onTimePaid, onTimeRate, totalPenalties },
+    };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

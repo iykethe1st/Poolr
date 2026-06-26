@@ -1,0 +1,28 @@
+## Overview
+Add a simple in-app group chat to each Ajo group, preserving the social glue that makes Ajo work in real life. Chat is scoped per group - members can only see messages from their own group.
+
+## How it works
+- Each group has its own chat thread
+- All group members (including admin) can send and receive messages
+- Automated system messages appear in the chat for key events: cycle started, contribution received, payout sent, penalty applied
+- Chat is not a general social feed - it is strictly tied to each group
+
+## Technical approach
+- Use Firebase Realtime Database or Firestore for chat (avoids building WebSocket infrastructure on NestJS from scratch)
+- Store message metadata (sender, timestamp, group_id) in Firestore; no need to mirror to PostgreSQL
+- Firebase FCM (already integrated) handles push notifications for new messages when app is backgrounded
+
+## Tasks
+- [ ] Set up Firestore collection structure: `groups/{groupId}/messages/{messageId}`
+- [ ] Create `ChatService` on the backend that writes system messages to Firestore on key events
+- [ ] Web: build chat UI component in the group detail page (message list + input)
+- [ ] Mobile: build chat screen in the group detail tab
+- [ ] Implement real-time message subscription (Firestore `onSnapshot` listener)
+- [ ] Push notification for new chat messages when app is backgrounded
+- [ ] Moderation: admin can delete any message in their group
+
+## Acceptance criteria
+- Messages appear in real time for all group members without page refresh
+- System messages appear automatically when contribution is confirmed or payout is sent
+- Push notification fires within 5 seconds of a new message for backgrounded users
+- Admin can delete inappropriate messages

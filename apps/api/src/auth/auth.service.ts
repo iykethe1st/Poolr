@@ -55,7 +55,7 @@ export class AuthService {
 
     const user = await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
       const u = await tx.user.create({
-        data: { fullName: dto.fullName, email: dto.email, phone: dto.phone, passwordHash },
+        data: { fullName: dto.fullName ?? '', email: dto.email, phone: dto.phone, passwordHash },
       });
       await tx.wallet.create({ data: { userId: u.id } });
       return u;

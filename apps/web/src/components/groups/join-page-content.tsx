@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { HTTPError } from 'ky';
 import { Loader2, ShieldCheck, TriangleAlert, Users } from 'lucide-react';
 
@@ -58,7 +59,10 @@ function GuestView({ groupId, token }: { groupId: string; token: string }) {
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="text-2xl font-bold tracking-tight">Poolr</span>
+          <div className="flex items-center justify-center gap-2">
+            <Image src="/favicon.png" alt="Poolr" width={36} height={36} />
+            <span className="text-2xl font-bold tracking-tight">Poolr</span>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Rotating savings circles, reimagined.
           </p>
@@ -218,7 +222,10 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
       <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
         <div className="w-full max-w-sm">
           <div className="mb-6 text-center">
+            <div className="flex items-center justify-center gap-2">
+            <Image src="/favicon.png" alt="Poolr" width={36} height={36} />
             <span className="text-2xl font-bold tracking-tight">Poolr</span>
+          </div>
           </div>
 
           <div className="rounded-2xl border bg-card p-8 shadow-sm space-y-6">

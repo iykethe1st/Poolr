@@ -42,6 +42,7 @@ export class PaymentsService {
     userId: string,
     cycleId: string,
     paymentSource: PaymentSource = PaymentSource.PAYSTACK,
+    callbackUrl?: string,
   ) {
     const cycle = await this.prisma.cycle.findUnique({
       where: { id: cycleId },
@@ -69,41 +70,37 @@ export class PaymentsService {
     }
 
     // ── Paystack path ────────────────────────────────────────────────────────
+    // Always generate a fresh reference — if the user abandoned a previous
+    // Paystack session, reusing the old reference produces a duplicate-ref error.
+    const reference = `contrib_${cycleId.slice(-8)}_${userId.slice(-8)}_${Date.now()}`;
 
-    let reference: string;
-
-    if (existing?.paystackRef) {
-      reference = existing.paystackRef;
+    if (existing) {
+      await this.prisma.contribution.update({
+        where: { id: existing.id },
+        data: { paystackRef: reference },
+      });
     } else {
-      reference = `contrib_${cycleId.slice(-8)}_${userId.slice(-8)}_${Date.now()}`;
-
-      if (existing) {
-        await this.prisma.contribution.update({
-          where: { id: existing.id },
-          data: { paystackRef: reference },
-        });
-      } else {
-        await this.prisma.contribution.create({
-          data: {
-            cycleId,
-            memberId: member.id,
-            amount: cycle.group.contributionAmount,
-            dueAt: cycle.dueDate,
-            status: ContribStatus.PENDING,
-            paystackRef: reference,
-          },
-        });
-      }
+      await this.prisma.contribution.create({
+        data: {
+          cycleId,
+          memberId: member.id,
+          amount: cycle.group.contributionAmount,
+          dueAt: cycle.dueDate,
+          status: ContribStatus.PENDING,
+          paystackRef: reference,
+        },
+      });
     }
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3003');
+    const resolvedCallbackUrl = callbackUrl ?? `${frontendUrl}/payments/callback`;
     const { authorizationUrl } = await this.paystack.initializeTransaction({
       email: user.email,
       amountNgn: Number(cycle.group.contributionAmount),
       reference,
-      callbackUrl: `${frontendUrl}/payments/callback`,
+      callbackUrl: resolvedCallbackUrl,
       metadata: { cycleId, memberId: member.id, userId },
     });
 

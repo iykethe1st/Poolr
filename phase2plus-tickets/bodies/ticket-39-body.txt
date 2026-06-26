@@ -1,0 +1,22 @@
+## Overview
+Set up and harden the production environment on Railway and Vercel ahead of public launch.
+
+## Tasks
+- [ ] Create separate Railway production project (separate from staging)
+- [ ] Configure production environment variables (live Paystack secret keys, live Smile ID credentials, live Termii keys)
+- [ ] Enable Railway's automatic PostgreSQL backups (daily, 7-day retention minimum)
+- [ ] Set up Redis persistence configuration on Railway (AOF or RDB snapshots)
+- [ ] Configure production domain: custom domain on Vercel for web app, custom domain for API on Railway
+- [ ] Set up SSL certificates (Vercel and Railway handle this automatically but confirm)
+- [ ] Configure Sentry production environment with separate DSN from staging
+- [ ] Set up uptime monitoring with alerting (BetterUptime or similar) on: API `/health`, web app, admin dashboard
+- [ ] Configure Paystack live webhook endpoint and confirm HMAC secret is set correctly
+- [ ] Set up Smile ID production credentials and confirm KYC webhook URL is pointing to production
+- [ ] Run a final smoke test on production infrastructure with a test transaction before flipping traffic
+
+## Acceptance criteria
+- All production environment variables are set and confirmed working
+- Daily DB backups are configured and verified (trigger a manual backup and confirm restore works)
+- Uptime monitoring is alerting to a nominated email/Slack channel
+- Sentry is capturing errors in the production environment
+- Custom domains resolve correctly with valid SSL

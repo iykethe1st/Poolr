@@ -1,0 +1,25 @@
+## Overview
+Build a public-facing marketing landing page for Poolr to drive signups, explain the product, and link to the app stores and web app.
+
+## Sections
+- Hero: headline, subheading, CTA ("Join the waitlist" or "Get started")
+- How it works: 3-step explainer (Create a group, contribute each cycle, collect your payout)
+- Features: key selling points (KYC-verified members, automated payouts, penalty protection, wallet)
+- Testimonials: placeholder for beta tester quotes post-beta
+- App store badges: iOS App Store and Google Play links
+- Footer: links to Terms of Service, Privacy Policy, contact email
+
+## Tasks
+- [ ] Build landing page at `apps/web/app/(marketing)/page.tsx` or as a separate `apps/landing` Next.js app
+- [ ] Use Poolr brand colors (#085041 primary, #EF9F27 accent) and the approved coin-ring logo mark
+- [ ] Make fully responsive (mobile-first - most Nigerian users will land on mobile)
+- [ ] Integrate a simple waitlist/signup form (Tally, or a lightweight `POST /waitlist` endpoint)
+- [ ] Add SEO metadata: title, description, Open Graph image
+- [ ] Deploy to production Vercel domain
+- [ ] Set up Google Analytics or Plausible for basic traffic tracking
+
+## Acceptance criteria
+- Landing page is live at the production domain
+- Page is fully responsive on mobile (375px) and desktop
+- Waitlist form submissions are captured and stored
+- Core Web Vitals scores: LCP under 2.5s, CLS under 0.1 on mobile

@@ -1,0 +1,33 @@
+## Overview
+Share a portion of the interest earned on pooled wallet balances (float) with users whose money is sitting in the Poolr wallet. This rewards users for leaving payouts in the wallet rather than immediately withdrawing, and differentiates Poolr from competitors who keep 100% of float revenue.
+
+## How it works
+- Poolr earns interest on the aggregate balance held across all users' Poolr Wallets in its Paystack settlement account
+- A configurable percentage of that interest is shared back with users proportional to their average daily wallet balance
+- Interest is credited to users' wallets monthly as a "Poolr Interest" transaction
+- The interest rate offered to users is lower than what Poolr earns (Poolr keeps a spread)
+
+## Regulatory note
+This feature MUST be reviewed by legal counsel (ticket #32) before going live. Paying interest on held funds may require additional CBN licensing. This ticket should be blocked on legal sign-off.
+
+## Schema changes
+- [ ] Add `InterestAccrual` table: id, user_id, period_start, period_end, avg_daily_balance, interest_rate, amount_credited, credited_at
+- [ ] Add `INTEREST` as a new `WalletTransaction` type
+
+## API tasks
+- [ ] Create `InterestService` in the wallet module
+- [ ] Daily cron job: snapshot each user's wallet balance into a daily balance log
+- [ ] Monthly cron job: calculate average daily balance per user for the month, compute interest at the configured rate, credit wallet via `WalletService.credit()`, create `InterestAccrual` record
+- [ ] Expose `GET /wallet/interest` - list interest accruals by month
+- [ ] Add configurable interest rate to admin settings (start conservative: 4-6% annualised to users)
+
+## Frontend tasks
+- [ ] Show current interest rate on wallet screen ("Earn X% p.a. on your Poolr Wallet")
+- [ ] Show monthly interest credited in wallet transaction history
+- [ ] Add interest earnings summary to wallet screen (total earned this year)
+
+## Acceptance criteria
+- Interest is calculated correctly based on average daily balance, not just end-of-month snapshot
+- Zero cases of interest being credited twice for the same period (idempotent monthly job)
+- Legal sign-off obtained before feature goes live (see ticket #32)
+- Interest rate is configurable without a code deploy (stored in DB or environment config)

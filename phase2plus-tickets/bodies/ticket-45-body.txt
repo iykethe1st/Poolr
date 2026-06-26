@@ -1,0 +1,21 @@
+## Overview
+Launch a targeted user acquisition campaign aimed at the Nigerian diaspora in the UK, US, and Canada - a high-value segment with larger contribution amounts and high familiarity with Susu/Ajo savings circles.
+
+## Why diaspora first
+- Average contribution amounts likely 3-5x higher than Nigeria-based groups (NGN equivalent of GBP/USD contributions)
+- Diaspora communities already run informal Susu groups via WhatsApp and cash - a digital solution directly replaces an existing painful workflow
+- Paystack supports NGN payments for diaspora users with Nigerian bank accounts
+- Word-of-mouth in tight diaspora communities is extremely efficient for trust-based financial products
+
+## Tasks
+- [ ] Confirm Paystack's support for diaspora users (Nigerian bank account holders outside Nigeria) and document any limitations
+- [ ] Create diaspora-specific landing page variant: messaging focused on "run your Susu group digitally, safely, from anywhere"
+- [ ] Identify and reach out to Nigerian diaspora community groups: Nigerian Union UK chapters, NANS diaspora, Nigerian community Facebook groups in London/Houston/Toronto
+- [ ] Partner with 2-3 diaspora community leaders or influencers for a pilot group (offer fee-free first cycle)
+- [ ] Create WhatsApp-shareable explainer card for how Poolr works (visual, short, shareable)
+- [ ] Track diaspora vs Nigeria-based signups and contribution amounts separately in analytics
+
+## Acceptance criteria
+- At least 2 diaspora groups complete a full cycle within 60 days of campaign launch
+- Average contribution amount for diaspora groups is tracked and reported
+- Referral rate (how many new users each diaspora user invites) is tracked

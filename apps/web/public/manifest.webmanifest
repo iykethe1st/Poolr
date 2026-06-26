@@ -1,0 +1,43 @@
+{
+  "name": "Poolr",
+  "short_name": "Poolr",
+  "description": "Rotating savings circles, reimagined for the modern age.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f9f4",
+  "theme_color": "#155e3e",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    {
+      "src": "/poolr-mark-transparent-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/poolr-icon-android-adaptive.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

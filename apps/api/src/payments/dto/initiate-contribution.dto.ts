@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum PaymentSource {
@@ -15,4 +15,11 @@ export class InitiateContributionDto {
   @IsOptional()
   @IsEnum(PaymentSource)
   paymentSource?: PaymentSource;
+
+  @ApiPropertyOptional({
+    description: 'Override Paystack callback URL (e.g. a mobile deep-link like poolr://payment-callback)',
+  })
+  @IsOptional()
+  @IsString()
+  callbackUrl?: string;
 }

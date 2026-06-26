@@ -32,7 +32,7 @@ export class WalletController {
   @Post('topup')
   @ApiOperation({ summary: 'Initialize Paystack top-up for wallet' })
   topUp(@CurrentUser() user: { id: string }, @Body() dto: TopUpDto) {
-    return this.walletService.topUp(user.id, dto.amountNgn);
+    return this.walletService.topUp(user.id, dto.amountNgn, dto.callbackUrl);
   }
 
   @Get('topup/verify/:reference')
