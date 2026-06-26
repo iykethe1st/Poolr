@@ -46,6 +46,41 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* KYC banner */}
+      {me && me.kycProfile?.kycStatus !== 'VERIFIED' && (
+        <TouchableOpacity
+          style={[
+            styles.kycBanner,
+            me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
+              ? styles.kycBannerPending
+              : styles.kycBannerUnverified,
+          ]}
+          onPress={() => router.push('/kyc')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.kycBannerLeft}>
+            <Text style={styles.kycBannerIcon}>
+              {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW' ? '⏳' : '🪪'}
+            </Text>
+            <View>
+              <Text style={styles.kycBannerTitle}>
+                {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
+                  ? 'Verification in review'
+                  : 'Verify your identity'}
+              </Text>
+              <Text style={styles.kycBannerSub}>
+                {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
+                  ? 'We'll notify you when approved'
+                  : 'Required to create or join groups'}
+              </Text>
+            </View>
+          </View>
+          {me.kycProfile?.kycStatus !== 'PENDING' && me.kycProfile?.kycStatus !== 'UNDER_REVIEW' && (
+            <Text style={styles.kycBannerArrow}>›</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
       {/* Wallet balance card */}
       <TouchableOpacity
         style={styles.balanceCard}
@@ -286,5 +321,27 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       borderColor: colors.primaryBorder,
     },
     getStartedSecondaryText: { color: colors.primaryText, fontSize: 16, fontWeight: '600' },
+
+    kycBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+    },
+    kycBannerUnverified: {
+      backgroundColor: colors.warningBg,
+      borderColor: colors.warning + '50',
+    },
+    kycBannerPending: {
+      backgroundColor: colors.infoBg,
+      borderColor: colors.infoText + '30',
+    },
+    kycBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+    kycBannerIcon: { fontSize: 28 },
+    kycBannerTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+    kycBannerSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    kycBannerArrow: { fontSize: 22, color: colors.textMuted },
   });
 }

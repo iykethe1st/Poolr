@@ -3,9 +3,10 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { DojahService } from './dojah.service';
 import { DojahWebhookController } from './dojah-webhook.controller';
+import { KycWidgetController } from './kyc-widget.controller';
 
 @Module({
-  controllers: [UsersController, DojahWebhookController],
+  controllers: [UsersController, DojahWebhookController, KycWidgetController],
   providers: [UsersService, DojahService],
   exports: [UsersService],
 })
