@@ -85,7 +85,7 @@ export class PenaltiesService {
       Number(contribution.amount),
     );
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.contribution.update({
         where: { id: contribution.id },
         data: { status: ContribStatus.OVERDUE },
