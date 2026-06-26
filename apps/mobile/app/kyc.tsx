@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -46,10 +47,18 @@ export default function KycScreen() {
 
         if (status === 'success' && referenceId) {
           await verifyKyc.mutateAsync(referenceId);
+        } else if (status === 'error') {
+          Alert.alert(
+            'Verification failed',
+            'Something went wrong with the identity check. Please try again.',
+          );
         }
+        // 'closed' means user cancelled — no alert needed
+      } else if (result.type === 'cancel') {
+        // dismissed by user — no alert
       }
-    } catch {
-      // errors are shown by the mutation
+    } catch (err) {
+      Alert.alert('Error', 'Could not open the verification flow. Please check your connection and try again.');
     } finally {
       setBusy(false);
     }
