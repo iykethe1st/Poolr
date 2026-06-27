@@ -8,11 +8,12 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { launchDojahKyc } from 'dojah-kyc-sdk-react-expo';
 import { useCurrentUser } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
-import { API_BASE_URL } from '@/api/client';
 import { StatusBar } from 'expo-status-bar';
+
+const DOJAH_WIDGET_ID = process.env.EXPO_PUBLIC_DOJAH_WIDGET_ID ?? '';
 
 const STEPS = [
   { icon: '🪪', label: 'Government-issued ID', desc: "National ID, passport, or driver's licence" },
@@ -28,13 +29,15 @@ export default function KycScreen() {
   const isVerified = kycStatus === 'VERIFIED';
   const isPending = kycStatus === 'PENDING' || kycStatus === 'UNDER_REVIEW';
 
-  function handleStart() {
+  async function handleStart() {
     if (!me?.id) return;
-    const widgetUrl = `${API_BASE_URL}/users/kyc/widget?user_id=${encodeURIComponent(me.id)}`;
-    void WebBrowser.openBrowserAsync(widgetUrl, {
-      dismissButtonStyle: 'cancel',
-      toolbarColor: '#155e3e',
-    });
+    try {
+      await launchDojahKyc(DOJAH_WIDGET_ID, me.id, me.email);
+      // SDK completed (success or abandoned) — verify status on backend
+      router.replace({ pathname: '/kyc-callback', params: { status: 'success', reference_id: me.id } });
+    } catch {
+      router.replace({ pathname: '/kyc-callback', params: { status: 'error', reference_id: '' } });
+    }
   }
 
   if (isLoading) {
