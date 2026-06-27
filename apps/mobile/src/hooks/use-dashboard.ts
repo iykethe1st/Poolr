@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 
 export interface ContributionStats {
@@ -54,7 +55,7 @@ export interface ContributionWithGroup {
   };
 }
 
-export function useCurrentUser() {
+export function useCurrentUser(): UseQueryResult<CurrentUser> {
   return useQuery({
     queryKey: ['me'],
     queryFn: () => apiClient.get('users/me').json<CurrentUser>(),
@@ -62,7 +63,7 @@ export function useCurrentUser() {
   });
 }
 
-export function useMyGroups() {
+export function useMyGroups(): UseQueryResult<GroupWithMembers[]> {
   return useQuery({
     queryKey: ['groups'],
     queryFn: () => apiClient.get('groups').json<GroupWithMembers[]>(),
@@ -70,7 +71,7 @@ export function useMyGroups() {
   });
 }
 
-export function useMyContributions() {
+export function useMyContributions(): UseQueryResult<ContributionWithGroup[]> {
   return useQuery({
     queryKey: ['contributions'],
     queryFn: () => apiClient.get('payments/contributions').json<ContributionWithGroup[]>(),
@@ -78,7 +79,7 @@ export function useMyContributions() {
   });
 }
 
-export function useVerifyKyc() {
+export function useVerifyKyc(): UseMutationResult<{ kycStatus: string }, Error, string> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (referenceId: string) =>

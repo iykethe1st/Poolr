@@ -11,6 +11,7 @@ export class KycWidgetController {
   @ApiExcludeEndpoint()
   getWidget(@Query('user_id') userId: string): string {
     const appId = this.config.get<string>('DOJAH_APP_ID', '');
+    const publicKey = this.config.get<string>('DOJAH_PUBLIC_KEY', '');
     // Sanitise to prevent XSS — only allow alphanumeric + hyphen (UUID chars)
     const safeUserId = (userId ?? '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
 
@@ -59,8 +60,9 @@ export class KycWidgetController {
       try {
         var options = {
           app_id: "${appId}",
+          p_key: "${publicKey}",
           type: "custom",
-          config: { debug: false },
+          config: { debug: true },
           metadata: { user_id: "${safeUserId}" },
           onSuccess: function (data) {
             var refId = (data && data.reference_id) ? data.reference_id : '';

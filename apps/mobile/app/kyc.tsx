@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -10,7 +10,6 @@ import {
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCurrentUser } from '@/hooks/use-dashboard';
-import { useVerifyKyc } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
 import { API_BASE_URL } from '@/api/client';
 import { StatusBar } from 'expo-status-bar';
@@ -23,36 +22,19 @@ const STEPS = [
 
 export default function KycScreen() {
   const { data: me, isLoading } = useCurrentUser();
-  const verifyKyc = useVerifyKyc();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [busy, setBusy] = useState(false);
-
   const kycStatus = me?.kycProfile?.kycStatus ?? 'UNVERIFIED';
   const isVerified = kycStatus === 'VERIFIED';
   const isPending = kycStatus === 'PENDING' || kycStatus === 'UNDER_REVIEW';
 
-  async function handleStart() {
+  function handleStart() {
     if (!me?.id) return;
-    setBusy(true);
-    try {
-      const widgetUrl = `${API_BASE_URL}/users/kyc/widget?user_id=${encodeURIComponent(me.id)}`;
-      const result = await WebBrowser.openAuthSessionAsync(widgetUrl, 'poolr://kyc-callback');
-
-      if (result.type === 'success' && result.url) {
-        const url = new URL(result.url);
-        const status = url.searchParams.get('status');
-        const referenceId = url.searchParams.get('reference_id') ?? '';
-
-        if (status === 'success' && referenceId) {
-          await verifyKyc.mutateAsync(referenceId);
-        }
-      }
-    } catch {
-      // errors are shown by the mutation
-    } finally {
-      setBusy(false);
-    }
+    const widgetUrl = `${API_BASE_URL}/users/kyc/widget?user_id=${encodeURIComponent(me.id)}`;
+    void WebBrowser.openBrowserAsync(widgetUrl, {
+      dismissButtonStyle: 'cancel',
+      toolbarColor: '#155e3e',
+    });
   }
 
   if (isLoading) {
@@ -108,16 +90,11 @@ export default function KycScreen() {
 
       {!isVerified && !isPending && (
         <TouchableOpacity
-          style={[styles.startBtn, busy && styles.startBtnDisabled]}
+          style={styles.startBtn}
           onPress={handleStart}
-          disabled={busy}
           activeOpacity={0.85}
         >
-          {busy ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.startBtnText}>Start Verification</Text>
-          )}
+          <Text style={styles.startBtnText}>Start Verification</Text>
         </TouchableOpacity>
       )}
 
