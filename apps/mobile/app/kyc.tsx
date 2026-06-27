@@ -22,7 +22,6 @@ const STEPS = [
 
 export default function KycScreen() {
   const { data: me, isLoading } = useCurrentUser();
-  const verifyKyc = useVerifyKyc();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const kycStatus = me?.kycProfile?.kycStatus ?? 'UNVERIFIED';
@@ -91,16 +90,11 @@ export default function KycScreen() {
 
       {!isVerified && !isPending && (
         <TouchableOpacity
-          style={[styles.startBtn, busy && styles.startBtnDisabled]}
+          style={styles.startBtn}
           onPress={handleStart}
-          disabled={busy}
           activeOpacity={0.85}
         >
-          {busy ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.startBtnText}>Start Verification</Text>
-          )}
+          <Text style={styles.startBtnText}>Start Verification</Text>
         </TouchableOpacity>
       )}
 
