@@ -38,6 +38,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get groupMember() { return this.client.groupMember; }
   get cycle() { return this.client.cycle; }
   get contribution() { return this.client.contribution; }
+  get contributionFee() { return this.client.contributionFee; }
   get payout() { return this.client.payout; }
   get penalty() { return this.client.penalty; }
   get bankAccount() { return this.client.bankAccount; }

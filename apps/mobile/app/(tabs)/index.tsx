@@ -196,7 +196,7 @@ export default function HomeScreen() {
                   <View>
                     <Text style={styles.groupName}>{g.name}</Text>
                     <Text style={styles.groupMeta}>
-                      {g._count?.members ?? 0} members · {g.frequency}
+                      {g.members.length} members · {g.frequency}
                     </Text>
                   </View>
                 </View>

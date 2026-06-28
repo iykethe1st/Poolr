@@ -5,6 +5,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AdminService } from './admin.service';
+import { FeeService } from '../payments/fee.service';
 import { WaivePenaltyDto } from '../penalties/dto/waive-penalty.dto';
 
 @ApiTags('admin')
@@ -25,7 +27,10 @@ import { WaivePenaltyDto } from '../penalties/dto/waive-penalty.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly feeService: FeeService,
+  ) {}
 
   // ── Groups ────────────────────────────────────────────────────────────────
 
@@ -85,5 +90,29 @@ export class AdminController {
   @ApiOperation({ summary: 'List all users with KYC status (super-admin only)' })
   listUsers() {
     return this.adminService.listUsers();
+  }
+
+  // ── Fees ──────────────────────────────────────────────────────────────────
+
+  @Get('fees')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Total fees collected, reserve contributions, and operating revenue' })
+  getFeeSummary(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('groupId') groupId?: string,
+  ) {
+    return this.feeService.getFeeSummary({
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      groupId,
+    });
+  }
+
+  @Get('fees/:id')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Single fee record detail' })
+  getFeeById(@Param('id') id: string) {
+    return this.feeService.getFeeById(id);
   }
 }

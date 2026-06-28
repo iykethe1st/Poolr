@@ -1,0 +1,52 @@
+## Overview
+Amends the refund calculation logic defined in ticket #52 (missed contribution escalation and group removal). The original formula deducted a 2% processing fee from the removed member's refund. This has been removed - the refund is now simply the member's total contributions minus their outstanding debt, with no additional deduction.
+
+## What changes
+
+### Original formula (ticket #52)
+```
+refund_amount = total_contributions_made - outstanding_debt - processing_fee (2%)
+```
+
+### Corrected formula (this ticket)
+```
+refund_amount = total_contributions_made - outstanding_debt
+```
+
+## Rationale
+The removed member has already paid the platform fee on every contribution they made (ticket #54). Deducting an additional 2% processing fee on exit would mean penalising an honest contributor twice - once for each contribution they made in good faith, and again when the platform is returning their own money. The contribution fee already funds the reserve and platform operations. No further deduction is justified.
+
+## Affected code paths in ticket #52
+
+### GroupsService.removeMemberForDefault()
+- [ ] Update `refund_amount` calculation: remove the 2% processing fee deduction
+- [ ] New formula: `refund_amount = total_contributions_made - outstanding_debt`
+- [ ] If `outstanding_debt >= total_contributions_made`: `refund_amount = 0`, no refund job scheduled
+- [ ] If `outstanding_debt < total_contributions_made`: `refund_amount > 0`, schedule BullMQ refund job for original payout date
+
+### GroupMember model (confirm no schema change needed)
+- [ ] `GroupMember.refund_amount` stores the corrected value (no 2% deduction)
+- [ ] No schema migration required - same field, updated calculation
+
+### Notifications
+- [ ] Update notification text sent to removed member on removal:
+  - Old: "Outstanding debt of NGN [debt] and a 2% processing fee have been deducted"
+  - New: "Your outstanding debt of NGN [debt] has been deducted"
+- [ ] Update notification text when refund_amount <= 0:
+  - Old: "After deducting your outstanding debt and a processing fee, no refund is due"
+  - New: "After deducting your outstanding debt of NGN [debt], no refund is due"
+
+## Tests to update
+- [ ] Update unit tests in `GroupsService.removeMemberForDefault()` to reflect corrected refund formula
+- [ ] Add specific test case: member with total_contributions = outstanding_debt should get refund_amount = 0
+- [ ] Add test case: member with total_contributions > outstanding_debt should get refund_amount = difference (no further deduction)
+
+## Acceptance criteria
+- `refund_amount` equals `total_contributions_made - outstanding_debt` exactly, with no additional deductions
+- No removed member is charged a processing or exit fee on top of their outstanding debt
+- All notification text references to processing fees are removed
+- Unit tests pass with the corrected formula
+
+## Related tickets
+- Amends #52 (Missed contribution escalation and group removal - refund scheduling)
+- No dependency on #54 (Fee service) beyond the rationale - fee collection happens upstream at contribution time

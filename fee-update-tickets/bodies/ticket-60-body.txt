@@ -1,0 +1,93 @@
+## Overview
+Small amendment to ticket #44 (B2B cooperative and corporate group onboarding). The `Organisation.billing_type` enum used `TRANSACTION_FEE` to describe the standard per-transaction fee model. With the revised fee structure charging on contributions (not transactions broadly), this enum value is renamed to `CONTRIBUTION_FEE` for accuracy and clarity.
+
+## What changed from ticket #44
+
+### Original schema
+```
+Organisation {
+  billing_type  enum  -- TRANSACTION_FEE | FLAT_MONTHLY
+}
+```
+
+### Updated schema
+```
+Organisation {
+  billing_type  enum  -- CONTRIBUTION_FEE | FLAT_MONTHLY
+}
+```
+
+## Enum definition update
+```
+enum OrgBillingType {
+  CONTRIBUTION_FEE  -- standard Poolr flat fee per contribution (fee tiers from FeeService)
+  FLAT_MONTHLY      -- negotiated flat monthly rate for the organisation, no per-contribution fee
+}
+```
+
+## Behaviour clarification
+
+### CONTRIBUTION_FEE orgs
+- Standard fee tier applies to every contribution made by a member of an organisation-owned group
+- Fee calculated by `FeeService.calculateFee()` exactly as for non-organisation groups
+- No special treatment - this is the default
+
+### FLAT_MONTHLY orgs
+- Organisation pays a negotiated flat monthly fee (stored in `Organisation.monthly_fee`)
+- Per-contribution fee is waived for all members of all groups under this organisation
+- `FeeService.calculateFee()` returns 0 for contributions in FLAT_MONTHLY organisation groups
+- Poolr invoices the organisation directly for `monthly_fee` at the start of each month
+- A new `OrgInvoice` table tracks monthly invoices and payment status
+
+## Schema changes
+
+### Update `Organisation` model (from ticket #44)
+- Rename `billing_type` enum value `TRANSACTION_FEE` to `CONTRIBUTION_FEE`
+- Add `monthly_fee` (int, nullable) -- monthly flat fee in kobo; required when billing_type = FLAT_MONTHLY
+
+### New `OrgInvoice` table (FLAT_MONTHLY orgs only)
+```
+OrgInvoice {
+  id              uuid PK
+  organisation_id uuid FK -> Organisation
+  month           date          -- first day of the billed month
+  amount          int           -- monthly_fee in kobo
+  status          InvoiceStatus -- PENDING | PAID | OVERDUE
+  paystack_ref    string?       -- set when paid
+  issued_at       timestamp
+  paid_at         timestamp?
+}
+
+enum InvoiceStatus { PENDING PAID OVERDUE }
+```
+
+### Prisma migration
+- [ ] Rename enum value `TRANSACTION_FEE` to `CONTRIBUTION_FEE` in Prisma schema
+- [ ] Run migration: `prisma migrate dev --name rename_billing_type_enum`
+
+## Tasks
+- [ ] Update Prisma schema: rename enum value, add `monthly_fee` field, create `OrgInvoice` table
+- [ ] Run migration
+- [ ] Update `FeeService.calculateFee()`: add org billing type check - if group belongs to a FLAT_MONTHLY org, return `fee_amount = 0`
+- [ ] Create monthly cron job: on the 1st of each month, generate `OrgInvoice` records for all active FLAT_MONTHLY orgs and notify the org admin via email
+- [ ] Add Paystack payment link generation for org invoices (same pattern as debt clearance in ticket #49)
+- [ ] Update `@poolr/types`: rename `TRANSACTION_FEE` to `CONTRIBUTION_FEE` in shared enums
+- [ ] `GET /admin/organisations/:id/invoices` -- list invoices for a FLAT_MONTHLY org
+- [ ] `POST /admin/organisations/:id/invoices/:invoiceId/payment-link` -- generate Paystack payment link for an invoice
+
+## Tests
+- [ ] `calculateFee()` returns 0 for contributions in a FLAT_MONTHLY org group
+- [ ] `calculateFee()` returns normal fee for CONTRIBUTION_FEE org groups
+- [ ] Monthly cron generates correct number of invoices for active FLAT_MONTHLY orgs
+- [ ] Enum rename does not break existing org records (migration handles the rename cleanly)
+
+## Acceptance criteria
+- `TRANSACTION_FEE` enum value no longer exists - replaced by `CONTRIBUTION_FEE` everywhere in codebase and database
+- Members contributing to FLAT_MONTHLY org groups pay zero per-contribution fee
+- FLAT_MONTHLY org admins receive an invoice on the 1st of each month
+- Org invoices are trackable and payable via Paystack link
+- `@poolr/types` shared enums are updated and consistent with the database enum
+
+## Related tickets
+- Amends #44 (B2B cooperative and corporate group onboarding)
+- Depends on #54 (Fee service - calculateFee() must check org billing type)

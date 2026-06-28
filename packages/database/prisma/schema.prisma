@@ -142,6 +142,7 @@ model User {
   payoutsReceived   Payout[]       @relation("PayoutRecipient")
   wallet            Wallet?
   notifications     Notification[]
+  contributionFees  ContributionFee[]
 
   @@map("users")
 }
@@ -239,24 +240,43 @@ model Cycle {
 }
 
 model Contribution {
-  id          String        @id @default(cuid())
-  cycleId     String        @map("cycle_id")
-  memberId    String        @map("member_id")
-  amount      Decimal       @db.Decimal(12, 2)
-  status        ContribStatus  @default(PENDING)
-  paymentSource PaymentSource  @default(PAYSTACK) @map("payment_source")
-  paystackRef   String?        @map("paystack_ref")
-  paidAt      DateTime?     @map("paid_at")
-  dueAt       DateTime      @map("due_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  id            String        @id @default(cuid())
+  cycleId       String        @map("cycle_id")
+  memberId      String        @map("member_id")
+  amount        Decimal       @db.Decimal(12, 2)
+  feeAmount     Decimal?      @db.Decimal(12, 2) @map("fee_amount")
+  totalCharged  Decimal?      @db.Decimal(12, 2) @map("total_charged")
+  status        ContribStatus @default(PENDING)
+  paymentSource PaymentSource @default(PAYSTACK) @map("payment_source")
+  paystackRef   String?       @map("paystack_ref")
+  paidAt        DateTime?     @map("paid_at")
+  dueAt         DateTime      @map("due_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  cycle     Cycle         @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  member    GroupMember   @relation(fields: [memberId], references: [id])
-  penalties Penalty[]
+  cycle           Cycle            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  member          GroupMember      @relation(fields: [memberId], references: [id])
+  penalties       Penalty[]
+  contributionFee ContributionFee?
 
   @@unique([cycleId, memberId])
   @@map("contributions")
+}
+
+model ContributionFee {
+  id                 String   @id @default(cuid())
+  contributionId     String   @unique @map("contribution_id")
+  userId             String   @map("user_id")
+  contributionAmount Decimal  @db.Decimal(12, 2) @map("contribution_amount")
+  feeAmount          Decimal  @db.Decimal(12, 2) @map("fee_amount")
+  reserveAmount      Decimal  @db.Decimal(12, 2) @map("reserve_amount")
+  revenueAmount      Decimal  @db.Decimal(12, 2) @map("revenue_amount")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  contribution Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@map("contribution_fees")
 }
 
 model Payout {

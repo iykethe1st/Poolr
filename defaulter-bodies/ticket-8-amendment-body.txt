@@ -1,0 +1,45 @@
+## Amendment to ticket #8 - Payments module
+
+This comment updates ticket #8 to reflect the revised fee model. The original ticket specified that Poolr's 1% platform fee would be collected on the payout. This has been changed to a flat fee collected on each individual contribution.
+
+## What changes in the payments module
+
+### Contribution initiation (POST /payments/contribute/:cycleId)
+- Before creating the Paystack checkout session, call `FeeService.calculateFee(contributionAmount)` to determine the platform fee for this contribution
+- The Paystack transaction amount must be: `contribution_amount + fee_amount` (member pays both together in one Paystack transaction)
+- Return both `checkout_url` and `fee_amount` in the API response so the frontend can display the fee breakdown before redirecting
+
+### charge.success webhook handler
+- On successful contribution payment, call `FeeService.collectFee(contributionId, userId, contributionAmount)` atomically with marking the contribution PAID
+- `FeeService.collectFee()` handles: creating the `ContributionFee` record, splitting fee into reserve (20%) and revenue (80%), depositing the reserve slice via `ReserveService.deposit()`
+- The `Contribution.amount` field stores only the contribution amount (not the fee) - the fee is recorded separately in `ContributionFee`
+
+### Wallet-funded contributions (POST /payments/contribute/:cycleId with paymentSource: WALLET)
+- Total wallet debit = contribution_amount + fee_amount
+- The `WalletService.debit()` call must debit the full amount
+- `can-pay` check must verify wallet.balance >= contribution_amount + fee_amount (not just contribution_amount)
+- After debit, call `FeeService.collectFee()` to record the fee and deposit to reserve
+
+### Payout flow - NO fee collected on payout
+- The payout processor does NOT deduct any fee from the recipient's payout
+- The recipient receives the full pooled contribution amount
+- Fee revenue has already been collected upstream at contribution time
+
+## Updated DTO
+```typescript
+// ContributeResponseDto
+{
+  checkout_url?: string;       // present for PAYSTACK payment source
+  payment_source: 'PAYSTACK' | 'WALLET';
+  contribution_amount: number; // in kobo
+  fee_amount: number;          // in kobo - platform flat fee
+  total_amount: number;        // contribution_amount + fee_amount
+}
+```
+
+## Acceptance criteria updates
+- Paystack checkout amount equals contribution_amount + fee_amount (never just contribution_amount)
+- FeeService.collectFee() is called atomically with every successful contribution (both PAYSTACK and WALLET paths)
+- Payout processor sends the full pooled amount to the recipient with zero fee deduction
+- Frontend receives and displays the fee amount before the user is redirected to Paystack checkout
+- Wallet balance check accounts for the fee amount in addition to the contribution amount

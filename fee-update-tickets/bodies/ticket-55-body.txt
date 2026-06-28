@@ -1,0 +1,102 @@
+## Overview
+Update the platform protection reserve (originally specified in ticket #50) to reflect the revised fee model. The reserve is now funded by a 20% slice of every contribution fee (ticket #54), not by a percentage of payout transaction fees. This ticket also clarifies the two distinct drawdown scenarios and adds the `ContributionFee` FK to `ReserveTransaction`.
+
+## What changed from ticket #50
+- `ReserveService.deposit()` is now called by `FeeService.collectFee()` (at contribution time) instead of by `PayoutProcessor` (at payout time)
+- `ReserveTransaction` now references `contribution_fee_id` (FK to `ContributionFee`) instead of `payout_id` (FK to `Payout`) for DEPOSIT transactions
+- The `ReserveTransactionType` enum replaces the old DEPOSIT type with DEPOSIT_FROM_FEE for clarity
+- All other reserve logic (drawdowns, replenishment, admin endpoints) is unchanged from ticket #50
+
+## Two reserve drawdown scenarios (unchanged)
+
+### Scenario 1 - Missed contribution shortfall
+When a member misses a contribution, the recipient's payout goes out in full. The reserve covers the missed contribution amount. A `Debt` record is created (ticket #47) and the reserve is replenished when the defaulter clears their debt.
+
+### Scenario 2 - Net-positive removed member refund
+When a member is removed with net_position <= 0 (contributed more than received), their net refund is credited to their Poolr Wallet on their original payout date. The reserve funds this refund, linked to the outstanding debt record, and is replenished when the debt is cleared.
+
+## Schema changes
+
+### New `PlatformReserve` table (singleton - one row)
+```
+PlatformReserve {
+  id         uuid PK
+  balance    int        -- current reserve balance in kobo
+  updated_at timestamp
+}
+```
+
+### New `ReserveTransaction` table
+```
+ReserveTransaction {
+  id                  uuid PK
+  type                ReserveTransactionType
+  amount              int
+  debt_id             uuid? FK -> Debt             -- set for DRAWDOWN_SHORTFALL, DRAWDOWN_REFUND, REPLENISHMENT
+  contribution_fee_id uuid? FK -> ContributionFee  -- set for DEPOSIT_FROM_FEE
+  group_member_id     uuid? FK -> GroupMember       -- set for DRAWDOWN_REFUND
+  balance_after       int                           -- running reserve balance after this transaction
+  created_at          timestamp
+}
+```
+
+### Updated enum
+```
+enum ReserveTransactionType {
+  DEPOSIT_FROM_FEE     -- 20% slice of a contribution fee, deposited at contribution time
+  DRAWDOWN_SHORTFALL   -- covers a missed contribution so recipient payout goes out
+  DRAWDOWN_REFUND      -- covers a net-positive removed member refund on their original payout date
+  REPLENISHMENT        -- defaulter cleared their debt, reserve restored
+}
+```
+
+## Tasks
+
+### ReserveService
+- [ ] Create `ReserveService` in `src/modules/payments/reserve.service.ts`
+- [ ] `ReserveService.deposit(reserveAmount, contributionFeeId)` -- called by `FeeService.collectFee()` after each confirmed contribution. Creates `ReserveTransaction` of type DEPOSIT_FROM_FEE. All within the same Prisma `$transaction` as fee collection and contribution status update.
+- [ ] `ReserveService.drawdownShortfall(amount, debtId)` -- called by `PenaltyService` when a missed contribution is covered. Debits reserve, creates DRAWDOWN_SHORTFALL transaction.
+- [ ] `ReserveService.drawdownRefund(amount, debtId, groupMemberId)` -- called by `RefundProcessor` on the removed member's original payout date. Debits reserve, creates DRAWDOWN_REFUND transaction.
+- [ ] `ReserveService.replenish(amount, debtId)` -- called by `DebtClearanceService` when a defaulter clears their debt. Credits reserve, creates REPLENISHMENT transaction. Reserve is replenished before any creditor reimbursements.
+- [ ] `ReserveService.getBalance()` -- returns current reserve balance in kobo.
+- [ ] All balance mutations use Prisma `$transaction` with a SELECT FOR UPDATE pattern to prevent race conditions on concurrent deposits or drawdowns.
+- [ ] On any drawdown where the debit would bring balance below zero: proceed with drawdown (do not block), fire a Sentry critical alert immediately with: drawdown type, amount, current balance, shortfall amount, and linked debt_id.
+
+### Configuration
+- [ ] `RESERVE_CONTRIBUTION_PERCENTAGE=0.20` -- percentage of each contribution fee deposited to reserve. Configurable without a code deploy. Read by `FeeService.collectFee()` when splitting fee into reserve and revenue slices.
+
+### Admin endpoints
+- [ ] `GET /admin/reserve` -- current balance; all-time totals: deposited, drawn down (shortfall), drawn down (refunds), replenished
+- [ ] `GET /admin/reserve/transactions` -- paginated `ReserveTransaction` list with type labels, linked contribution fee or debt details, and running balance
+- [ ] `GET /admin/reserve/health` -- reserve health report:
+  - Current balance
+  - Total outstanding debt exposure (sum of all OUTSTANDING Debt.total_owed)
+  - Coverage ratio (balance / exposure)
+  - Warning flag if coverage ratio < 50%
+  - Estimated months until reserve is exhausted at current drawdown rate
+- [ ] `GET /admin/reserve/pending-refunds` -- list of scheduled DRAWDOWN_REFUND jobs with amount and scheduled date, so admin can anticipate upcoming reserve needs
+
+### Tests
+- [ ] Unit test `deposit()`: balance increments correctly, DEPOSIT_FROM_FEE transaction created with correct contributionFeeId
+- [ ] Unit test `drawdownShortfall()`: balance decrements correctly, DRAWDOWN_SHORTFALL transaction created
+- [ ] Unit test `drawdownRefund()`: balance decrements correctly, DRAWDOWN_REFUND transaction created with groupMemberId
+- [ ] Unit test `replenish()`: balance increments correctly, REPLENISHMENT transaction created
+- [ ] Unit test concurrent deposits: no race condition, final balance is correct
+- [ ] Unit test drawdown below zero: proceeds, Sentry alert fired, balance_after is negative (allowed)
+
+## Acceptance criteria
+- Reserve balance is funded exclusively from contribution fees (20% slice), never from payout processing
+- `deposit()` is always called within the same Prisma `$transaction` as `FeeService.collectFee()` - no fee is collected without a corresponding reserve deposit
+- Reserve balance is always consistent with the sum of all `ReserveTransaction` amounts
+- Concurrent deposits do not cause race conditions
+- A drawdown below zero does NOT block the payout or refund - it fires a Sentry critical alert within 60 seconds
+- `DEPOSIT_FROM_FEE` and both `DRAWDOWN` types are clearly distinguishable in the admin transaction log
+- Admin health endpoint flags when coverage ratio drops below 50%
+- `RESERVE_CONTRIBUTION_PERCENTAGE` is changeable without a code deploy
+
+## Related tickets
+- Depends on #54 (Fee service - deposit() called from FeeService.collectFee())
+- Depends on #47 (Debt tracking - debt_id FK on drawdown transactions)
+- Required by #49 (Debt clearance - replenish() called on debt clearance)
+- Required by #52 (Group removal - drawdownRefund() called by RefundProcessor)
+- Supersedes the reserve funding model described in #50 (fee source changed from payout to contribution)
