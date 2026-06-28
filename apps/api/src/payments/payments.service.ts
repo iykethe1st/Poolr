@@ -13,6 +13,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { PaystackService } from './paystack.service';
+import { FeeService } from './fee.service';
 import { WalletService } from '../wallet/wallet.service';
 import {
   NOTIFICATION_EVENTS,
@@ -31,6 +32,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly paystack: PaystackService,
+    private readonly feeService: FeeService,
     private readonly walletService: WalletService,
     private readonly eventEmitter: EventEmitter2,
     private readonly config: ConfigService,
@@ -92,19 +94,29 @@ export class PaymentsService {
       });
     }
 
+    const contributionAmountNgn = Number(cycle.group.contributionAmount);
+    const feeAmountNgn = this.feeService.calculateFee(contributionAmountNgn);
+    const totalChargedNgn = contributionAmountNgn + feeAmountNgn;
+
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3003');
     const resolvedCallbackUrl = callbackUrl ?? `${frontendUrl}/payments/callback`;
     const { authorizationUrl } = await this.paystack.initializeTransaction({
       email: user.email,
-      amountNgn: Number(cycle.group.contributionAmount),
+      amountNgn: totalChargedNgn,
       reference,
       callbackUrl: resolvedCallbackUrl,
       metadata: { cycleId, memberId: member.id, userId },
     });
 
-    return { authorizationUrl, reference };
+    return {
+      authorizationUrl,
+      reference,
+      contributionAmountNgn,
+      feeAmountNgn,
+      totalChargedNgn,
+    };
   }
 
   private async initializeWalletContribution(
@@ -114,17 +126,21 @@ export class PaymentsService {
     cycle: { groupId: string; dueDate: Date; group: { contributionAmount: unknown; name: string } },
     existingContributionId?: string,
   ) {
-    const amount = Number(cycle.group.contributionAmount);
+    const contributionAmountNgn = Number(cycle.group.contributionAmount);
+    const feeAmountNgn = this.feeService.calculateFee(contributionAmountNgn);
+    const totalChargedNgn = contributionAmountNgn + feeAmountNgn;
     const reference = `contrib_wallet_${cycleId.slice(-8)}_${userId.slice(-8)}_${Date.now()}`;
 
-    // Pre-flight balance check for a clear 422 before opening a transaction
+    // Pre-flight balance check against total (contribution + fee) for a clear 422
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet || Number(wallet.balance) < amount) {
+    if (!wallet || Number(wallet.balance) < totalChargedNgn) {
       throw new UnprocessableEntityException({
         error: 'INSUFFICIENT_WALLET_BALANCE',
-        message: `Wallet balance ₦${Number(wallet?.balance ?? 0).toFixed(2)} is less than the required ₦${amount.toFixed(2)}`,
+        message: `Wallet balance ₦${Number(wallet?.balance ?? 0).toFixed(2)} is less than the required ₦${totalChargedNgn.toFixed(2)} (contribution ₦${contributionAmountNgn.toFixed(2)} + fee ₦${feeAmountNgn.toFixed(2)})`,
       });
     }
+
+    let contributionId: string;
 
     await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
       if (existingContributionId) {
@@ -132,8 +148,9 @@ export class PaymentsService {
           where: { id: existingContributionId },
           data: { status: ContribStatus.PAID, paymentSource: PaymentSource.WALLET, paidAt: new Date() },
         });
+        contributionId = existingContributionId;
       } else {
-        await tx.contribution.create({
+        const created = await tx.contribution.create({
           data: {
             cycleId,
             memberId,
@@ -145,18 +162,21 @@ export class PaymentsService {
             paidAt: new Date(),
           },
         });
+        contributionId = created.id;
       }
 
-      // Atomic debit — throws UnprocessableEntityException if balance changed since pre-flight check
-      await this.walletService.debit(userId, amount, reference, TxType.CONTRIBUTION, tx);
+      await this.feeService.collectFee(contributionId, userId, contributionAmountNgn, tx);
+
+      // Debit full amount (contribution + fee) in one atomic wallet operation
+      await this.walletService.debit(userId, totalChargedNgn, reference, TxType.CONTRIBUTION, tx);
     });
 
     this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_RECEIVED, {
       userId,
-      amountNgn: amount,
+      amountNgn: contributionAmountNgn,
       groupName: cycle.group.name,
     } satisfies ContributionReceivedEvent);
-    this.emitMemberContributed(userId, cycle.groupId, cycle.group.name, amount).catch(() => null);
+    this.emitMemberContributed(userId, cycle.groupId, cycle.group.name, contributionAmountNgn).catch(() => null);
 
     const unpaid = await this.prisma.contribution.count({
       where: { cycleId, status: { not: ContribStatus.PAID } },
@@ -167,7 +187,14 @@ export class PaymentsService {
       );
     }
 
-    return { paid: true, paymentSource: PaymentSource.WALLET, reference };
+    return {
+      paid: true,
+      paymentSource: PaymentSource.WALLET,
+      reference,
+      contributionAmountNgn,
+      feeAmountNgn,
+      totalChargedNgn,
+    };
   }
 
   // ── Verify ──────────────────────────────────────────────────────────────────
@@ -234,10 +261,14 @@ export class PaymentsService {
 
     const rawKobo = (data['amount'] as number | undefined) ?? 0;
     const amountNgn = rawKobo > 0 ? rawKobo / 100 : await this.getContributionAmount(contribution.cycleId);
+    const contributionAmountNgn = Number(contribution.amount);
 
-    await this.prisma.contribution.update({
-      where: { id: contribution.id },
-      data: { status: ContribStatus.PAID, paidAt: new Date() },
+    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.contribution.update({
+        where: { id: contribution.id },
+        data: { status: ContribStatus.PAID, paidAt: new Date() },
+      });
+      await this.feeService.collectFee(contribution.id, contribution.member.userId, contributionAmountNgn, tx);
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
@@ -365,9 +396,14 @@ export class PaymentsService {
       return;
     }
 
-    await this.prisma.contribution.update({
-      where: { id: contribution.id },
-      data: { status: ContribStatus.PAID, paidAt: new Date(), paystackRef: reference },
+    const contributionAmountNgn = Number(contribution.amount);
+
+    await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.contribution.update({
+        where: { id: contribution.id },
+        data: { status: ContribStatus.PAID, paidAt: new Date(), paystackRef: reference },
+      });
+      await this.feeService.collectFee(contribution.id, contribution.member.userId, contributionAmountNgn, tx);
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
@@ -535,6 +571,9 @@ export class PaymentsService {
       where: { cycleId, status: ContribStatus.PAID },
       _sum: { amount: true },
     });
+    // Fees are collected at contribution time (see FeeService.collectFee / ticket #55).
+    // The payout amount is the full pooled contribution total with ZERO fee deduction —
+    // the recipient receives every kobo contributed by all members.
     const payoutAmount = Number(agg._sum.amount ?? 0);
     const payoutRef = `payout_${cycleId.slice(-8)}_${Date.now()}`;
 
