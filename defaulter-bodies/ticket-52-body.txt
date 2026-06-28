@@ -1,0 +1,156 @@
+## Overview
+Define and implement the full escalation path for a member who misses a contribution and fails to clear their debt within the grace window. This ticket covers the group removal flow, the corrected net-position-based decision tree, and the automated refund scheduling for net-positive removed members. It sits between the penalty engine (ticket #10) and the ban system (ticket #48).
+
+## Core design principle
+The decision tree after grace window expiry is driven entirely by the member's net financial position relative to the group - not by an arbitrary admin decision. This keeps the system fair, fully automated, and free of human bias.
+
+## Corrected decision tree
+
+### Net position definition
+```
+net_position = total_payouts_received - total_contributions_made
+```
+- Positive net_position = member has taken out more than they put in (profited)
+- Negative net_position = member has put in more than they taken out (owed money back)
+- Zero net_position = member has made no contributions and received no payout
+
+### After grace window expires (debt not cleared)
+
+```
+net_position > 0 (received payout exceeding contributions):
+  - BANNED (handled by ticket #48)
+  - Group cash flow is impacted - redistribution or replacement required
+  - No refund
+
+net_position <= 0 (contributed more than received, including zero payout received):
+  - REMOVED_DEFAULT (not banned, can still log in)
+  - Group cash flow is NOT impacted - no redistribution, no replacement needed
+  - Group rotation schedule is completely unchanged for all other members
+  - Net refund scheduled for removed member's original payout date
+  - Everything automated - no admin decision required
+```
+
+### Why no redistribution for net-positive removed members
+When a net-negative member (net_position <= 0) is removed, their payout slot on their original payout date is still honoured - but as a refund to them rather than a full group payout. The group's other members' dates, amounts, and rotation positions are completely unaffected because:
+- The removed member's future contributions will not come in
+- But their full payout will also not go out to them
+- The reserve covers only the net refund amount (contributions minus debt minus fee) on the original payout date
+- The group pot for that date remains intact for future cycles
+
+Redistribution and replacement are ONLY triggered for net-positive removed members (handled by ticket #48's ban flow), where the group is genuinely short going forward.
+
+## Net refund calculation
+
+```
+refund_amount = total_contributions_made - outstanding_debt
+```
+
+- If refund_amount > 0: credit to removed member's Poolr Wallet on their original payout date, funded by the platform reserve
+- If refund_amount <= 0: no refund, outstanding balance persists, member is notified of remaining debt
+- The reserve is replenished when the member eventually clears their debt
+
+## Escalation path in full
+
+### Single missed contribution
+- Contribution marked MISSED (day after due date)
+- Flat penalty fee applied immediately
+- `Debt` record created (ticket #47)
+- Platform reserve covers shortfall - recipient's payout still goes out on time (ticket #50)
+- All group members notified by name who missed and that the payout is unaffected
+- Grace window opens: 7 days to clear debt before escalation
+- Reminders sent to defaulter on grace day 1, 3, and 6
+
+### After grace window expires (debt not cleared)
+- Calculate net_position for the member
+- If net_position > 0: trigger ban via ticket #48
+- If net_position <= 0: trigger group removal (this ticket)
+
+### Group removal (net_position <= 0)
+- Member status set to REMOVED_DEFAULT
+- Calculate refund_amount
+- If refund_amount > 0: schedule BullMQ refund job for their original payout date
+- If refund_amount <= 0: no refund job, debt persists
+- No admin action required - fully automated
+- Trust score penalised (-20 for removal, on top of -15 for the missed contribution)
+- Removed member CAN still log in but cannot join any new group until debt is cleared
+
+### Repeat missed contributions (2+ misses, no prior removal)
+- Second miss in same group: grace window shortened to 3 days
+- Third miss in same group: immediate removal, no grace window, trust score -30
+
+## Schema changes
+
+### Update `GroupMember` model
+- `member_status` enum: add `REMOVED_DEFAULT` to existing values
+- Add `removed_at` (timestamp, nullable)
+- Add `removal_reason` (string, nullable)
+- Add `refund_amount` (int, nullable) -- calculated net refund, null if not eligible
+- Add `refund_scheduled_date` (date, nullable) -- the original payout date the refund will be credited
+- Add `refund_credited_at` (timestamp, nullable) -- set when refund is actually credited
+
+### No VacatedSlot table needed
+The previous design included a `VacatedSlot` table and an admin 48hr decision window. This is removed entirely for net-negative removals. The group schedule is unchanged and no admin decision is required. The `VacatedSlot` concept only applies to bans (net-positive removals, handled in ticket #48).
+
+## Tasks
+
+### Escalation processor
+- [ ] Create `DefaultEscalationProcessor` BullMQ processor
+- [ ] On grace window expiry job: calculate net_position
+- [ ] Route to `BanService.banUser()` (ticket #48) if net_position > 0
+- [ ] Route to `GroupsService.removeMemberForDefault()` if net_position <= 0
+- [ ] Track miss count per member per group for shortened grace windows on repeat misses
+- [ ] Third miss: enqueue immediate removal job, bypass grace window
+
+### Group removal flow
+- [ ] `GroupsService.removeMemberForDefault(groupId, memberId)`:
+  - Set `GroupMember.member_status` to `REMOVED_DEFAULT`
+  - Calculate `refund_amount` = total_contributions - outstanding_debt
+  - If refund_amount > 0: store on `GroupMember`, enqueue BullMQ refund job for original payout date
+  - If refund_amount <= 0: store zero, no refund job
+  - All within a single Prisma `$transaction`
+- [ ] `GroupsService.join()` guard: block REMOVED_DEFAULT members with outstanding debt from joining any new group
+
+### Refund processor
+- [ ] Create `RefundProcessor` BullMQ processor
+- [ ] On refund job execution (original payout date):
+  - Call `ReserveService.drawdown(refundAmount, debtId)` to fund the refund
+  - Call `WalletService.credit(userId, refundAmount, reference)` to credit removed member's wallet
+  - Set `GroupMember.refund_credited_at`
+  - All within a single Prisma `$transaction`
+- [ ] After each cycle contribution is recorded: re-evaluate any pending refund jobs to check if refund_amount calculation has changed (edge case: if debt is partially paid before payout date, recalculate)
+
+### PayoutProcessor update
+- [ ] On each cycle payout date, check if the recipient is REMOVED_DEFAULT
+- [ ] If yes and refund job is scheduled: confirm refund job will fire (do not send normal group payout to this member)
+- [ ] If yes and no refund job (refund_amount <= 0): log and skip, no payment
+- [ ] If no (normal active member): proceed with normal payout flow
+
+### Notifications
+- [ ] On removal: notify removed member (push + email):
+  - "You have been removed from [Group Name]."
+  - If refund > 0: "Your net contributions of NGN [refund_amount] will be returned to your Poolr Wallet on [original_payout_date]. Outstanding debt of NGN [debt] has been deducted."
+  - If refund <= 0: "After deducting your outstanding debt of NGN [debt], no refund is due. You still owe NGN [remaining_balance]."
+- [ ] On removal: notify group admin (in-app only): "[Member Name] has been removed. Your group's payout schedule is unchanged."
+- [ ] On removal: notify remaining group members (in-app): "[Member Name] has been removed from the group. Your payout dates and amounts are unaffected."
+- [ ] On refund credited: notify removed member (push + in-app): "NGN [refund_amount] has been credited to your Poolr Wallet as a refund of your contributions to [Group Name]."
+
+### Admin visibility
+- [ ] `GET /admin/groups/:id/removed-members` -- list removed members with net position, refund amount, and refund status
+- [ ] Show removed member count and pending refunds in group detail (ticket #13)
+
+## Acceptance criteria
+- A net-negative removed member's group has zero changes to any other member's payout date, rotation position, or payout amount
+- Refund is credited to the removed member's Poolr Wallet on their exact original payout date, not before and not after
+- A removed member with outstanding debt cannot join any new group until debt is cleared
+- If refund_amount <= 0, no wallet credit occurs and the outstanding balance is clearly communicated to the member
+- All removal, refund calculation, and wallet credit steps are atomic (Prisma $transaction) - no partial states
+- The PayoutProcessor correctly skips the normal group payout for REMOVED_DEFAULT members and defers to the RefundProcessor
+- Removed member can still log into the app and see their refund scheduled date and amount
+- All decisions (removal, refund amount, refund date) are logged with timestamps for audit
+
+## Related tickets
+- Depends on #10 (Penalty engine), #47 (Debt tracking), #50 (Platform reserve)
+- Feeds into #48 (Ban system) for net-positive removals
+- Informs #43 (Trust score deductions)
+- PayoutProcessor changes in #9 (Payout scheduler)
+- Frontend screens in #53 (Default protection UX)

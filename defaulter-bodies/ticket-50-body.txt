@@ -1,0 +1,146 @@
+## Overview
+Build a platform-level protection reserve that covers two distinct shortfalls: (1) when a member misses a contribution and the recipient's payout must still go out on time, and (2) when a net-negative removed member is owed a refund on their original payout date. The reserve is funded by a percentage of every contribution fee Poolr collects (charged at contribution time, not at payout time) and is replenished when defaulters clear their debts.
+
+## Background and design decisions
+
+### Why a platform reserve
+A platform reserve funded from Poolr's contribution fee revenue is invisible to the payout recipient, always available, and positions Poolr as a reliable guarantor of two promises: (1) your payout always goes out on time regardless of who defaults, and (2) if you contributed honestly and were removed, you get your net contributions back on your original payout date.
+
+### Fee model: charged on contributions, not payouts
+Poolr charges a flat fee per contribution (e.g. NGN 150 per contribution, tiered by amount) rather than a percentage on the payout. This means the reserve starts accumulating from the very first contribution in cycle 1, before any payout has gone out. This is critical because defaults can happen early in a group's life when a payout-based fee model would have generated zero reserve yet.
+
+Fee tier examples:
+- Contribution under NGN 10,000: NGN 100 flat fee
+- Contribution NGN 10,000 - NGN 50,000: NGN 200 flat fee
+- Contribution above NGN 50,000: NGN 400 flat fee
+
+20% of every fee collected is deposited into the reserve. The remaining 80% is Poolr operating revenue.
+
+### Two reserve drawdown scenarios
+
+#### Scenario 1 - Missed contribution shortfall
+When a member misses a contribution, the group recipient's payout must still go out in full. The reserve covers the exact missed contribution amount. A `Debt` record is created (ticket #47) and the reserve is replenished when the defaulter clears their debt.
+
+#### Scenario 2 - Net-positive removed member refund
+When a member is removed with net_position <= 0 (contributed more than received), their net refund is credited to their Poolr Wallet on their original payout date. The reserve funds this refund. The reserve drawdown is linked to the member's outstanding debt record and replenished when they clear it.
+
+### Reserve replenishment
+When a defaulter clears their debt (ticket #49), the reserve drawdown amount is replenished first before any creditor reimbursements are distributed. Both Scenario 1 and Scenario 2 drawdowns are replenished from the same debt clearance payment.
+
+### Reserve insufficiency handling
+If the reserve balance is insufficient to cover a drawdown:
+- The shortfall is NOT blocked - the payout or refund still goes out
+- The platform absorbs the deficit as an operational cost
+- A critical Sentry alert fires to the super admin immediately with the shortfall amount and reserve balance
+
+## Schema changes
+
+### New `PlatformReserve` table (singleton - one row)
+```
+PlatformReserve {
+  id         uuid PK
+  balance    int        -- current reserve balance in kobo
+  updated_at timestamp
+}
+```
+
+### New `ContributionFee` table
+Tracks every fee collected at contribution time.
+```
+ContributionFee {
+  id               uuid PK
+  contribution_id  uuid FK -> Contribution
+  user_id          uuid FK -> User
+  fee_amount       int        -- total fee charged in kobo
+  reserve_amount   int        -- 20% of fee_amount deposited to reserve
+  revenue_amount   int        -- 80% of fee_amount as operating revenue
+  created_at       timestamp
+}
+```
+
+### New `ReserveTransaction` table
+```
+ReserveTransaction {
+  id                uuid PK
+  type              ReserveTransactionType
+  amount            int
+  debt_id           uuid? FK -> Debt
+  contribution_fee_id uuid? FK -> ContributionFee  -- set for DEPOSIT
+  group_member_id   uuid? FK -> GroupMember         -- set for DRAWDOWN_REFUND
+  balance_after     int
+  created_at        timestamp
+}
+```
+
+### Updated enum
+```
+enum ReserveTransactionType {
+  DEPOSIT              -- funded from contribution fee (20% slice)
+  DRAWDOWN_SHORTFALL   -- covers a missed contribution so payout goes out
+  DRAWDOWN_REFUND      -- covers a net-positive removed member's refund on payout date
+  REPLENISHMENT        -- debt cleared, reserve restored
+}
+```
+
+## Fee configuration
+```
+CONTRIBUTION_FEE_TIER_1_MAX=1000000      -- 10,000 NGN in kobo
+CONTRIBUTION_FEE_TIER_1_AMOUNT=10000     -- 100 NGN in kobo
+CONTRIBUTION_FEE_TIER_2_MAX=5000000      -- 50,000 NGN in kobo
+CONTRIBUTION_FEE_TIER_2_AMOUNT=20000     -- 200 NGN in kobo
+CONTRIBUTION_FEE_TIER_3_AMOUNT=40000     -- 400 NGN in kobo
+RESERVE_CONTRIBUTION_PERCENTAGE=0.20     -- 20% of fee goes to reserve
+```
+All configurable without a code deploy.
+
+## Tasks
+
+### FeeService
+- [ ] Create `FeeService` in the payments module
+- [ ] `FeeService.calculateFee(contributionAmount)` -- returns the flat fee for the given contribution amount based on configured tiers
+- [ ] `FeeService.collectFee(contributionId, userId, contributionAmount)` -- called by `PaymentsService` when a contribution is confirmed PAID:
+  - Calculate fee amount from tiers
+  - Split into reserve_amount (20%) and revenue_amount (80%)
+  - Create `ContributionFee` record
+  - Call `ReserveService.deposit(reserveAmount, contributionFeeId)`
+  - All within a single Prisma `$transaction` with the contribution PAID status update
+
+### ReserveService
+- [ ] Create `ReserveService` in the payments module
+- [ ] `ReserveService.deposit(amount, contributionFeeId)` -- credits reserve, creates `ReserveTransaction` of type DEPOSIT
+- [ ] `ReserveService.drawdownShortfall(amount, debtId)` -- debits reserve, creates DRAWDOWN_SHORTFALL transaction
+- [ ] `ReserveService.drawdownRefund(amount, debtId, groupMemberId)` -- debits reserve, creates DRAWDOWN_REFUND transaction
+- [ ] `ReserveService.replenish(amount, debtId)` -- credits reserve, creates REPLENISHMENT transaction
+- [ ] `ReserveService.getBalance()` -- returns current reserve balance
+- [ ] All balance updates use Prisma `$transaction` to prevent race conditions
+- [ ] On any drawdown that would bring balance below zero: proceed, fire critical Sentry alert
+
+### Paystack integration for fee collection
+- [ ] When a contribution is paid via Paystack checkout, the fee is added to the Paystack transaction amount at initialization time: member pays (contribution_amount + fee_amount), Poolr receives the full amount, then internally splits it
+- [ ] When a contribution is paid from wallet balance, fee is deducted from the wallet in addition to the contribution amount: total wallet debit = contribution_amount + fee_amount
+- [ ] Update `POST /payments/contribute/:cycleId` to return the fee amount alongside the Paystack checkout URL so the frontend can display "NGN 20,000 contribution + NGN 200 platform fee = NGN 20,200 total"
+
+### Admin endpoints
+- [ ] `GET /admin/reserve` -- current balance, total deposited, total drawn down (shortfall), total drawn down (refunds), total replenished
+- [ ] `GET /admin/reserve/transactions` -- paginated ReserveTransaction list with type labels
+- [ ] `GET /admin/reserve/health` -- balance vs. outstanding debt exposure; flag if balance < 50% of exposure
+- [ ] `GET /admin/reserve/pending-refunds` -- scheduled removed-member refunds with amounts and dates
+- [ ] `GET /admin/fees` -- total fees collected, reserve contributions, operating revenue; filterable by date range and group
+
+## Acceptance criteria
+- Fee is collected at contribution time, not at payout time
+- `FeeService.collectFee()` and the contribution PAID status update are atomic (single Prisma $transaction)
+- Reserve balance is always consistent with the sum of all ReserveTransaction amounts
+- Concurrent contribution fee deposits do not cause race conditions
+- A drawdown that would bring balance negative does NOT block the payout or refund - fires Sentry critical alert within 60 seconds
+- All fee configuration is changeable without a code deploy
+- Frontend displays the fee amount clearly before the user confirms payment
+- Wallet-funded contributions also collect the fee (deducted from wallet balance)
+- DEPOSIT and DRAWDOWN transaction types are clearly distinguishable in the admin log
+
+## Related tickets
+- Depends on #8 (Payments module - contribution confirmed PAID webhook)
+- Depends on #47 (Debt tracking)
+- Required by #49 (Debt clearance - reserve replenishment)
+- Required by #52 (Group removal - refund drawdown on payout date)
+- Update #26 (Wallet-funded contributions) to include fee deduction from wallet balance

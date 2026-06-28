@@ -1,0 +1,90 @@
+## Overview
+Build all frontend screens and notification interactions that surface the default protection system to users - defaulters, group members affected by a missed contribution, and the payout recipient. This ticket reflects the corrected design: no admin resolution UI is needed for net-negative removed members since the system handles everything automatically.
+
+## Background: what the UI needs to communicate clearly
+
+### To all group members (when someone misses)
+- Who missed, which cycle, how much
+- That the payout is still going out on time (payout guarantee)
+- The group schedule is unaffected
+
+### To the defaulter
+- Their outstanding debt and grace window deadline
+- If removed: their net refund amount and exact date it will be credited
+- If refund <= 0: what they still owe
+- If banned: lockout screen with debt amount and support contact
+
+### To the payout recipient
+- If their payout is deferred (threshold not met): progress toward threshold
+- Normal payout confirmation when it goes out
+
+### To group admin
+- Removed member notification (for context only, no action required for net-negative removals)
+- Ban notification with redistribution/replacement options (for net-positive removals only, handled by ban flow)
+
+## Screens and components
+
+### For all group members (missed contribution event)
+- [ ] `MissedContributionBanner` -- appears at the top of the group detail page after a missed contribution. Shows: defaulter's name, cycle number, missed amount, and a "Payout guaranteed - going out on [date]" confirmation. Dismissible after reading.
+- [ ] `PayoutGuaranteeBadge` -- small shield icon with "Payout guaranteed" shown on the group card on the dashboard. Always visible on active groups to reinforce trust.
+
+### For the defaulter (outstanding debt state)
+- [ ] `DebtOutstandingBanner` -- persistent banner on every screen (dashboard, group pages, profile) while an outstanding debt exists. Shows: debt amount, grace window deadline with countdown, "Clear debt now" CTA that initiates Paystack payment
+- [ ] `GraceWindowCountdown` -- inline timer within the debt banner. Shows days/hours remaining. Changes colour from neutral to amber at 3 days remaining, red at 1 day remaining.
+- [ ] `/account/debts` page (web) and Debts screen (mobile) -- full list of all debts (outstanding and historical). Each debt row shows: group name, cycle, missed amount, penalty, total owed, status, and a "Pay now" button for outstanding debts.
+
+### For the removed member (net-positive refund scheduled)
+- [ ] `RefundScheduledCard` -- shown on dashboard after removal when refund_amount > 0. Shows: "Your contributions are being returned", refund amount (net of debt and fee), and the exact date the refund will appear in the wallet. Design should feel reassuring, not punitive.
+- [ ] `RefundCreditedNotification` -- in-app notification and push when refund is credited on payout date. Shows: "NGN [amount] has been added to your Poolr Wallet from [Group Name]". Taps through to wallet transaction detail.
+
+### For the removed member (no refund due)
+- [ ] `NoRefundBanner` -- shown on dashboard after removal when refund_amount <= 0. Shows: "After deducting your outstanding debt, no refund is due. You still owe NGN [amount]. Clear your balance to rejoin groups." Clear and factual, not accusatory.
+
+### For the banned member
+- [ ] `BannedAccountScreen` -- full-screen lockout rendered when API returns `ACCOUNT_BANNED` error on any request. Shows: ban reason, total debt owed, a contact support button (mailto or support form link). No other app functionality accessible. Design must be firm but not humiliating - leave a clear path to resolution.
+
+### For the payout recipient (deferred payout - threshold not met)
+- [ ] `DeferredPayoutCard` -- replaces the normal "payout incoming" card on the dashboard for position 1, 2, 3 members who have not yet met their threshold. Shows: deferred payout amount, how many more on-time contributions are needed, a progress bar (e.g. "1 of 2 required contributions completed").
+- [ ] `ThresholdProgressIndicator` -- visible on the group detail page for the member's own row. Shows their threshold progress at all times so there are no surprises when their payout date approaches.
+
+### For group admin (information only, no action for net-negative removals)
+- [ ] `MemberRemovedNotice` -- in-app notification and admin dashboard item when a member is removed. Shows: member name, removal reason, confirmation that the group schedule is unchanged. No action buttons - this is informational only for net-negative removals.
+
+## Global API error handling
+- [ ] Add `ACCOUNT_BANNED` handling to the global API client interceptor (web + mobile). When any API call returns this error code, immediately redirect to `BannedAccountScreen` regardless of which screen the user is on.
+- [ ] Add `DEBT_OUTSTANDING` handling: if a group join attempt is blocked due to outstanding debt, show an inline error pointing to `/account/debts`.
+
+## Tasks
+- [ ] Build `MissedContributionBanner` (web + mobile)
+- [ ] Build `PayoutGuaranteeBadge` (web + mobile)
+- [ ] Build `DebtOutstandingBanner` with `GraceWindowCountdown` (web + mobile)
+- [ ] Build `/account/debts` page (web) and Debts screen (mobile)
+- [ ] Build `RefundScheduledCard` (web + mobile)
+- [ ] Build `RefundCreditedNotification` handler (web + mobile)
+- [ ] Build `NoRefundBanner` (web + mobile)
+- [ ] Build `BannedAccountScreen` (web + mobile)
+- [ ] Build `DeferredPayoutCard` (web + mobile)
+- [ ] Build `ThresholdProgressIndicator` (web + mobile)
+- [ ] Build `MemberRemovedNotice` (admin dashboard web only)
+- [ ] Wire `ACCOUNT_BANNED` error to `BannedAccountScreen` in API client interceptor (web + mobile)
+- [ ] Wire `DEBT_OUTSTANDING` error to inline debt error on group join (web + mobile)
+
+## Acceptance criteria
+- A group member who opens the app after a missed contribution sees `MissedContributionBanner` and the payout guarantee before any other group content
+- A defaulter with outstanding debt sees `DebtOutstandingBanner` on every screen until debt is cleared - it cannot be permanently dismissed
+- A removed member with a scheduled refund sees `RefundScheduledCard` with the exact date and net amount
+- A removed member with no refund due sees `NoRefundBanner` with their remaining debt amount
+- A banned member who opens the app sees only `BannedAccountScreen` - no other navigation is accessible
+- `BannedAccountScreen` renders correctly even when the user's JWT has expired (must handle the error at the interceptor level before any authenticated request is made)
+- `DeferredPayoutCard` shows the correct threshold progress in real time after each contribution is made
+- All debt amounts are formatted in NGN with correct kobo-to-naira conversion (no floating point display errors)
+- All screens render correctly at 375px (mobile) and 1280px (desktop)
+
+## Related tickets
+- Depends on #47, #48, #49, #50, #51, #52 (all backend default protection tickets)
+- Extends #18 (Web dashboard), #19 (Group pages), #22 (Admin dashboard), #25 (Mobile core screens)
+
+## Additional: Fee display in contribution flow
+- [ ] Update contribution payment screens (web ticket #20, mobile ticket #25) to display the fee breakdown before the user confirms payment: "NGN 20,000 contribution + NGN 200 platform fee = NGN 20,200 total"
+- [ ] For wallet-funded contributions: show "NGN 20,000 contribution + NGN 200 platform fee = NGN 20,200 total deducted from your Poolr Wallet"
+- [ ] The "Pay from Wallet" option should only be shown when wallet.balance >= contribution_amount + fee_amount (not just contribution_amount)

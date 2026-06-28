@@ -1,0 +1,116 @@
+## Overview
+Implement the platform fee model for Poolr. Fees are charged as a flat amount on each individual contribution at payment time - not as a percentage on the payout. This ensures the platform reserve starts building from the very first contribution in cycle 1, before any payout has gone out, which is when the reserve is needed most.
+
+## Why contribution-based fees, not payout-based
+If Poolr charged a fee only on payouts, the reserve would be empty during the early cycles of every group - exactly when a default is most damaging. A contribution-based fee means reserve accumulation is proportional to risk exposure from day one. It also distributes the cost across all contributing members rather than concentrating it on the payout recipient.
+
+## Fee structure
+
+### Flat fee tiers (configurable via environment variables)
+| Contribution amount | Platform fee |
+|---|---|
+| Under NGN 10,000 | NGN 100 flat |
+| NGN 10,000 - NGN 50,000 | NGN 200 flat |
+| Above NGN 50,000 | NGN 400 flat |
+
+### Fee split
+- 20% of every fee collected goes to the platform protection reserve
+- 80% goes to Poolr operating revenue
+- Example: NGN 200 fee on a NGN 20,000 contribution - NGN 40 to reserve, NGN 160 to revenue
+
+### What the member pays
+- Paystack path: member pays `contribution_amount + fee_amount` in a single Paystack transaction
+- Wallet path: wallet is debited `contribution_amount + fee_amount` in a single operation
+- The fee is shown clearly to the member before they confirm payment
+
+## Schema changes
+
+### New `ContributionFee` table
+Tracks every fee collected at contribution time.
+```
+ContributionFee {
+  id               uuid PK
+  contribution_id  uuid FK -> Contribution  UNIQUE
+  user_id          uuid FK -> User
+  contribution_amount int    -- the contribution amount in kobo
+  fee_amount          int    -- total platform fee charged in kobo
+  reserve_amount      int    -- 20% of fee_amount (deposited to reserve)
+  revenue_amount      int    -- 80% of fee_amount (operating revenue)
+  created_at          timestamp
+}
+```
+
+### Update `Contribution` model
+- Add `fee_amount` (int) -- the platform fee charged for this contribution, stored for quick reference without joining ContributionFee
+- Add `total_charged` (int) -- contribution_amount + fee_amount (what Paystack actually charged or what was debited from wallet)
+
+## Tasks
+
+### FeeService
+- [ ] Create `FeeService` in `src/modules/payments/fee.service.ts`
+- [ ] `FeeService.calculateFee(contributionAmountKobo: number): number` -- returns the flat fee for the given contribution amount based on configured tiers. Reads tiers from environment config, not hardcoded.
+- [ ] `FeeService.collectFee(contributionId, userId, contributionAmount)` -- called atomically with contribution PAID status update:
+  - Calculate fee using `calculateFee()`
+  - Split into `reserve_amount` (20%) and `revenue_amount` (80%)
+  - Create `ContributionFee` record
+  - Call `ReserveService.deposit(reserveAmount, contributionFeeId)` to deposit reserve slice
+  - All within the same Prisma `$transaction` as the contribution status update
+- [ ] `FeeService.getFeeSummary(filters)` -- returns total fees collected, reserve contributions, and revenue; filterable by date range and group_id
+
+### Integration with contribution flow
+- [ ] Update `PaymentsService.initiateContribution()` to:
+  - Call `FeeService.calculateFee(contributionAmount)` before creating Paystack transaction
+  - Set Paystack transaction amount to `contribution_amount + fee_amount`
+  - Return `{ checkout_url, contribution_amount, fee_amount, total_amount }` in the API response
+- [ ] Update `PaymentsService.handleChargeSuccess()` (webhook handler) to:
+  - Call `FeeService.collectFee()` atomically with marking contribution PAID
+  - Never call `FeeService.collectFee()` twice for the same contribution (idempotency check via `ContributionFee.contribution_id` UNIQUE constraint)
+- [ ] Update wallet-funded contribution path:
+  - Total wallet debit = `contribution_amount + fee_amount`
+  - `WalletService.debit()` call uses `total_charged` not just `contribution_amount`
+  - `can-pay` check: `wallet.balance >= contribution_amount + fee_amount`
+  - After wallet debit, call `FeeService.collectFee()` to record fee and deposit to reserve
+
+### Payout processor - confirm no fee deduction
+- [ ] Explicitly confirm `PayoutProcessor` sends the full pooled contribution amount to the recipient with zero fee deduction
+- [ ] Add a code comment in `PayoutProcessor` referencing this ticket to prevent future confusion
+
+### Configuration
+- [ ] Add to `.env.example`:
+  ```
+  CONTRIBUTION_FEE_TIER_1_MAX=1000000
+  CONTRIBUTION_FEE_TIER_1_AMOUNT=10000
+  CONTRIBUTION_FEE_TIER_2_MAX=5000000
+  CONTRIBUTION_FEE_TIER_2_AMOUNT=20000
+  CONTRIBUTION_FEE_TIER_3_AMOUNT=40000
+  RESERVE_CONTRIBUTION_PERCENTAGE=0.20
+  ```
+- [ ] All fee tiers configurable without a code deploy
+
+### Admin endpoints
+- [ ] `GET /admin/fees` -- total fees collected, reserve contributions, operating revenue; filterable by date range and group
+- [ ] `GET /admin/fees/:contributionFeeId` -- single fee record detail
+
+### Tests
+- [ ] Unit test `calculateFee()`: boundary values at tier 1/2/3 thresholds, exact tier boundary amounts
+- [ ] Unit test `collectFee()`: correct split calculation, idempotency (second call for same contribution throws/is ignored)
+- [ ] Integration test: Paystack checkout amount equals contribution + fee
+- [ ] Integration test: wallet debit equals contribution + fee
+- [ ] Integration test: payout sends full pooled amount, no deduction
+
+## Acceptance criteria
+- Fee is collected at contribution time, never at payout time
+- Paystack checkout amount equals `contribution_amount + fee_amount` exactly
+- `FeeService.collectFee()` and contribution PAID status update are always atomic - no contribution can be marked PAID without a corresponding `ContributionFee` record
+- A duplicate `charge.success` webhook for the same contribution does NOT create a second `ContributionFee` record (idempotent)
+- Wallet-funded contributions also collect the fee - no fee-free path exists
+- `can-pay` wallet check accounts for the fee amount
+- All fee configuration is changeable without a code deploy
+- Payout processor sends full amount to recipient with zero deduction
+- Admin can view total revenue and reserve contributions from fee collection
+
+## Related tickets
+- Depends on #8 (Payments module - contribution flow and webhook handler)
+- Depends on #12 (Wallet module - WalletService.debit())
+- Required by #55 (Updated reserve - deposit now triggered by FeeService, not PayoutProcessor)
+- Required by #26 (Wallet-funded contributions - can-pay check must include fee)

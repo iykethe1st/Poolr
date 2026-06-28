@@ -1,0 +1,94 @@
+## Overview
+Update the contribution payment flow across API, web, and mobile to clearly show the platform fee to the member before they confirm payment. This covers both the Paystack checkout path and the wallet-funded path. Also updates the wallet balance check to account for the fee amount.
+
+## Context
+With the contribution-based fee model (ticket #54), every member pays a flat fee on top of their contribution amount. The member must see this fee clearly before confirming - not discover it after the fact on their bank statement. Transparency here is critical for trust in a financial app.
+
+## API changes
+
+### POST /payments/contribute/:cycleId - updated response
+Add fee details to the contribution initiation response:
+```typescript
+// Updated ContributeResponseDto
+{
+  payment_source: 'PAYSTACK' | 'WALLET';
+  contribution_amount: number;  // in kobo - the group contribution
+  fee_amount: number;           // in kobo - Poolr platform flat fee
+  total_amount: number;         // contribution_amount + fee_amount
+  checkout_url?: string;        // present only for PAYSTACK payment source
+}
+```
+- [ ] Update `PaymentsController` and `PaymentsService.initiateContribution()` to call `FeeService.calculateFee()` and include `fee_amount` and `total_amount` in the response before creating the Paystack transaction
+- [ ] Paystack transaction is initialized with `total_amount` (not just `contribution_amount`)
+
+### GET /wallet/can-pay/:cycleId - updated check
+- [ ] Update can-pay check to verify `wallet.balance >= contribution_amount + fee_amount`
+- [ ] Update can-pay response to include `fee_amount` and `total_amount` alongside `can_pay: boolean`
+```typescript
+// Updated CanPayResponseDto
+{
+  can_pay: boolean;
+  wallet_balance: number;
+  contribution_amount: number;
+  fee_amount: number;
+  total_amount: number;
+}
+```
+
+## Web changes (extends ticket #20)
+
+### Paystack path
+- [ ] Before redirecting to Paystack checkout, show a confirmation modal or summary card:
+  - "Contribution: NGN [contribution_amount]"
+  - "Platform fee: NGN [fee_amount]"
+  - "Total: NGN [total_amount]"
+  - "Pay NGN [total_amount]" CTA button
+  - "Cancel" link
+- [ ] Only redirect to Paystack checkout after user taps the confirm CTA
+
+### Wallet path
+- [ ] "Pay from Wallet" button is shown only when `wallet.balance >= total_amount` (contribution + fee)
+- [ ] Show the same fee breakdown summary before deducting from wallet:
+  - "Contribution: NGN [contribution_amount]"
+  - "Platform fee: NGN [fee_amount]"
+  - "Total deducted from Poolr Wallet: NGN [total_amount]"
+  - "Confirm" CTA
+- [ ] If wallet balance covers contribution but not contribution + fee, show the wallet option as disabled with a tooltip: "Insufficient wallet balance. Top up NGN [shortfall] to pay from wallet."
+
+## Mobile changes (extends ticket #25)
+
+### Paystack path
+- [ ] Show a native bottom sheet or modal with fee breakdown before opening Paystack in `expo-web-browser`
+- [ ] Same fields: contribution amount, fee amount, total, confirm and cancel actions
+
+### Wallet path
+- [ ] Same logic as web: show only when balance >= total_amount, display fee breakdown before confirming
+- [ ] Disabled wallet option shows tooltip/helper text explaining the shortfall
+
+## UX copy guidelines
+- Use "Platform fee" not "Transaction fee" or "Service charge" - consistent with in-app language
+- Display amounts in NGN with comma-separated thousands (e.g. "NGN 20,000" not "NGN 20000")
+- Never show amounts in kobo to the user - always convert before display
+- The fee breakdown must be shown before every contribution payment, not just the first time
+
+## Tests
+- [ ] API: `POST /payments/contribute/:cycleId` response includes `fee_amount` and `total_amount`
+- [ ] API: Paystack transaction is initialized with `total_amount`
+- [ ] API: `GET /wallet/can-pay/:cycleId` returns false when `wallet.balance >= contribution_amount` but `wallet.balance < total_amount`
+- [ ] Web: fee breakdown is rendered before redirect to Paystack
+- [ ] Web: wallet option disabled and shows helper text when balance covers contribution but not total
+- [ ] Mobile: bottom sheet renders with correct fee amounts before Paystack browser opens
+
+## Acceptance criteria
+- Every member sees the fee breakdown (contribution + fee + total) before confirming any payment on both web and mobile
+- No member is charged more than `total_amount` shown in the breakdown
+- Wallet can-pay check uses `total_amount`, not just `contribution_amount`
+- Wallet option is disabled (not hidden) when balance is between `contribution_amount` and `total_amount`, with a clear explanation
+- Fee amounts are always displayed in NGN, never in kobo
+- Paystack checkout is initialized with `total_amount` exactly
+
+## Related tickets
+- Depends on #54 (Fee service - calculateFee() and fee amounts in contribution response)
+- Extends #20 (Web: Contribution payment flow)
+- Extends #25 (Mobile: Home, Groups, and Contribution screens)
+- Extends #26 (Wallet-funded contributions - can-pay check updated)

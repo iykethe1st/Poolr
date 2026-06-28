@@ -1,0 +1,31 @@
+## Overview
+Amends the legal review scope defined in ticket #32 to reflect the updated fee model. The original ticket asked legal counsel to confirm that charging a 1% fee on payouts is permissible. The fee model has changed to a flat fee charged on each contribution. This is a meaningful regulatory distinction and legal counsel must specifically advise on the contribution-time fee structure.
+
+## What changed from ticket #32
+
+### Original item (ticket #32)
+> Transaction fee: confirm that charging a 1% fee on payouts is permissible under current CBN guidelines.
+
+### Updated item (this ticket)
+Legal counsel must now advise on:
+- [ ] Confirm that charging a flat platform fee per contribution (not on payouts) is permissible under current CBN guidelines
+- [ ] Advise whether charging fees at contribution time vs payout time changes the regulatory classification of Poolr under CBN payment service rules - specifically whether collecting fees on inflows (contributions) triggers different licensing requirements than collecting on outflows (payouts)
+- [ ] Confirm that Poolr can collect the platform fee as part of the same Paystack transaction as the member's contribution (i.e. member pays contribution + fee in one Paystack charge, Poolr receives both and internally splits them)
+- [ ] Advise on the correct accounting treatment for the fee split: 20% to reserve, 80% to operating revenue - specifically whether the reserve constitutes a regulated "customer fund" or is simply a business expense reserve
+- [ ] Confirm the flat fee tier structure (NGN 100 / 200 / 400 based on contribution size) does not constitute a percentage-based fee that would require different disclosure or regulatory treatment
+
+## Context for legal counsel
+Poolr charges a flat platform fee on each group contribution, collected at payment time. The fee is split internally: 20% goes to a platform protection reserve (used to guarantee payouts when a member defaults), and 80% goes to platform operating revenue. The member pays the contribution amount plus the fee in a single Paystack transaction. The payout recipient receives the full pooled contribution amount with no deduction.
+
+## Deliverable
+- [ ] Written legal opinion covering all five updated items above
+- [ ] Specific confirmation or flag on whether contribution-time fee collection requires any different CBN disclosure, licensing, or approval compared to payout-time fee collection
+
+## Acceptance criteria
+- Legal opinion explicitly addresses contribution-time fee collection (not just fee collection generally)
+- Legal opinion addresses the regulatory treatment of the 20% reserve fund
+- Any new licensing or disclosure requirements identified are filed as separate GitHub issues
+
+## Related tickets
+- Amends #32 (Engage a Nigerian fintech lawyer for regulatory review)
+- Context from #54 (Fee service) and #55 (Reserve)
