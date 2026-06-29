@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { DefaultProtectionService } from '../protection/default-protection.service';
 import {
   NOTIFICATION_EVENTS,
   PenaltyAppliedEvent,
@@ -33,6 +34,7 @@ type ContributionWithRelations = Prisma.ContributionGetPayload<{
   };
 }>;
 
+
 @Injectable()
 export class PenaltiesService {
   private readonly logger = new Logger(PenaltiesService.name);
@@ -40,6 +42,7 @@ export class PenaltiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly defaultProtection: DefaultProtectionService,
   ) {}
 
   @Cron('0 1 * * *')
@@ -112,6 +115,40 @@ export class PenaltiesService {
     this.logger.log(
       `Penalty applied for contribution ${contribution.id}: ₦${penaltyAmount} NGN`,
     );
+
+    // Default protection — determine scenario based on whether payout was already sent
+    await this.triggerDefaultProtection(contribution).catch((err: unknown) => {
+      this.logger.error(`Default protection failed for contrib ${contribution.id}: ${(err as Error).message}`);
+    });
+  }
+
+  private async triggerDefaultProtection(contribution: ContributionWithRelations): Promise<void> {
+    const userId = contribution.member.userId;
+    const cycleId = contribution.cycleId;
+    const missedAmountNgn = Number(contribution.amount);
+
+    // Check if a payout was already completed for this cycle (Scenario A) or not (Scenario B)
+    const completedPayout = await this.prisma.payout.findFirst({
+      where: { cycleId, recipientId: userId, status: 'COMPLETED' },
+    });
+
+    if (completedPayout) {
+      // Scenario A: received payout then defaulted — ban + flag identity
+      const kycProfile = await this.prisma.kycProfile.findUnique({ where: { userId } });
+      await this.defaultProtection.handlePostPayoutDefault(
+        userId,
+        cycleId,
+        missedAmountNgn,
+        kycProfile?.bvn,
+        kycProfile?.nin,
+      );
+    } else {
+      // Scenario B: has not yet received payout — freeze + hold payout
+      const cycle = await this.prisma.cycle.findUnique({ where: { id: cycleId }, select: { recipientId: true } });
+      if (cycle?.recipientId === userId) {
+        await this.defaultProtection.handlePrePayoutDefault(userId, cycleId, missedAmountNgn);
+      }
+    }
   }
 
   async listMyPenalties(userId: string) {

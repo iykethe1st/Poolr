@@ -19,7 +19,9 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AdminService } from './admin.service';
 import { FeeService } from '../payments/fee.service';
+import { DebtClearanceService } from '../protection/debt-clearance.service';
 import { WaivePenaltyDto } from '../penalties/dto/waive-penalty.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -30,6 +32,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly feeService: FeeService,
+    private readonly debtClearance: DebtClearanceService,
   ) {}
 
   // ── Groups ────────────────────────────────────────────────────────────────
@@ -114,5 +117,46 @@ export class AdminController {
   @ApiOperation({ summary: 'Single fee record detail' })
   getFeeById(@Param('id') id: string) {
     return this.feeService.getFeeById(id);
+  }
+
+  // ── Debts & Default Protection ────────────────────────────────────────────
+
+  @Get('debts')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'List outstanding debts from contribution defaults' })
+  listDebts(
+    @Query('userId') userId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.debtClearance.listDebts({
+      userId,
+      status: status as never,
+    });
+  }
+
+  @Get('debts/:id')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Single debt record detail' })
+  getDebt(@Param('id') id: string) {
+    return this.debtClearance.getDebt(id);
+  }
+
+  @Post('debts/:id/payment-link')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Generate a Paystack payment link for a debt' })
+  generateDebtPaymentLink(@Param('id') id: string) {
+    return this.debtClearance.generatePaymentLink(id);
+  }
+
+  @Post('users/:id/lift-ban')
+  @Roles('SUPER_ADMIN')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Manually lift a user ban after out-of-band debt settlement' })
+  liftBan(
+    @Param('id') userId: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.debtClearance.adminLiftBan(userId, adminId);
   }
 }

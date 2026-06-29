@@ -249,6 +249,13 @@ export class PaymentsService {
 
     if (await this.redis.get(idempotencyKey)) return;
 
+    // Debt repayment — route to protection module via event
+    if (reference.startsWith('debt_')) {
+      this.eventEmitter.emit('debt.payment.success', { reference });
+      await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);
+      return;
+    }
+
     const contribution = await this.prisma.contribution.findFirst({
       where: { paystackRef: reference },
       include: { member: true, cycle: true },

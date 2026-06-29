@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { KycStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { DojahService } from './dojah.service';
+import { DefaultProtectionService } from '../protection/default-protection.service';
 import {
   NOTIFICATION_EVENTS,
   KycApprovedEvent,
@@ -27,6 +28,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly dojah: DojahService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly defaultProtection: DefaultProtectionService,
   ) {}
 
   async getProfile(userId: string) {
@@ -112,6 +114,19 @@ export class UsersService {
     });
 
     if (newStatus === KycStatus.VERIFIED) {
+      // Check if this identity was previously flagged (banned user attempting re-registration)
+      const kycNow = await this.prisma.kycProfile.findUnique({ where: { userId } });
+      const isFlagged = await this.defaultProtection.isFlaggedIdentity(kycNow?.bvn, kycNow?.nin);
+      if (isFlagged) {
+        await this.prisma.user.update({ where: { id: userId }, data: { status: 'BANNED' as never } });
+        const attemptsLeft = Math.max(0, MAX_KYC_ATTEMPTS - updated.kycAttempts);
+        return {
+          kycStatus: 'REJECTED' as KycStatus,
+          kycAttempts: updated.kycAttempts,
+          message: `Verification failed. ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} remaining.`,
+        };
+      }
+
       const evt: KycApprovedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_APPROVED, evt);
     } else if (newStatus === KycStatus.REJECTED) {
