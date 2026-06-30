@@ -130,6 +130,7 @@ export interface CreateGroupInput {
   frequency: string;
   maxMembers: number;
   startDate?: string;
+  penaltyEnabled?: boolean;
 }
 
 export function useCreateGroup() {

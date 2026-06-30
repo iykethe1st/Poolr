@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useMyGroups, useCurrentUser } from '@/hooks/use-dashboard';
-import { useJoinGroup, useAcceptInvite, useDeclineInvite } from '@/hooks/use-group';
+import { useJoinGroup } from '@/hooks/use-group';
 import { useColors } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { StatusBadge } from '@/components/status-badge';
@@ -64,10 +64,20 @@ export default function GroupsScreen() {
     setJoinModalVisible(true);
   }
 
+  function extractToken(input: string): string {
+    try {
+      const url = new URL(input.trim());
+      return url.searchParams.get('token') ?? input.trim();
+    } catch {
+      return input.trim();
+    }
+  }
+
   async function handleJoin() {
     if (!inviteCode.trim()) return;
+    const token = extractToken(inviteCode);
     try {
-      await joinGroup.mutateAsync(inviteCode.trim());
+      await joinGroup.mutateAsync(token);
       setJoinModalVisible(false);
       setInviteCode('');
       Alert.alert('Joined!', 'You have successfully joined the group.');
@@ -190,7 +200,7 @@ export default function GroupsScreen() {
                 style={styles.codeInput}
                 value={inviteCode}
                 onChangeText={setInviteCode}
-                placeholder="Paste invite token here"
+                placeholder="Paste invite link or token"
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -217,15 +227,15 @@ export default function GroupsScreen() {
 }
 
 function InviteCard({ group }: { group: import('@/hooks/use-dashboard').GroupWithMembers }) {
-  const accept = useAcceptInvite(group.id);
-  const decline = useDeclineInvite(group.id);
-  const busy = accept.isPending || decline.isPending;
-
   const colors = useColors();
   const inviteStyles = useMemo(() => createInviteStyles(colors), [colors]);
 
   return (
-    <View style={inviteStyles.card}>
+    <TouchableOpacity
+      style={inviteStyles.card}
+      activeOpacity={0.75}
+      onPress={() => router.push(`/groups/invite-review/${group.id}`)}
+    >
       <View style={inviteStyles.cardTop}>
         <View style={{ flex: 1 }}>
           <Text style={inviteStyles.name} numberOfLines={1}>{group.name}</Text>
@@ -233,23 +243,10 @@ function InviteCard({ group }: { group: import('@/hooks/use-dashboard').GroupWit
         </View>
         <StatusBadge label="Invited" variant="warning" />
       </View>
-      <View style={inviteStyles.actions}>
-        <TouchableOpacity
-          style={[inviteStyles.acceptBtn, busy && { opacity: 0.6 }]}
-          onPress={() => accept.mutate()}
-          disabled={busy}
-        >
-          {accept.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={inviteStyles.acceptBtnText}>Accept</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[inviteStyles.declineBtn, busy && { opacity: 0.6 }]}
-          onPress={() => decline.mutate()}
-          disabled={busy}
-        >
-          {decline.isPending ? <ActivityIndicator color={colors.textMuted} size="small" /> : <Text style={inviteStyles.declineBtnText}>Decline</Text>}
-        </TouchableOpacity>
+      <View style={inviteStyles.reviewRow}>
+        <Text style={inviteStyles.reviewText}>Review invite →</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -259,7 +256,7 @@ function createInviteStyles(colors: import('@/lib/colors').Colors) {
       backgroundColor: colors.card,
       borderRadius: 16,
       padding: 14,
-      gap: 12,
+      gap: 10,
       borderWidth: 1.5,
       borderColor: colors.primaryBorder,
       borderStyle: 'dashed',
@@ -267,11 +264,8 @@ function createInviteStyles(colors: import('@/lib/colors').Colors) {
     cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     name: { fontSize: 14, fontWeight: '700', color: colors.text },
     meta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    actions: { flexDirection: 'row', gap: 8 },
-    acceptBtn: { flex: 1, height: 38, backgroundColor: colors.primary, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    acceptBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    declineBtn: { flex: 1, height: 38, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-    declineBtnText: { fontSize: 13, color: colors.textMuted },
+    reviewRow: { alignItems: 'flex-end' },
+    reviewText: { fontSize: 13, fontWeight: '600', color: colors.primary },
   });
 }
 

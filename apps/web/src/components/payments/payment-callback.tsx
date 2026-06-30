@@ -83,13 +83,31 @@ function VerifyState({ reference }: { reference: string }) {
       <CallbackShell>
         <CheckCircle2 className="size-12 text-emerald-500" />
         <p className="mt-4 text-lg font-semibold">Payment successful!</p>
-        <p className="text-sm text-muted-foreground">
-          Your contribution has been confirmed. You&apos;ll be redirected to your
-          dashboard in a moment.
-        </p>
-        <Button className="mt-6" asChild>
-          <Link href="/dashboard">Back to dashboard</Link>
-        </Button>
+        {data?.amount !== undefined && (
+          <p className="text-2xl font-bold">
+            ₦{data.amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+          </p>
+        )}
+        {data?.groupName && (
+          <p className="text-sm text-muted-foreground">
+            Contribution to <span className="font-semibold text-foreground">{data.groupName}</span> confirmed.
+          </p>
+        )}
+        {!data?.groupName && (
+          <p className="text-sm text-muted-foreground">
+            Your contribution has been confirmed. You&apos;ll be redirected in a moment.
+          </p>
+        )}
+        <div className="mt-6 flex gap-3">
+          {data?.groupId && (
+            <Button asChild>
+              <Link href={`/groups/${data.groupId}`}>Back to group</Link>
+            </Button>
+          )}
+          <Button asChild variant={data?.groupId ? 'outline' : 'default'}>
+            <Link href="/dashboard">Dashboard</Link>
+          </Button>
+        </div>
       </CallbackShell>
     );
   }

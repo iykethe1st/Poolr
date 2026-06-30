@@ -96,7 +96,12 @@ export class PaymentsService {
 
     const contributionAmountNgn = Number(cycle.group.contributionAmount);
     const feeAmountNgn = this.feeService.calculateFee(contributionAmountNgn);
-    const totalChargedNgn = contributionAmountNgn + feeAmountNgn;
+
+    const appliedPenalty = await this.prisma.penalty.findFirst({
+      where: { memberId: member.id, contribution: { cycleId }, status: 'APPLIED' },
+    });
+    const penaltyAmountNgn = appliedPenalty ? Number(appliedPenalty.penaltyAmount) : 0;
+    const totalChargedNgn = contributionAmountNgn + feeAmountNgn + penaltyAmountNgn;
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
@@ -107,7 +112,7 @@ export class PaymentsService {
       amountNgn: totalChargedNgn,
       reference,
       callbackUrl: resolvedCallbackUrl,
-      metadata: { cycleId, memberId: member.id, userId },
+      metadata: { cycleId, memberId: member.id, userId, penaltyId: appliedPenalty?.id },
     });
 
     return {
@@ -128,15 +133,20 @@ export class PaymentsService {
   ) {
     const contributionAmountNgn = Number(cycle.group.contributionAmount);
     const feeAmountNgn = this.feeService.calculateFee(contributionAmountNgn);
-    const totalChargedNgn = contributionAmountNgn + feeAmountNgn;
     const reference = `contrib_wallet_${cycleId.slice(-8)}_${userId.slice(-8)}_${Date.now()}`;
 
-    // Pre-flight balance check against total (contribution + fee) for a clear 422
+    const appliedPenalty = await this.prisma.penalty.findFirst({
+      where: { memberId, contribution: { cycleId }, status: 'APPLIED' },
+    });
+    const penaltyAmountNgn = appliedPenalty ? Number(appliedPenalty.penaltyAmount) : 0;
+    const totalChargedNgn = contributionAmountNgn + feeAmountNgn + penaltyAmountNgn;
+
+    // Pre-flight balance check against total (contribution + fee + penalty) for a clear 422
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet || Number(wallet.balance) < totalChargedNgn) {
       throw new UnprocessableEntityException({
         error: 'INSUFFICIENT_WALLET_BALANCE',
-        message: `Wallet balance ₦${Number(wallet?.balance ?? 0).toFixed(2)} is less than the required ₦${totalChargedNgn.toFixed(2)} (contribution ₦${contributionAmountNgn.toFixed(2)} + fee ₦${feeAmountNgn.toFixed(2)})`,
+        message: `Wallet balance ₦${Number(wallet?.balance ?? 0).toFixed(2)} is less than the required ₦${totalChargedNgn.toFixed(2)} (contribution ₦${contributionAmountNgn.toFixed(2)} + fee ₦${feeAmountNgn.toFixed(2)}${penaltyAmountNgn > 0 ? ` + penalty ₦${penaltyAmountNgn.toFixed(2)}` : ''})`,
       });
     }
 
@@ -167,7 +177,14 @@ export class PaymentsService {
 
       await this.feeService.collectFee(contributionId, userId, contributionAmountNgn, tx);
 
-      // Debit full amount (contribution + fee) in one atomic wallet operation
+      if (appliedPenalty) {
+        await tx.penalty.update({
+          where: { id: appliedPenalty.id },
+          data: { status: 'WAIVED' },
+        });
+      }
+
+      // Debit full amount (contribution + fee + penalty) in one atomic wallet operation
       await this.walletService.debit(userId, totalChargedNgn, reference, TxType.CONTRIBUTION, tx);
     });
 
@@ -202,18 +219,25 @@ export class PaymentsService {
   async verifyPayment(userId: string, reference: string) {
     const result = await this.paystack.verifyTransaction(reference);
 
-    if (result.status === 'success') {
-      const contribution = await this.prisma.contribution.findFirst({
-        where: { paystackRef: reference },
-        include: { member: true },
-      });
+    const contribution = await this.prisma.contribution.findFirst({
+      where: { paystackRef: reference },
+      include: {
+        member: true,
+        cycle: { include: { group: { select: { id: true, name: true } } } },
+      },
+    });
 
-      if (contribution && contribution.member.userId === userId && contribution.status !== ContribStatus.PAID) {
-        await this.handleChargeSuccess({ reference, amount: result.amountKobo });
-      }
+    if (result.status === 'success' && contribution && contribution.member.userId === userId && contribution.status !== ContribStatus.PAID) {
+      await this.handleChargeSuccess({ reference, amount: result.amountKobo });
     }
 
-    return { status: result.status };
+    return {
+      status: result.status,
+      amount: result.amountKobo ? result.amountKobo / 100 : contribution ? Number(contribution.amount) : undefined,
+      groupId: contribution?.cycle.group.id,
+      groupName: contribution?.cycle.group.name,
+      cycleNumber: contribution?.cycle.cycleNumber,
+    };
   }
 
   // ── Webhook handlers ────────────────────────────────────────────────────────
@@ -270,12 +294,19 @@ export class PaymentsService {
     const amountNgn = rawKobo > 0 ? rawKobo / 100 : await this.getContributionAmount(contribution.cycleId);
     const contributionAmountNgn = Number(contribution.amount);
 
+    const appliedPenalty = await this.prisma.penalty.findFirst({
+      where: { memberId: contribution.memberId, contribution: { cycleId: contribution.cycleId }, status: 'APPLIED' },
+    });
+
     await this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.contribution.update({
         where: { id: contribution.id },
         data: { status: ContribStatus.PAID, paidAt: new Date() },
       });
       await this.feeService.collectFee(contribution.id, contribution.member.userId, contributionAmountNgn, tx);
+      if (appliedPenalty) {
+        await tx.penalty.update({ where: { id: appliedPenalty.id }, data: { status: 'WAIVED' } });
+      }
     });
 
     await this.redis.set(idempotencyKey, '1', WEBHOOK_TTL);

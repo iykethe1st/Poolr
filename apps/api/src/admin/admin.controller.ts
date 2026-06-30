@@ -20,6 +20,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AdminService } from './admin.service';
 import { FeeService } from '../payments/fee.service';
 import { DebtClearanceService } from '../protection/debt-clearance.service';
+import { PenaltiesService } from '../penalties/penalties.service';
 import { WaivePenaltyDto } from '../penalties/dto/waive-penalty.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -33,6 +34,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly feeService: FeeService,
     private readonly debtClearance: DebtClearanceService,
+    private readonly penaltiesService: PenaltiesService,
   ) {}
 
   // ── Groups ────────────────────────────────────────────────────────────────
@@ -76,6 +78,15 @@ export class AdminController {
   @ApiOperation({ summary: 'List all pending (applied) penalties' })
   listPendingPenalties() {
     return this.adminService.listPendingPenalties();
+  }
+
+  @Post('penalties/run-check')
+  @Roles('SUPER_ADMIN')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Manually run the missed-payment penalty cron (dev/ops use)' })
+  async runPenaltyCheck() {
+    await this.penaltiesService.applyMissedPenalties();
+    return { message: 'Penalty check complete' };
   }
 
   @Post('penalties/:id/waive')

@@ -1,15 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { HTTPError } from 'ky';
-import { CheckCircle2, Circle, Clock, AlertCircle, CreditCard, Loader2, Wallet } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/format';
-import { useInitializeContribution, useWalletContribute } from '@/hooks/use-payments';
-import { useWallet } from '@/hooks/use-wallet';
 import type { Cycle, GroupMember } from '@/hooks/use-group';
 
 interface CycleTimelineProps {
@@ -43,7 +37,6 @@ export function CycleTimeline({ cycles, members, contributionAmount, currency, c
         const { icon: Icon, color, badge, label } = STATUS_CONFIG[cycle.status] ?? STATUS_CONFIG.PENDING;
         const recipientName = memberMap.get(cycle.recipientId) ?? 'Unknown';
         const isLast = i === sortedCycles.length - 1;
-        const isPayable = (cycle.status === 'ACTIVE' || cycle.status === 'OVERDUE') && isActiveMember;
         const isMyReceivingCycle = cycle.recipientId === currentUserId;
 
         return (
@@ -96,9 +89,6 @@ export function CycleTimeline({ cycles, members, contributionAmount, currency, c
                   <p className="text-sm font-semibold">
                     {formatCurrency(contributionAmount * members.filter((m) => m.memberStatus === 'ACTIVE').length, currency)}
                   </p>
-                  {isPayable && (
-                    <PayButton cycleId={cycle.id} currency={currency} contributionAmount={contributionAmount} />
-                  )}
                 </div>
               </div>
             </div>
@@ -109,81 +99,3 @@ export function CycleTimeline({ cycles, members, contributionAmount, currency, c
   );
 }
 
-export function PayButton({
-  cycleId,
-  currency,
-  contributionAmount,
-}: {
-  cycleId: string;
-  currency: string;
-  contributionAmount: number;
-}) {
-  const router = useRouter();
-  const init = useInitializeContribution();
-  const walletPay = useWalletContribute();
-  const { data: wallet } = useWallet();
-  const [paid, setPaid] = useState(false);
-
-  const walletBalance = Number(wallet?.balance ?? 0);
-  const canPayFromWallet = walletBalance >= contributionAmount;
-
-  if (paid) {
-    return (
-      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-        <CheckCircle2 className="size-3.5" />
-        Paid
-      </span>
-    );
-  }
-
-  function handleAlreadyPaid(err: unknown) {
-    if (err instanceof HTTPError) {
-      err.response.json().then((body: { message?: string }) => {
-        if (body.message?.toLowerCase().includes('already paid')) setPaid(true);
-      }).catch(() => null);
-    }
-  }
-
-  function handlePaystack() {
-    init.mutate(cycleId, {
-      onSuccess: ({ authorizationUrl }) => {
-        if (process.env.NODE_ENV === 'development' && !authorizationUrl.startsWith('https://checkout.paystack')) {
-          router.push('/payments/callback?reference=dev_test');
-        } else {
-          window.location.href = authorizationUrl;
-        }
-      },
-      onError: handleAlreadyPaid,
-    });
-  }
-
-  function handleWallet() {
-    walletPay.mutate(cycleId, {
-      onSuccess: () => setPaid(true),
-      onError: handleAlreadyPaid,
-    });
-  }
-
-  const isBusy = init.isPending || walletPay.isPending;
-
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <Button size="sm" className="h-7 px-3 text-xs" onClick={handlePaystack} disabled={isBusy}>
-        {init.isPending ? <Loader2 className="size-3 animate-spin" /> : <CreditCard className="size-3" />}
-        Pay {formatCurrency(contributionAmount, currency)}
-      </Button>
-      {canPayFromWallet && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 px-3 text-xs"
-          onClick={handleWallet}
-          disabled={isBusy}
-        >
-          {walletPay.isPending ? <Loader2 className="size-3 animate-spin" /> : <Wallet className="size-3" />}
-          Wallet
-        </Button>
-      )}
-    </div>
-  );
-}

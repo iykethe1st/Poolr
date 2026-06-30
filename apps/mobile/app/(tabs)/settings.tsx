@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,22 +10,22 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { router } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
-import { useCurrentUser } from '@/hooks/use-dashboard';
+} from "react-native";
+import { router } from "expo-router";
+import { useAuth } from "@/context/auth-context";
+import { useCurrentUser } from "@/hooks/use-dashboard";
 import {
   useBanks,
   useMyBankAccount,
   useRemoveBankAccount,
   useResolveAccount,
   useSaveBankAccount,
-} from '@/hooks/use-bank-account';
-import { useColors } from '@/lib/colors';
-import { initials } from '@/lib/format';
-import { tierConfig } from '@/lib/tier';
-import { StatusBadge } from '@/components/status-badge';
-import type { BadgeVariant } from '@/components/status-badge';
+} from "@/hooks/use-bank-account";
+import { useColors } from "@/lib/colors";
+import { initials } from "@/lib/format";
+import { tierConfig } from "@/lib/tier";
+import { StatusBadge } from "@/components/status-badge";
+import type { BadgeVariant } from "@/components/status-badge";
 
 export default function SettingsScreen() {
   const { logout } = useAuth();
@@ -35,13 +35,14 @@ export default function SettingsScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const kycStatus = me?.kycProfile?.kycStatus ?? 'UNVERIFIED';
-  const KYC_VARIANT: Record<string, { variant: BadgeVariant; label: string }> = {
-    VERIFIED:   { variant: 'success', label: '✓ Verified' },
-    PENDING:    { variant: 'warning', label: 'Pending' },
-    UNVERIFIED: { variant: 'danger',  label: 'Unverified' },
-    FAILED:     { variant: 'danger',  label: 'Failed' },
-  };
+  const kycStatus = me?.kycProfile?.kycStatus ?? "UNVERIFIED";
+  const KYC_VARIANT: Record<string, { variant: BadgeVariant; label: string }> =
+    {
+      VERIFIED: { variant: "success", label: "✓ Verified" },
+      PENDING: { variant: "warning", label: "Pending" },
+      UNVERIFIED: { variant: "danger", label: "Unverified" },
+      FAILED: { variant: "danger", label: "Failed" },
+    };
   const kycBadge = KYC_VARIANT[kycStatus] ?? KYC_VARIANT.UNVERIFIED;
 
   return (
@@ -50,50 +51,78 @@ export default function SettingsScreen() {
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {me ? initials(me.fullName) : '—'}
+            {me ? initials(me.fullName) : "—"}
           </Text>
         </View>
         <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>
-            {me?.fullName ?? '—'}
-          </Text>
-          <Text style={styles.profileEmail}>{me?.email ?? '—'}</Text>
+          <Text style={styles.profileName}>{me?.fullName ?? "—"}</Text>
+          <Text style={styles.profileEmail}>{me?.email ?? "—"}</Text>
         </View>
         <StatusBadge label={kycBadge.label} variant={kycBadge.variant} />
       </View>
 
       {/* Tier card */}
       {me?.contributionStats && (
-        <View style={[styles.tierCard, { backgroundColor: tierConfig(me.contributionStats.tier).bg, borderColor: tierConfig(me.contributionStats.tier).color + '40' }]}>
+        <View
+          style={[
+            styles.tierCard,
+            {
+              backgroundColor: tierConfig(me.contributionStats.tier).bg,
+              borderColor: tierConfig(me.contributionStats.tier).color + "40",
+            },
+          ]}
+        >
           <View style={styles.tierRow}>
-            <Text style={styles.tierEmoji}>{tierConfig(me.contributionStats.tier).emoji}</Text>
+            <Text style={styles.tierEmoji}>
+              {tierConfig(me.contributionStats.tier).emoji}
+            </Text>
             <View style={styles.tierInfo}>
-              <Text style={[styles.tierLabel, { color: tierConfig(me.contributionStats.tier).color }]}>
+              <Text
+                style={[
+                  styles.tierLabel,
+                  { color: tierConfig(me.contributionStats.tier).color },
+                ]}
+              >
                 {tierConfig(me.contributionStats.tier).label} member
               </Text>
               {me.contributionStats.totalPaid > 0 ? (
                 <Text style={styles.tierStats}>
-                  {me.contributionStats.totalPaid} contribution{me.contributionStats.totalPaid !== 1 ? 's' : ''} · {me.contributionStats.onTimeRate}% on time
-                  {me.contributionStats.totalPenalties > 0 ? ` · ${me.contributionStats.totalPenalties} penalty` : ''}
+                  {me.contributionStats.totalPaid} contribution
+                  {me.contributionStats.totalPaid !== 1 ? "s" : ""} ·{" "}
+                  {me.contributionStats.onTimeRate}% on time
+                  {me.contributionStats.totalPenalties > 0
+                    ? ` · ${me.contributionStats.totalPenalties} penalty`
+                    : ""}
                 </Text>
               ) : (
-                <Text style={styles.tierStats}>Make your first contribution to earn a tier</Text>
+                <Text style={styles.tierStats}>
+                  Make your first contribution to earn a tier
+                </Text>
               )}
             </View>
           </View>
-          {me.contributionStats.tier !== 'PLATINUM' && (
-            <Text style={[styles.tierNext, { color: tierConfig(me.contributionStats.tier).color }]}>
-              {me.contributionStats.tier === 'NEW' && 'Pay 1 contribution to reach Bronze'}
-              {me.contributionStats.tier === 'BRONZE' && `Pay ${Math.max(0, 5 - me.contributionStats.totalPaid)} more on time to reach Silver`}
-              {me.contributionStats.tier === 'SILVER' && `Pay ${Math.max(0, 10 - me.contributionStats.totalPaid)} more (≥90% on time) for Gold`}
-              {me.contributionStats.tier === 'GOLD' && `Pay ${Math.max(0, 15 - me.contributionStats.totalPaid)} more (100% on time) for Platinum`}
+          {me.contributionStats.tier !== "PLATINUM" && (
+            <Text
+              style={[
+                styles.tierNext,
+                { color: tierConfig(me.contributionStats.tier).color },
+              ]}
+            >
+              {me.contributionStats.tier === "NEW" &&
+                "Pay 1 contribution to reach Bronze"}
+              {me.contributionStats.tier === "BRONZE" &&
+                `Pay ${Math.max(0, 5 - me.contributionStats.totalPaid)} more on time to reach Silver`}
+              {me.contributionStats.tier === "SILVER" &&
+                `Pay ${Math.max(0, 10 - me.contributionStats.totalPaid)} more (≥90% on time) for Gold`}
+              {me.contributionStats.tier === "GOLD" &&
+                `Pay ${Math.max(0, 15 - me.contributionStats.totalPaid)} more (100% on time) for Platinum`}
             </Text>
           )}
         </View>
       )}
 
       {/* KYC section */}
-      {kycStatus !== 'VERIFIED' && (
+      {kycStatus !== "VERIFIED" && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Identity verification</Text>
           <Text style={styles.sectionDesc}>
@@ -102,26 +131,32 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[
               styles.kycRow,
-              kycStatus === 'PENDING' ? styles.kycRowPending : styles.kycRowAction,
+              kycStatus === "PENDING"
+                ? styles.kycRowPending
+                : styles.kycRowAction,
             ]}
-            onPress={() => router.push('/kyc')}
-            disabled={kycStatus === 'PENDING'}
+            onPress={() => router.push("/kyc")}
+            disabled={kycStatus === "PENDING"}
             activeOpacity={0.8}
           >
             <Text style={styles.kycRowIcon}>
-              {kycStatus === 'PENDING' ? '⏳' : '🪪'}
+              {kycStatus === "PENDING" ? "⏳" : "🪪"}
             </Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.kycRowTitle}>
-                {kycStatus === 'PENDING' ? 'Verification in review' : 'Verify your identity'}
+                {kycStatus === "PENDING"
+                  ? "Verification in review"
+                  : "Verify your identity"}
               </Text>
               <Text style={styles.kycRowSub}>
-                {kycStatus === 'PENDING'
+                {kycStatus === "PENDING"
                   ? "We'll notify you when approved"
-                  : 'Takes ~2 minutes · Government ID required'}
+                  : "Takes ~2 minutes · Government ID required"}
               </Text>
             </View>
-            {kycStatus !== 'PENDING' && <Text style={styles.kycRowArrow}>›</Text>}
+            {kycStatus !== "PENDING" && (
+              <Text style={styles.kycRowArrow}>›</Text>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -141,17 +176,17 @@ export default function SettingsScreen() {
         <View style={styles.supportCard}>
           <TouchableOpacity
             style={styles.supportRow}
-            onPress={() => void Linking.openURL('mailto:support@poolr.app')}
+            onPress={() => void Linking.openURL("mailto:support@poolr.app")}
           >
-            <Text style={styles.supportRowText}>✉️  Email support</Text>
+            <Text style={styles.supportRowText}>✉️ Email support</Text>
             <Text style={styles.supportRowArrow}>›</Text>
           </TouchableOpacity>
           <View style={styles.supportDivider} />
           <TouchableOpacity
             style={styles.supportRow}
-            onPress={() => void Linking.openURL('https://wa.me/2348000000000')}
+            onPress={() => void Linking.openURL("https://wa.me/2348000000000")}
           >
-            <Text style={styles.supportRowText}>💬  WhatsApp chat</Text>
+            <Text style={styles.supportRowText}>💬 WhatsApp chat</Text>
             <Text style={styles.supportRowArrow}>›</Text>
           </TouchableOpacity>
         </View>
@@ -162,9 +197,13 @@ export default function SettingsScreen() {
         <TouchableOpacity
           style={styles.signOutBtn}
           onPress={() => {
-            Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
+            Alert.alert("Sign out", "Are you sure you want to sign out?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Sign out",
+                style: "destructive",
+                onPress: () => void logout(),
+              },
             ]);
           }}
         >
@@ -178,7 +217,10 @@ export default function SettingsScreen() {
 function BankAccountSection({
   account,
 }: {
-  account: { bankName: string; accountNumber: string; accountName: string } | null | undefined;
+  account:
+    | { bankName: string; accountNumber: string; accountName: string }
+    | null
+    | undefined;
 }) {
   const remove = useRemoveBankAccount();
   const [showForm, setShowForm] = useState(false);
@@ -191,19 +233,21 @@ function BankAccountSection({
       <View style={styles.bankCard}>
         <View style={styles.bankRow}>
           <View style={styles.bankCheckIcon}>
-            <Text style={{ color: '#166534', fontWeight: '700' }}>✓</Text>
+            <Text style={{ color: "#166534", fontWeight: "700" }}>✓</Text>
           </View>
           <View style={styles.bankInfo}>
             <Text style={styles.bankName}>{account.accountName}</Text>
-            <Text style={styles.bankSub}>{account.bankName} · {account.accountNumber}</Text>
+            <Text style={styles.bankSub}>
+              {account.bankName} · {account.accountNumber}
+            </Text>
           </View>
           <Pressable
             onPress={() => {
-              Alert.alert('Remove account', 'Remove this bank account?', [
-                { text: 'Cancel', style: 'cancel' },
+              Alert.alert("Remove account", "Remove this bank account?", [
+                { text: "Cancel", style: "cancel" },
                 {
-                  text: 'Remove',
-                  style: 'destructive',
+                  text: "Remove",
+                  style: "destructive",
                   onPress: () => remove.mutate(),
                 },
               ]);
@@ -234,19 +278,28 @@ function BankAccountSection({
   }
 
   return (
-    <AddBankForm onSuccess={() => setShowForm(false)} onCancel={() => setShowForm(false)} />
+    <AddBankForm
+      onSuccess={() => setShowForm(false)}
+      onCancel={() => setShowForm(false)}
+    />
   );
 }
 
-function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
+function AddBankForm({
+  onSuccess,
+  onCancel,
+}: {
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
   const { data: banks = [], isLoading: banksLoading } = useBanks();
   const resolve = useResolveAccount();
   const save = useSaveBankAccount();
 
-  const [bankCode, setBankCode] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [resolvedName, setResolvedName] = useState('');
-  const [error, setError] = useState('');
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [resolvedName, setResolvedName] = useState("");
+  const [error, setError] = useState("");
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -255,27 +308,27 @@ function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel:
   const canResolve = !!bankCode && accountNumber.length === 10;
 
   async function handleVerify() {
-    setError('');
+    setError("");
     try {
       const result = await resolve.mutateAsync({ bankCode, accountNumber });
       setResolvedName(result.accountName);
     } catch {
-      setError('Could not verify account. Check the details and try again.');
+      setError("Could not verify account. Check the details and try again.");
     }
   }
 
   async function handleSave() {
-    setError('');
+    setError("");
     try {
       await save.mutateAsync({
         bankCode,
-        bankName: selectedBank?.name ?? '',
+        bankName: selectedBank?.name ?? "",
         accountNumber,
         accountName: resolvedName,
       });
       onSuccess();
     } catch {
-      setError('Failed to save account. Please try again.');
+      setError("Failed to save account. Please try again.");
     }
   }
 
@@ -285,7 +338,8 @@ function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel:
 
       <View style={styles.warningBox}>
         <Text style={styles.warningText}>
-          ⚠ Withdrawals can only be sent to your own account. The name must match your verified identity.
+          ⚠ Withdrawals can only be sent to your own account. The name must
+          match your verified identity.
         </Text>
       </View>
 
@@ -301,10 +355,22 @@ function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel:
               {banks.map((b) => (
                 <Pressable
                   key={b.code}
-                  style={[styles.bankOption, bankCode === b.code && styles.bankOptionSelected]}
-                  onPress={() => { setBankCode(b.code); setResolvedName(''); setError(''); }}
+                  style={[
+                    styles.bankOption,
+                    bankCode === b.code && styles.bankOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setBankCode(b.code);
+                    setResolvedName("");
+                    setError("");
+                  }}
                 >
-                  <Text style={[styles.bankOptionText, bankCode === b.code && styles.bankOptionTextSelected]}>
+                  <Text
+                    style={[
+                      styles.bankOptionText,
+                      bankCode === b.code && styles.bankOptionTextSelected,
+                    ]}
+                  >
                     {b.name}
                   </Text>
                 </Pressable>
@@ -320,7 +386,11 @@ function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel:
         <TextInput
           style={styles.input}
           value={accountNumber}
-          onChangeText={(v) => { setAccountNumber(v.replace(/\D/g, '').slice(0, 10)); setResolvedName(''); setError(''); }}
+          onChangeText={(v) => {
+            setAccountNumber(v.replace(/\D/g, "").slice(0, 10));
+            setResolvedName("");
+            setError("");
+          }}
           placeholder="10-digit account number"
           placeholderTextColor={colors.textMuted}
           keyboardType="number-pad"
@@ -335,27 +405,43 @@ function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel:
         <View style={styles.resolvedBox}>
           <Text style={styles.resolvedLabel}>Account name</Text>
           <Text style={styles.resolvedName}>{resolvedName}</Text>
-          <Text style={styles.resolvedSub}>{selectedBank?.name} · {accountNumber}</Text>
+          <Text style={styles.resolvedSub}>
+            {selectedBank?.name} · {accountNumber}
+          </Text>
           <View style={styles.resolvedActions}>
             <Pressable
               style={[styles.saveBtn, save.isPending && styles.saveBtnDisabled]}
               onPress={handleSave}
               disabled={save.isPending}
             >
-              {save.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveBtnText}>Save account</Text>}
+              {save.isPending ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save account</Text>
+              )}
             </Pressable>
-            <Pressable style={styles.changeBtn} onPress={() => setResolvedName('')}>
+            <Pressable
+              style={styles.changeBtn}
+              onPress={() => setResolvedName("")}
+            >
               <Text style={styles.changeBtnText}>Change</Text>
             </Pressable>
           </View>
         </View>
       ) : (
         <Pressable
-          style={[styles.verifyBtn, (!canResolve || resolve.isPending) && styles.verifyBtnDisabled]}
+          style={[
+            styles.verifyBtn,
+            (!canResolve || resolve.isPending) && styles.verifyBtnDisabled,
+          ]}
           onPress={handleVerify}
           disabled={!canResolve || resolve.isPending}
         >
-          {resolve.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.verifyBtnText}>Verify account</Text>}
+          {resolve.isPending ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.verifyBtnText}>Verify account</Text>
+          )}
         </Pressable>
       )}
 
@@ -366,7 +452,7 @@ function AddBankForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel:
   );
 }
 
-function createStyles(colors: import('@/lib/colors').Colors) {
+function createStyles(colors: import("@/lib/colors").Colors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     content: { padding: 16, paddingTop: 56, gap: 20 },
@@ -375,8 +461,8 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       backgroundColor: colors.card,
       borderRadius: 16,
       padding: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 12,
       borderWidth: 1,
       borderColor: colors.border,
@@ -386,28 +472,28 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       height: 52,
       borderRadius: 26,
       backgroundColor: colors.successBg,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       flexShrink: 0,
     },
-    avatarText: { fontSize: 20, fontWeight: '700', color: colors.primary },
+    avatarText: { fontSize: 20, fontWeight: "700", color: colors.primary },
     profileInfo: { flex: 1, gap: 2 },
-    profileName: { fontSize: 16, fontWeight: '700', color: colors.text },
+    profileName: { fontSize: 16, fontWeight: "700", color: colors.text },
     profileEmail: { fontSize: 13, color: colors.textMuted },
     tierCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
-    tierRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    tierRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     tierEmoji: { fontSize: 28 },
     tierInfo: { flex: 1, gap: 2 },
-    tierLabel: { fontSize: 15, fontWeight: '700' },
+    tierLabel: { fontSize: 15, fontWeight: "700" },
     tierStats: { fontSize: 12, color: colors.textMuted },
-    tierNext: { fontSize: 12, fontWeight: '500', opacity: 0.75 },
+    tierNext: { fontSize: 12, fontWeight: "500", opacity: 0.75 },
 
     section: { gap: 10 },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
     sectionDesc: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
     kycRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       borderRadius: 14,
       padding: 14,
       gap: 12,
@@ -420,17 +506,33 @@ function createStyles(colors: import('@/lib/colors').Colors) {
     },
     kycRowPending: {
       backgroundColor: colors.warningBg,
-      borderColor: colors.warning + '40',
+      borderColor: colors.warning + "40",
     },
     kycRowIcon: { fontSize: 28 },
-    kycRowTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+    kycRowTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
     kycRowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     kycRowArrow: { fontSize: 22, color: colors.textMuted },
-    supportCard: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-    supportRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 },
+    supportCard: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    supportRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+    },
     supportRowText: { fontSize: 14, color: colors.text },
     supportRowArrow: { fontSize: 18, color: colors.textMuted },
-    supportDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 14 },
+    supportDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginHorizontal: 14,
+    },
 
     bankCard: {
       backgroundColor: colors.card,
@@ -439,17 +541,17 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    bankRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    bankRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     bankCheckIcon: {
       width: 36,
       height: 36,
       borderRadius: 18,
       backgroundColor: colors.successBg,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     bankInfo: { flex: 1, gap: 2 },
-    bankName: { fontSize: 14, fontWeight: '700', color: colors.text },
+    bankName: { fontSize: 14, fontWeight: "700", color: colors.text },
     bankSub: { fontSize: 12, color: colors.textMuted },
     removeBtn: { padding: 8 },
     removeBtnText: { fontSize: 16, color: colors.destructive },
@@ -458,15 +560,20 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       backgroundColor: colors.card,
       borderRadius: 14,
       padding: 20,
-      alignItems: 'center',
+      alignItems: "center",
       gap: 12,
       borderWidth: 1,
       borderColor: colors.border,
-      borderStyle: 'dashed',
+      borderStyle: "dashed",
     },
     emptyBankText: { fontSize: 14, color: colors.textMuted },
-    addBankBtn: { backgroundColor: colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
-    addBankBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    addBankBtn: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    addBankBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
     formCard: {
       backgroundColor: colors.card,
@@ -476,17 +583,37 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    formTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
-    warningBox: { backgroundColor: colors.warningBg, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#fde68a' },
-    warningText: { fontSize: 12, color: colors.warningText, lineHeight: 17 },
+    formTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+    warningBox: {
+      backgroundColor: colors.warningBg + "10",
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.warningText + "90",
+    },
+    warningText: {
+      fontSize: 12,
+      color: colors.warningText + "90",
+      lineHeight: 17,
+    },
     field: { gap: 6 },
-    fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
-    pickerWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, overflow: 'hidden' },
+    fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
+    pickerWrap: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      overflow: "hidden",
+    },
     bankList: { maxHeight: 160 },
-    bankOption: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+    bankOption: {
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
     bankOptionSelected: { backgroundColor: colors.primaryBg },
     bankOptionText: { fontSize: 14, color: colors.text },
-    bankOptionTextSelected: { color: colors.primary, fontWeight: '700' },
+    bankOptionTextSelected: { color: colors.primary, fontWeight: "700" },
     input: {
       height: 46,
       borderWidth: 1,
@@ -498,31 +625,68 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       backgroundColor: colors.inputBg,
     },
     errorText: { fontSize: 13, color: colors.destructive },
-    resolvedBox: { backgroundColor: colors.primaryBg, borderRadius: 12, padding: 14, gap: 4, borderWidth: 1, borderColor: colors.primaryBorder },
-    resolvedLabel: { fontSize: 11, color: colors.primaryTextMid, fontWeight: '600', textTransform: 'uppercase' },
-    resolvedName: { fontSize: 15, fontWeight: '700', color: colors.primaryText },
+    resolvedBox: {
+      backgroundColor: colors.primaryBg,
+      borderRadius: 12,
+      padding: 14,
+      gap: 4,
+      borderWidth: 1,
+      borderColor: colors.primaryBorder,
+    },
+    resolvedLabel: {
+      fontSize: 11,
+      color: colors.primaryTextMid,
+      fontWeight: "600",
+      textTransform: "uppercase",
+    },
+    resolvedName: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
     resolvedSub: { fontSize: 12, color: colors.primaryTextMid },
-    resolvedActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-    saveBtn: { flex: 1, height: 42, backgroundColor: colors.primary, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    resolvedActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+    saveBtn: {
+      flex: 1,
+      height: 42,
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     saveBtnDisabled: { opacity: 0.6 },
-    saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-    changeBtn: { paddingHorizontal: 14, height: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    changeBtn: {
+      paddingHorizontal: 14,
+      height: 42,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     changeBtnText: { fontSize: 14, color: colors.textMuted },
-    verifyBtn: { height: 46, backgroundColor: colors.primary, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    verifyBtn: {
+      height: 46,
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     verifyBtnDisabled: { opacity: 0.5 },
-    verifyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-    cancelFormBtn: { alignItems: 'center', paddingVertical: 8 },
+    verifyBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    cancelFormBtn: { alignItems: "center", paddingVertical: 8 },
     cancelFormBtnText: { fontSize: 14, color: colors.textMuted },
 
     signOutBtn: {
       height: 48,
       backgroundColor: colors.card,
       borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1,
       borderColor: colors.dangerBorder,
     },
-    signOutText: { fontSize: 15, fontWeight: '700', color: colors.destructive },
+    signOutText: { fontSize: 15, fontWeight: "700", color: colors.destructive },
   });
 }

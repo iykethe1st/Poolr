@@ -16,7 +16,6 @@ import type { ApiResponse } from '@poolr/types';
 
 const schema = z
   .object({
-    fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
     email: z.string().email('Enter a valid email address'),
     phone: z
       .string()
@@ -53,7 +52,6 @@ export function RegisterForm() {
       await authClient
         .post('auth/register', {
           json: {
-            fullName: values.fullName,
             email: values.email,
             phone: values.phone,
             password: values.password,
@@ -78,15 +76,6 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-      <Field label="Full name" error={errors.fullName?.message}>
-        <Input
-          id="fullName"
-          placeholder="Amara Obi"
-          autoComplete="name"
-          {...register('fullName')}
-        />
-      </Field>
-
       <Field label="Email address" error={errors.email?.message}>
         <Input
           id="email"

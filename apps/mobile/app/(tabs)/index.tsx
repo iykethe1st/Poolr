@@ -1,221 +1,348 @@
-import { useMemo } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
-import { useCurrentUser, useMyContributions, useMyGroups } from '@/hooks/use-dashboard';
-import { useNextPayout } from '@/hooks/use-payments';
-import { useWallet } from '@/hooks/use-wallet';
-import { useColors } from '@/lib/colors';
-import { formatCurrency, formatRelativeDate } from '@/lib/format';
-import { StatusBadge } from '@/components/status-badge';
+import { useEffect, useMemo, useState } from "react";
+import {
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import {
+  useCurrentUser,
+  useMyContributions,
+  useMyGroups,
+} from "@/hooks/use-dashboard";
+import { useNextPayout } from "@/hooks/use-payments";
+import { useWallet } from "@/hooks/use-wallet";
+import { useColors } from "@/lib/colors";
+import { formatCurrency, formatRelativeDate } from "@/lib/format";
+import { StatusBadge } from "@/components/status-badge";
 
 export default function HomeScreen() {
-  const { data: me, isLoading: meLoading, refetch: refetchMe } = useCurrentUser();
+  const {
+    data: me,
+    isLoading: meLoading,
+    refetch: refetchMe,
+  } = useCurrentUser();
   const { data: wallet, refetch: refetchWallet } = useWallet();
-  const { data: groups = [], isLoading: groupsLoading, refetch: refetchGroups } = useMyGroups();
-  const { data: contributions = [], isLoading: contribLoading, refetch: refetchContribs } = useMyContributions();
+  const {
+    data: groups = [],
+    isLoading: groupsLoading,
+    refetch: refetchGroups,
+  } = useMyGroups();
+  const {
+    data: contributions = [],
+    isLoading: contribLoading,
+    refetch: refetchContribs,
+  } = useMyContributions();
   const { data: nextPayout, refetch: refetchPayout } = useNextPayout();
+  const [kycPromptOpen, setKycPromptOpen] = useState(false);
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  useEffect(() => {
+    if (!me) return;
+    const status = me.kycProfile?.kycStatus;
+    if (
+      status === "VERIFIED" ||
+      status === "PENDING" ||
+      status === "UNDER_REVIEW"
+    )
+      return;
+    const key = `poolr_kyc_prompt_dismissed_${me.id}`;
+    void SecureStore.getItemAsync(key).then((val) => {
+      if (!val) setKycPromptOpen(true);
+    });
+  }, [me?.id]);
+
+  async function dismissKycPrompt() {
+    setKycPromptOpen(false);
+    if (me?.id) {
+      await SecureStore.setItemAsync(
+        `poolr_kyc_prompt_dismissed_${me.id}`,
+        "1",
+      );
+    }
+  }
+
   const isRefreshing = meLoading || groupsLoading || contribLoading;
 
   function onRefresh() {
-    void Promise.all([refetchMe(), refetchWallet(), refetchGroups(), refetchContribs(), refetchPayout()]);
+    void Promise.all([
+      refetchMe(),
+      refetchWallet(),
+      refetchGroups(),
+      refetchContribs(),
+      refetchPayout(),
+    ]);
   }
 
-  const pendingContribs = contributions.filter((c) => c.status === 'PENDING' || c.status === 'OVERDUE');
-  const activeGroups = groups.filter((g) => g.status === 'ACTIVE');
-  const balance = parseFloat(wallet?.balance ?? '0');
+  const pendingContribs = contributions.filter(
+    (c) => c.status === "PENDING" || c.status === "OVERDUE",
+  );
+  const activeGroups = groups.filter((g) => g.status === "ACTIVE");
+  const balance = parseFloat(wallet?.balance ?? "0");
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>
-            Hello, {me?.fullName?.split(' ')[0] ?? '—'} 👋
-          </Text>
-          <Text style={styles.greetingSub}>Here's your savings overview</Text>
-        </View>
-      </View>
-
-      {/* KYC banner */}
-      {me && me.kycProfile?.kycStatus !== 'VERIFIED' && (
-        <TouchableOpacity
-          style={[
-            styles.kycBanner,
-            me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
-              ? styles.kycBannerPending
-              : styles.kycBannerUnverified,
-          ]}
-          onPress={() => router.push('/kyc')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.kycBannerLeft}>
-            <Text style={styles.kycBannerIcon}>
-              {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW' ? '⏳' : '🪪'}
-            </Text>
-            <View>
-              <Text style={styles.kycBannerTitle}>
-                {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
-                  ? 'Verification in review'
-                  : 'Verify your identity'}
-              </Text>
-              <Text style={styles.kycBannerSub}>
-                {me.kycProfile?.kycStatus === 'PENDING' || me.kycProfile?.kycStatus === 'UNDER_REVIEW'
-                  ? "We'll notify you when approved"
-                  : 'Required to create or join groups'}
-              </Text>
-            </View>
-          </View>
-          {me.kycProfile?.kycStatus !== 'PENDING' && me.kycProfile?.kycStatus !== 'UNDER_REVIEW' && (
-            <Text style={styles.kycBannerArrow}>›</Text>
-          )}
-        </TouchableOpacity>
-      )}
-
-      {/* Wallet balance card */}
-      <TouchableOpacity
-        style={styles.balanceCard}
-        onPress={() => router.push('/(tabs)/wallet')}
-        activeOpacity={0.85}
+    <>
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
-        <Text style={styles.balanceLabel}>Wallet balance</Text>
-        <Text style={styles.balanceAmount}>{formatCurrency(balance)}</Text>
-        <Text style={styles.balanceSub}>Tap to manage wallet</Text>
-      </TouchableOpacity>
-
-      {/* Next payout */}
-      {nextPayout && (
-        <View style={styles.section}>
-          <View style={styles.payoutCard}>
-            <Text style={styles.payoutLabel}>Your next payout</Text>
-            <Text style={styles.payoutAmount}>{formatCurrency(nextPayout.amount)}</Text>
-            <Text style={styles.payoutFrom}>{nextPayout.groupName}</Text>
-            {nextPayout.estimatedDate && (
-              <Text style={styles.payoutDate}>
-                Est. {formatRelativeDate(nextPayout.estimatedDate)}
-              </Text>
-            )}
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>
+              Hello, {me?.fullName?.split(" ")[0] ?? "—"} 👋
+            </Text>
+            <Text style={styles.greetingSub}>Here's your savings overview</Text>
           </View>
         </View>
-      )}
 
-      {/* Pending contributions */}
-      {pendingContribs.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Upcoming contributions</Text>
-          {pendingContribs.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[
-                styles.contribRow,
-                c.status === 'OVERDUE' && styles.contribOverdue,
-              ]}
-              onPress={() => router.push(`/groups/${c.cycle.group.id}`)}
-              activeOpacity={0.75}
-            >
-              <View style={styles.contribLeft}>
-                <Text style={styles.contribName}>{c.cycle.group.name}</Text>
-                <Text style={styles.contribMeta}>
-                  Cycle {c.cycle.cycleNumber} · Due {formatRelativeDate(c.cycle.dueDate)}
+        {/* KYC banner */}
+        {me && me.kycProfile?.kycStatus !== "VERIFIED" && (
+          <TouchableOpacity
+            style={[
+              styles.kycBanner,
+              me.kycProfile?.kycStatus === "PENDING" ||
+              me.kycProfile?.kycStatus === "UNDER_REVIEW"
+                ? styles.kycBannerPending
+                : styles.kycBannerUnverified,
+            ]}
+            onPress={() => router.push("/kyc")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.kycBannerLeft}>
+              <Text style={styles.kycBannerIcon}>
+                {me.kycProfile?.kycStatus === "PENDING" ||
+                me.kycProfile?.kycStatus === "UNDER_REVIEW"
+                  ? "⏳"
+                  : "🪪"}
+              </Text>
+              <View>
+                <Text style={styles.kycBannerTitle}>
+                  {me.kycProfile?.kycStatus === "PENDING" ||
+                  me.kycProfile?.kycStatus === "UNDER_REVIEW"
+                    ? "Verification in review"
+                    : "Verify your identity"}
+                </Text>
+                <Text style={styles.kycBannerSub}>
+                  {me.kycProfile?.kycStatus === "PENDING" ||
+                  me.kycProfile?.kycStatus === "UNDER_REVIEW"
+                    ? "We'll notify you when approved"
+                    : "Required to create or join groups"}
                 </Text>
               </View>
-              <View style={styles.contribRight}>
-                <Text style={styles.contribAmount}>{formatCurrency(c.amount)}</Text>
-                <StatusBadge
-                  label={c.status === 'OVERDUE' ? 'Overdue' : 'Due'}
-                  variant={c.status === 'OVERDUE' ? 'danger' : 'warning'}
-                />
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Empty state — no groups at all */}
-      {groups.length === 0 && !groupsLoading && (
-        <View style={styles.getStarted}>
-          <Text style={styles.getStartedEmoji}>💰</Text>
-          <Text style={styles.getStartedTitle}>Start saving together</Text>
-          <Text style={styles.getStartedBody}>
-            Create your own savings circle or join one from a friend. Everyone contributes, everyone benefits.
-          </Text>
-          <TouchableOpacity
-            style={styles.getStartedPrimary}
-            onPress={() => router.push('/groups/new')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.getStartedPrimaryText}>Create a group</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.getStartedSecondary}
-            onPress={() => router.push('/(tabs)/groups')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.getStartedSecondaryText}>Join a group</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Active groups */}
-      {groups.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active groups</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/groups')}>
-              <Text style={styles.seeAll}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          {activeGroups.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No active groups yet — your pending groups will appear here once they start.</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/groups')}>
-                <Text style={styles.emptyLink}>View all groups</Text>
-              </TouchableOpacity>
             </View>
-          ) : (
-            activeGroups.slice(0, 3).map((g) => (
+            {me.kycProfile?.kycStatus !== "PENDING" &&
+              me.kycProfile?.kycStatus !== "UNDER_REVIEW" && (
+                <Text style={styles.kycBannerArrow}>›</Text>
+              )}
+          </TouchableOpacity>
+        )}
+
+        {/* Wallet balance card */}
+        <TouchableOpacity
+          style={styles.balanceCard}
+          onPress={() => router.push("/(tabs)/wallet")}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.balanceLabel}>Wallet balance</Text>
+          <Text style={styles.balanceAmount}>{formatCurrency(balance)}</Text>
+          <Text style={styles.balanceSub}>Tap to manage wallet</Text>
+        </TouchableOpacity>
+
+        {/* Next payout */}
+        {nextPayout && (
+          <View style={styles.section}>
+            <View style={styles.payoutCard}>
+              <Text style={styles.payoutLabel}>Your next payout</Text>
+              <Text style={styles.payoutAmount}>
+                {formatCurrency(nextPayout.amount)}
+              </Text>
+              <Text style={styles.payoutFrom}>{nextPayout.groupName}</Text>
+              {nextPayout.estimatedDate && (
+                <Text style={styles.payoutDate}>
+                  Est. {formatRelativeDate(nextPayout.estimatedDate)}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Pending contributions */}
+        {pendingContribs.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Upcoming contributions</Text>
+            {pendingContribs.map((c) => (
               <TouchableOpacity
-                key={g.id}
-                style={styles.groupCard}
-                onPress={() => router.push(`/groups/${g.id}`)}
+                key={c.id}
+                style={[
+                  styles.contribRow,
+                  c.status === "OVERDUE" && styles.contribOverdue,
+                ]}
+                onPress={() => router.push(`/groups/${c.cycle.group.id}`)}
                 activeOpacity={0.75}
               >
-                <View style={styles.groupLeft}>
-                  <View style={styles.groupAvatar}>
-                    <Text style={styles.groupAvatarText}>{g.name.charAt(0).toUpperCase()}</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.groupName}>{g.name}</Text>
-                    <Text style={styles.groupMeta}>
-                      {g.members.length} members · {g.frequency}
-                    </Text>
-                  </View>
+                <View style={styles.contribLeft}>
+                  <Text style={styles.contribName}>{c.cycle.group.name}</Text>
+                  <Text style={styles.contribMeta}>
+                    Cycle {c.cycle.cycleNumber} · Due{" "}
+                    {formatRelativeDate(c.cycle.dueDate)}
+                  </Text>
                 </View>
-                <Text style={styles.groupAmount}>{formatCurrency(g.contributionAmount)}</Text>
+                <View style={styles.contribRight}>
+                  <Text style={styles.contribAmount}>
+                    {formatCurrency(c.amount)}
+                  </Text>
+                  <StatusBadge
+                    label={c.status === "OVERDUE" ? "Overdue" : "Due"}
+                    variant={c.status === "OVERDUE" ? "danger" : "warning"}
+                  />
+                </View>
               </TouchableOpacity>
-            ))
-          )}
-        </View>
-      )}
-    </ScrollView>
+            ))}
+          </View>
+        )}
+
+        {/* Empty state — no groups at all */}
+        {groups.length === 0 && !groupsLoading && (
+          <View style={styles.getStarted}>
+            <Text style={styles.getStartedEmoji}>💰</Text>
+            <Text style={styles.getStartedTitle}>Start saving together</Text>
+            <Text style={styles.getStartedBody}>
+              Create your own savings circle or join one from a friend. Everyone
+              contributes, everyone benefits.
+            </Text>
+            <TouchableOpacity
+              style={styles.getStartedPrimary}
+              onPress={() => router.push("/groups/new")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.getStartedPrimaryText}>Create a group</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.getStartedSecondary}
+              onPress={() => router.push("/(tabs)/groups")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.getStartedSecondaryText}>Join a group</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Active groups */}
+        {groups.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Active groups</Text>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/groups")}>
+                <Text style={styles.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            {activeGroups.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>
+                  No active groups yet — your pending groups will appear here
+                  once they start.
+                </Text>
+                <TouchableOpacity onPress={() => router.push("/(tabs)/groups")}>
+                  <Text style={styles.emptyLink}>View all groups</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              activeGroups.slice(0, 3).map((g) => (
+                <TouchableOpacity
+                  key={g.id}
+                  style={styles.groupCard}
+                  onPress={() => router.push(`/groups/${g.id}`)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.groupLeft}>
+                    <View style={styles.groupAvatar}>
+                      <Text style={styles.groupAvatarText}>
+                        {g.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.groupName}>{g.name}</Text>
+                      <Text style={styles.groupMeta}>
+                        {g.members.length} members · {g.frequency}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.groupAmount}>
+                    {formatCurrency(g.contributionAmount)}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* KYC first-login prompt modal */}
+      <Modal
+        visible={kycPromptOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => void dismissKycPrompt()}
+      >
+        <Pressable
+          style={styles.kycModalBackdrop}
+          onPress={() => void dismissKycPrompt()}
+        >
+          <Pressable style={styles.kycModalCard} onPress={() => {}}>
+            <Text style={styles.kycModalIcon}>🪪</Text>
+            <Text style={styles.kycModalTitle}>Verify your identity</Text>
+            <Text style={styles.kycModalBody}>
+              To create or join a savings group, you need to verify your
+              identity. This protects you and every member of your circle.
+            </Text>
+            <TouchableOpacity
+              style={styles.kycModalPrimaryBtn}
+              onPress={() => {
+                void dismissKycPrompt();
+                router.push("/kyc");
+              }}
+            >
+              <Text style={styles.kycModalPrimaryBtnText}>Verify now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.kycModalSecondaryBtn}
+              onPress={() => void dismissKycPrompt()}
+            >
+              <Text style={styles.kycModalSecondaryBtnText}>Maybe later</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
-function createStyles(colors: import('@/lib/colors').Colors) {
+function createStyles(colors: import("@/lib/colors").Colors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
     content: { padding: 16, paddingTop: 56, gap: 20 },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    greeting: { fontSize: 22, fontWeight: '700', color: colors.text },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    greeting: { fontSize: 22, fontWeight: "700", color: colors.text },
     greetingSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
 
     balanceCard: {
@@ -223,10 +350,20 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       borderRadius: 20,
       padding: 24,
       gap: 4,
+      color: "#fff",
     },
-    balanceLabel: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
-    balanceAmount: { fontSize: 34, fontWeight: '800', color: '#fff', letterSpacing: -1 },
-    balanceSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+    balanceLabel: {
+      fontSize: 13,
+      color: "rgba(255,255,255,0.75)",
+      fontWeight: "500",
+    },
+    balanceAmount: {
+      fontSize: 34,
+      fontWeight: "800",
+      color: "#fff",
+      letterSpacing: -1,
+    },
+    balanceSub: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 },
 
     payoutCard: {
       backgroundColor: colors.primaryBg,
@@ -235,113 +372,209 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
-    payoutLabel: { fontSize: 12, color: colors.primaryText, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-    payoutAmount: { fontSize: 24, fontWeight: '800', color: colors.primaryText, marginTop: 4 },
+    payoutLabel: {
+      fontSize: 12,
+      color: colors.primaryText,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    payoutAmount: {
+      fontSize: 24,
+      fontWeight: "800",
+      color: colors.primaryText,
+      marginTop: 4,
+    },
     payoutFrom: { fontSize: 13, color: colors.primaryTextMid, marginTop: 2 },
-    payoutDate: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+    payoutDate: { fontSize: 12, color: "#6b7280", marginTop: 2 },
 
     section: { gap: 10 },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-    seeAll: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+    seeAll: { fontSize: 13, color: colors.primary, fontWeight: "600" },
 
     contribRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       backgroundColor: colors.card,
       borderRadius: 14,
       padding: 14,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    contribOverdue: { borderColor: colors.dangerBorder, backgroundColor: colors.dangerBg },
+    contribOverdue: {
+      borderColor: colors.dangerBorder,
+      backgroundColor: colors.dangerBg,
+    },
     contribLeft: { gap: 3 },
-    contribName: { fontSize: 14, fontWeight: '600', color: colors.text },
+    contribName: { fontSize: 14, fontWeight: "600", color: colors.text },
     contribMeta: { fontSize: 12, color: colors.textMuted },
-    contribRight: { alignItems: 'flex-end', gap: 4 },
-    contribAmount: { fontSize: 14, fontWeight: '700', color: colors.text },
+    contribRight: { alignItems: "flex-end", gap: 4 },
+    contribAmount: { fontSize: 14, fontWeight: "700", color: colors.text },
 
     groupCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       backgroundColor: colors.card,
       borderRadius: 14,
       padding: 14,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    groupLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    groupLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
     groupAvatar: {
       width: 40,
       height: 40,
       borderRadius: 12,
       backgroundColor: colors.successBg,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
-    groupAvatarText: { fontSize: 18, fontWeight: '700', color: colors.primary },
-    groupName: { fontSize: 14, fontWeight: '600', color: colors.text },
+    groupAvatarText: { fontSize: 18, fontWeight: "700", color: colors.primary },
+    groupName: { fontSize: 14, fontWeight: "600", color: colors.text },
     groupMeta: { fontSize: 12, color: colors.textMuted },
-    groupAmount: { fontSize: 14, fontWeight: '700', color: colors.primary },
+    groupAmount: { fontSize: 14, fontWeight: "700", color: colors.primary },
 
-    empty: { backgroundColor: colors.card, borderRadius: 14, padding: 20, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed' },
-    emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
-    emptyLink: { fontSize: 14, color: colors.primary, fontWeight: '600' },
+    empty: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 20,
+      alignItems: "center",
+      gap: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderStyle: "dashed",
+    },
+    emptyText: { fontSize: 14, color: colors.textMuted, textAlign: "center" },
+    emptyLink: { fontSize: 14, color: colors.primary, fontWeight: "600" },
 
     getStarted: {
       backgroundColor: colors.card,
       borderRadius: 20,
       padding: 28,
-      alignItems: 'center',
+      alignItems: "center",
       gap: 12,
       borderWidth: 1,
       borderColor: colors.border,
     },
     getStartedEmoji: { fontSize: 52, marginBottom: 4 },
-    getStartedTitle: { fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center' },
-    getStartedBody: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 22, maxWidth: 280 },
+    getStartedTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+      textAlign: "center",
+    },
+    getStartedBody: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: "center",
+      lineHeight: 22,
+      maxWidth: 280,
+    },
     getStartedPrimary: {
-      width: '100%',
+      width: "100%",
       marginTop: 8,
       backgroundColor: colors.primary,
       borderRadius: 14,
       paddingVertical: 16,
-      alignItems: 'center',
+      alignItems: "center",
     },
-    getStartedPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    getStartedPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "700" },
     getStartedSecondary: {
-      width: '100%',
+      width: "100%",
       backgroundColor: colors.primaryBg,
       borderRadius: 14,
       paddingVertical: 16,
-      alignItems: 'center',
+      alignItems: "center",
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
-    getStartedSecondaryText: { color: colors.primaryText, fontSize: 16, fontWeight: '600' },
+    getStartedSecondaryText: {
+      color: colors.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
 
     kycBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       borderRadius: 14,
       padding: 14,
       borderWidth: 1,
     },
     kycBannerUnverified: {
-      backgroundColor: colors.warningBg,
-      borderColor: colors.warning + '50',
+      backgroundColor: colors.warning + "10",
+      borderColor: colors.warning + "60",
     },
     kycBannerPending: {
       backgroundColor: colors.infoBg,
-      borderColor: colors.infoText + '30',
+      borderColor: colors.infoText + "30",
     },
-    kycBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+    kycBannerLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      flex: 1,
+    },
     kycBannerIcon: { fontSize: 28 },
-    kycBannerTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+    kycBannerTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
     kycBannerSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
     kycBannerArrow: { fontSize: 22, color: colors.textMuted },
+    kycModalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    },
+    kycModalCard: {
+      width: "100%",
+      backgroundColor: colors.card,
+      borderRadius: 24,
+      padding: 28,
+      alignItems: "center",
+      gap: 8,
+    },
+    kycModalIcon: { fontSize: 48 },
+    kycModalTitle: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+      textAlign: "center",
+    },
+    kycModalBody: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: "center",
+      lineHeight: 21,
+      marginTop: 2,
+      marginBottom: 8,
+    },
+    kycModalPrimaryBtn: {
+      width: "100%",
+      height: 50,
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    kycModalPrimaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+    kycModalSecondaryBtn: {
+      width: "100%",
+      paddingVertical: 10,
+      alignItems: "center",
+    },
+    kycModalSecondaryBtnText: {
+      fontSize: 14,
+      color: colors.textMuted,
+      fontWeight: "500",
+    },
   });
 }

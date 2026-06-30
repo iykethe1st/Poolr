@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService } from '@nestjs/config';
 import { ContribStatus, CycleStatus, GroupStatus, MemberStatus, UserStatus } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -42,9 +43,15 @@ export class GroupsService {
     private readonly rotation: RotationService,
     private readonly paystack: PaystackService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly config: ConfigService,
   ) {}
 
   async create(adminId: string, dto: CreateGroupDto) {
+    const penaltyPct = this.config.get<number>('PENALTY_PERCENTAGE_DEFAULT', 5);
+    const penaltyConfig = dto.penaltyEnabled
+      ? { type: 'percentage', amount: penaltyPct, gracePeriodHours: 24 }
+      : null;
+
     return this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
       const group = await tx.group.create({
         data: {
@@ -55,7 +62,7 @@ export class GroupsService {
           maxMembers: dto.maxMembers,
           currency: dto.currency ?? 'NGN',
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-          penaltyConfig: dto.penaltyConfig as Prisma.InputJsonValue | undefined,
+          penaltyConfig: penaltyConfig as Prisma.InputJsonValue | undefined,
         },
       });
 
@@ -153,7 +160,14 @@ export class GroupsService {
       throw new ForbiddenException('Cannot update a group that has already started');
     }
 
-    const { penaltyConfig, startDate, ...rest } = dto;
+    const { penaltyEnabled, startDate, ...rest } = dto;
+    const penaltyPct = this.config.get<number>('PENALTY_PERCENTAGE_DEFAULT', 5);
+    const penaltyConfig = penaltyEnabled === undefined
+      ? undefined
+      : penaltyEnabled
+        ? { type: 'percentage', amount: penaltyPct, gracePeriodHours: 24 }
+        : null;
+
     return this.prisma.group.update({
       where: { id: groupId },
       data: {

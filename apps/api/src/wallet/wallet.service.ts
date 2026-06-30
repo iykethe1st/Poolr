@@ -88,6 +88,52 @@ export class WalletService {
     return { status: 'success', amountNgn };
   }
 
+  async canPayFromWallet(
+    userId: string,
+    cycleId: string,
+    feeService: { calculateFee(amountNgn: number): number },
+  ) {
+    const cycle = await this.prisma.cycle.findUnique({
+      where: { id: cycleId },
+      include: { group: { select: { contributionAmount: true } } },
+    });
+
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    const walletBalance = Number(wallet?.balance ?? 0);
+    const contributionAmountNgn = cycle ? Number(cycle.group.contributionAmount) : 0;
+    const feeAmountNgn = feeService.calculateFee(contributionAmountNgn);
+
+    // Look up any PENDING penalty for this member's contribution in this cycle
+    const member = cycle
+      ? await this.prisma.groupMember.findUnique({
+          where: { groupId_userId: { groupId: cycle.groupId, userId } },
+        })
+      : null;
+
+    const pendingPenalty = member
+      ? await this.prisma.penalty.findFirst({
+          where: {
+            memberId: member.id,
+            contribution: { cycleId },
+            status: 'APPLIED',
+          },
+          include: { contribution: true },
+        })
+      : null;
+
+    const penaltyAmountNgn = pendingPenalty ? Number(pendingPenalty.penaltyAmount) : 0;
+    const totalAmountNgn = contributionAmountNgn + feeAmountNgn + penaltyAmountNgn;
+
+    return {
+      can_pay: walletBalance >= totalAmountNgn,
+      wallet_balance: walletBalance,
+      contribution_amount: contributionAmountNgn,
+      fee_amount: feeAmountNgn,
+      penalty_amount: penaltyAmountNgn,
+      total_amount: totalAmountNgn,
+    };
+  }
+
   async withdraw(userId: string, amountNgn: number) {
     const bankAccount = await this.prisma.bankAccount.findUnique({ where: { userId } });
     if (!bankAccount) {
