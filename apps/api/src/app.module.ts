@@ -15,6 +15,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { WalletModule } from './wallet/wallet.module';
 import { AdminModule } from './admin/admin.module';
 import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
+import { ProtectionModule } from './protection/protection.module';
 import { HealthController } from './health/health.controller';
 import { envValidationSchema } from './config/env.validation';
 
@@ -39,6 +40,7 @@ import { envValidationSchema } from './config/env.validation';
     WalletModule,
     AdminModule,
     BankAccountsModule,
+    ProtectionModule,
 
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),

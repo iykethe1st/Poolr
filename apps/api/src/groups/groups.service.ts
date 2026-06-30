@@ -7,7 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContribStatus, CycleStatus, GroupStatus, MemberStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { ContribStatus, CycleStatus, GroupStatus, MemberStatus, UserStatus } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
@@ -42,9 +43,15 @@ export class GroupsService {
     private readonly rotation: RotationService,
     private readonly paystack: PaystackService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly config: ConfigService,
   ) {}
 
   async create(adminId: string, dto: CreateGroupDto) {
+    const penaltyPct = this.config.get<number>('PENALTY_PERCENTAGE_DEFAULT', 5);
+    const penaltyConfig = dto.penaltyEnabled
+      ? { type: 'percentage', amount: penaltyPct, gracePeriodHours: 24 }
+      : null;
+
     return this.prisma.$.$transaction(async (tx: Prisma.TransactionClient) => {
       const group = await tx.group.create({
         data: {
@@ -55,7 +62,7 @@ export class GroupsService {
           maxMembers: dto.maxMembers,
           currency: dto.currency ?? 'NGN',
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-          penaltyConfig: dto.penaltyConfig as Prisma.InputJsonValue | undefined,
+          penaltyConfig: penaltyConfig as Prisma.InputJsonValue | undefined,
         },
       });
 
@@ -153,7 +160,14 @@ export class GroupsService {
       throw new ForbiddenException('Cannot update a group that has already started');
     }
 
-    const { penaltyConfig, startDate, ...rest } = dto;
+    const { penaltyEnabled, startDate, ...rest } = dto;
+    const penaltyPct = this.config.get<number>('PENALTY_PERCENTAGE_DEFAULT', 5);
+    const penaltyConfig = penaltyEnabled === undefined
+      ? undefined
+      : penaltyEnabled
+        ? { type: 'percentage', amount: penaltyPct, gracePeriodHours: 24 }
+        : null;
+
     return this.prisma.group.update({
       where: { id: groupId },
       data: {
@@ -242,7 +256,18 @@ export class GroupsService {
     return { message: 'Invitation sent', memberId: member.id, token };
   }
 
+  private async assertUserCanJoin(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+    if (user?.status === UserStatus.BANNED) {
+      throw new ForbiddenException('Your account has been banned. Contact support to resolve your outstanding debt.');
+    }
+    if (user?.status === UserStatus.FROZEN) {
+      throw new ForbiddenException('Your account is frozen due to an outstanding debt. Please clear your debt first.');
+    }
+  }
+
   async joinGroup(groupId: string, userId: string, dto: JoinGroupDto) {
+    await this.assertUserCanJoin(userId);
     const raw = await this.redis.get(`invite:${dto.token}`);
     if (!raw) throw new BadRequestException('Invalid or expired invitation token');
 
@@ -276,6 +301,7 @@ export class GroupsService {
   }
 
   async joinByToken(userId: string, token: string) {
+    await this.assertUserCanJoin(userId);
     const raw = await this.redis.get(`invite:${token}`);
     if (!raw) throw new BadRequestException('Invalid or expired invitation token');
 
@@ -302,6 +328,7 @@ export class GroupsService {
   }
 
   async acceptInvite(groupId: string, userId: string) {
+    await this.assertUserCanJoin(userId);
     const member = await this.prisma.groupMember.findFirst({
       where: { groupId, userId, memberStatus: MemberStatus.INVITED },
     });

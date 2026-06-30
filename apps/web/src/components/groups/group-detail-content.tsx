@@ -41,6 +41,7 @@ import { PageHeader } from '@/components/layout/page-shell';
 import { RotationOrder } from './rotation-order';
 import { CycleTimeline } from './cycle-timeline';
 import { StartGroupModal } from './start-group-modal';
+import { GroupTermsDialog } from './group-terms-dialog';
 import {
   useGroup,
   useGroupHistory,
@@ -52,9 +53,9 @@ import {
   type GroupVirtualAccount,
 } from '@/hooks/use-group';
 import { useCurrentUser } from '@/hooks/use-dashboard';
-import { useInitializeContribution, useWalletContribute } from '@/hooks/use-payments';
-import { useWallet } from '@/hooks/use-wallet';
+import { useInitializeContribution, useWalletContribute, useCanPayFromWallet } from '@/hooks/use-payments';
 import { formatCurrency, formatFrequency, formatGroupStatus } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 const GROUP_STATUS_VARIANT: Record<string, 'success' | 'warning' | 'outline' | 'destructive' | 'default'> = {
   DRAFT: 'warning',
@@ -788,6 +789,15 @@ function PenaltiesTab({
 
 // ── Pay CTA Banner ─────────────────────────────────────────────────────────────
 
+function paystackFeeEstimate(amountNgn: number): number {
+  const FLAT = amountNgn < 2_500 ? 0 : 100;
+  const CAP  = 2_000;
+  // Gross-up: solve for what Paystack charges so merchant nets exactly amountNgn
+  const grossed = (amountNgn + FLAT) / (1 - 0.015) + 0.01;
+  const fee = grossed - amountNgn;
+  return Math.ceil(Math.min(fee, CAP));
+}
+
 function PayCtaBanner({
   cycleId,
   cycleNumber,
@@ -804,67 +814,152 @@ function PayCtaBanner({
   const router = useRouter();
   const init = useInitializeContribution();
   const walletPay = useWalletContribute();
-  const { data: wallet } = useWallet();
+  const { data: canPayData } = useCanPayFromWallet(cycleId);
   const [paid, setPaid] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<'card' | 'wallet'>('card');
 
-  const walletBalance = Number(wallet?.balance ?? 0);
-  const canPayFromWallet = walletBalance >= contributionAmount;
+  const feeAmountNgn = canPayData?.fee_amount ?? 0;
+  const penaltyAmountNgn = canPayData?.penalty_amount ?? 0;
+  const totalAmountNgn = canPayData?.total_amount ?? contributionAmount;
+  const walletBalance = canPayData?.wallet_balance ?? 0;
+  const canPayFromWallet = canPayData?.can_pay ?? false;
+  const processingFee = paystackFeeEstimate(totalAmountNgn);
+  const cardTotal = totalAmountNgn + processingFee;
+  const shortfallNgn = totalAmountNgn - walletBalance;
   const isBusy = init.isPending || walletPay.isPending;
 
   if (paid) return null;
 
-  function handlePaystack() {
-    init.mutate(cycleId, {
-      onSuccess: ({ authorizationUrl }) => {
-        if (process.env.NODE_ENV === 'development' && !authorizationUrl.startsWith('https://checkout.paystack')) {
-          router.push('/payments/callback?reference=dev_test');
-        } else {
-          window.location.href = authorizationUrl;
-        }
-      },
-    });
-  }
-
-  function handleWallet() {
-    walletPay.mutate(cycleId, { onSuccess: () => setPaid(true) });
+  function handleContinue() {
+    if (payMethod === 'wallet') {
+      walletPay.mutate(cycleId, {
+        onSuccess: () => { setModalOpen(false); setPaid(true); },
+      });
+    } else {
+      init.mutate(cycleId, {
+        onSuccess: ({ authorizationUrl }) => {
+          setModalOpen(false);
+          if (process.env.NODE_ENV === 'development' && !authorizationUrl.startsWith('https://checkout.paystack')) {
+            router.push('/payments/callback?reference=dev_test');
+          } else {
+            window.location.href = authorizationUrl;
+          }
+        },
+      });
+    }
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl bg-primary px-5 py-4 text-primary-foreground sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="font-semibold">Cycle {cycleNumber} contribution due</p>
-        <p className="text-sm opacity-80">
-          {new Date(dueDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
-        </p>
-      </div>
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={handlePaystack}
-            disabled={isBusy}
-            className="bg-white/20 text-white hover:bg-white/30 border-white/30"
-          >
-            {init.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CreditCard className="size-3.5" />}
-            Pay {formatCurrency(contributionAmount, currency)}
-          </Button>
-          {canPayFromWallet && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleWallet}
-              disabled={isBusy}
-              className="bg-white/10 text-white hover:bg-white/20 border-white/20"
+    <>
+      <Dialog open={modalOpen} onOpenChange={(open) => {
+        if (!open) setModalOpen(false);
+        if (open) setPayMethod('card');
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Payment summary</DialogTitle>
+            <DialogDescription>Choose how you want to pay.</DialogDescription>
+          </DialogHeader>
+
+          {/* Fee breakdown */}
+          <div className="rounded-xl border bg-muted/40 p-4 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Contribution</span>
+              <span className="font-medium">{formatCurrency(contributionAmount, currency)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Platform fee</span>
+              <span className="font-medium">{formatCurrency(feeAmountNgn, currency)}</span>
+            </div>
+            {penaltyAmountNgn > 0 && (
+              <div className="flex justify-between">
+                <span className="text-destructive">Late penalty</span>
+                <span className="font-medium text-destructive">{formatCurrency(penaltyAmountNgn, currency)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Payment method selector */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pay with</p>
+
+            <button
+              type="button"
+              onClick={() => setPayMethod('card')}
+              className={cn(
+                'w-full rounded-xl border-2 p-3 text-left transition-all',
+                payMethod === 'card' ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border hover:bg-muted/40',
+              )}
             >
-              {walletPay.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Wallet className="size-3.5" />}
-              Wallet
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Card</span>
+                </div>
+                <span className="text-sm font-semibold">{formatCurrency(cardTotal, currency)}</span>
+              </div>
+              <p className="mt-0.5 ml-6 text-xs text-muted-foreground">
+                Includes ~{formatCurrency(processingFee, currency)} Paystack processing fee
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => canPayFromWallet && setPayMethod('wallet')}
+              className={cn(
+                'w-full rounded-xl border-2 p-3 text-left transition-all',
+                !canPayFromWallet ? 'cursor-not-allowed opacity-50 border-border' :
+                payMethod === 'wallet' ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border hover:bg-muted/40',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Poolr Wallet</span>
+                </div>
+                <span className="text-sm font-semibold">{formatCurrency(totalAmountNgn, currency)}</span>
+              </div>
+              <p className="mt-0.5 ml-6 text-xs text-muted-foreground">
+                {canPayFromWallet
+                  ? 'No processing fee'
+                  : shortfallNgn > 0
+                    ? `Top up ${formatCurrency(shortfallNgn, currency)} to use wallet`
+                    : 'Insufficient balance'}
+              </p>
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <Button className="w-full" onClick={handleContinue} disabled={isBusy}>
+              {isBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+              Continue to payment
             </Button>
-          )}
+            <Button variant="ghost" className="w-full" onClick={() => setModalOpen(false)} disabled={isBusy}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex items-center justify-between gap-3 rounded-2xl bg-primary px-5 py-4 text-primary-foreground">
+        <div>
+          <p className="font-semibold">Cycle {cycleNumber} contribution due</p>
+          <p className="text-sm opacity-80">
+            {new Date(dueDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
         </div>
-        <p className="text-[11px] opacity-60">🔒 Payments secured by Paystack</p>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => setModalOpen(true)}
+          disabled={isBusy}
+          className="bg-white/20 text-white hover:bg-white/30 border-white/30 shrink-0"
+        >
+          Pay Now
+        </Button>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -948,6 +1043,8 @@ function InviteBanner({ groupId }: { groupId: string }) {
   const decline = useDeclineInvite(groupId);
   const [error, setError] = useState('');
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const busy = accept.isPending || decline.isPending;
 
   const kycRedirect = encodeURIComponent(`/groups/${groupId}`);
@@ -1002,6 +1099,8 @@ function InviteBanner({ groupId }: { groupId: string }) {
         </DialogContent>
       </Dialog>
 
+      <GroupTermsDialog open={termsDialogOpen} onClose={() => setTermsDialogOpen(false)} />
+
       <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-4 space-y-3">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -1011,7 +1110,7 @@ function InviteBanner({ groupId }: { groupId: string }) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" onClick={handleAccept} disabled={busy}>
+            <Button size="sm" onClick={handleAccept} disabled={busy || !termsAccepted}>
               {accept.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
               Accept
             </Button>
@@ -1021,6 +1120,27 @@ function InviteBanner({ groupId }: { groupId: string }) {
             </Button>
           </div>
         </div>
+
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            className="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary cursor-pointer"
+          />
+          <span className="text-xs text-muted-foreground leading-snug">
+            I agree to the{' '}
+            <button
+              type="button"
+              onClick={() => setTermsDialogOpen(true)}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Group Savings Circle Terms
+            </button>
+            , including the default risk and payout schedule.
+          </span>
+        </label>
+
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     </>

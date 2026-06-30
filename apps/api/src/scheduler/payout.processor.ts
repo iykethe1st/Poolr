@@ -48,6 +48,12 @@ export class PayoutProcessor extends WorkerHost {
 
     if (!cycle) throw new Error(`Cycle ${cycleId} not found`);
 
+    // Default protection: hold payout if recipient has an outstanding default
+    if (cycle.payoutHeld) {
+      this.logger.warn(`Cycle ${cycleId}: payout held — ${cycle.payoutHeldReason ?? 'outstanding default'}`);
+      return { skipped: true, reason: `payout held: ${cycle.payoutHeldReason ?? 'outstanding default'}` };
+    }
+
     // Idempotency — skip if payout already initiated or completed
     const existingPayout = await this.prisma.payout.findFirst({
       where: {

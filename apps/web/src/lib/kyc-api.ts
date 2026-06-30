@@ -14,6 +14,10 @@ export function getMe(): Promise<UserWithKyc> {
   return apiClient.get('users/me').json<UserWithKyc>();
 }
 
+export function updateProfile(data: { fullName?: string }): Promise<void> {
+  return apiClient.patch('users/me', { json: data }).json();
+}
+
 export async function extractHttpError(err: unknown): Promise<string> {
   if (err instanceof HTTPError) {
     try {

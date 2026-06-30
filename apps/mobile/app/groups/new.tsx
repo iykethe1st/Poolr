@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +14,18 @@ import { router } from 'expo-router';
 import { useCreateGroup } from '@/hooks/use-group';
 import { useCurrentUser } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
+import { KycRequiredModal } from '@/components/kyc-required-modal';
+
+const TERMS_SECTIONS = [
+  { title: '1. Contribution Commitment', body: 'By creating this group you commit to making your full contribution every cycle for the entire duration. Missing a contribution affects every other member and may result in penalties.' },
+  { title: '2. Payout Schedule', body: 'Payouts are distributed to members in the agreed rotation order. Each member receives the full pooled amount exactly once. The order cannot be changed after the group starts.' },
+  { title: '3. Default & Loss Sharing', body: 'If a member receives their payout and stops contributing, the shortfall is shared equally among all remaining active members. Poolr cannot recover funds from defaulting members.' },
+  { title: '4. Default Protection Fund', body: 'Poolr holds a Default Protection Fund from platform fees that may partially offset verified defaults. It does not guarantee full recovery of losses.' },
+  { title: '5. Late Payment Penalties', body: 'Contributions not received by the due date may incur a late penalty of 5% of the contribution amount where penalties are enabled.' },
+  { title: '6. Platform Fee', body: 'A platform fee is charged on every contribution. This fee is added to the contribution and is non-refundable. The exact amount is shown before each payment.' },
+  { title: '7. No Early Withdrawal', body: 'Once a group has started, contributions cannot be refunded or withdrawn. You are committed for the full duration.' },
+  { title: '8. Your Responsibility', body: 'You are solely responsible for ensuring sufficient funds are available on each due date.' },
+];
 
 const FREQUENCIES = [
   { value: 'WEEKLY', label: 'Weekly' },
@@ -30,6 +42,9 @@ export default function NewGroupScreen() {
   const [frequency, setFrequency] = useState('MONTHLY');
   const [maxMembers, setMaxMembers] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [kycModalOpen, setKycModalOpen] = useState(false);
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -38,19 +53,13 @@ export default function NewGroupScreen() {
     name.trim().length > 0 &&
     Number(amount) >= 100 &&
     Number(maxMembers) >= 3 &&
-    Number(maxMembers) <= 50;
+    Number(maxMembers) <= 50 &&
+    termsAccepted;
 
   async function handleSubmit() {
     if (!isValid) return;
     if (me?.kycProfile?.kycStatus !== 'VERIFIED') {
-      Alert.alert(
-        'Identity verification required',
-        'You need to verify your identity before creating a group.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Verify now', onPress: () => router.push('/kyc') },
-        ],
-      );
+      setKycModalOpen(true);
       return;
     }
     try {
@@ -60,6 +69,7 @@ export default function NewGroupScreen() {
         frequency,
         maxMembers: Number(maxMembers),
         startDate: startDate.trim() || undefined,
+        penaltyEnabled: true,
       });
       router.replace(`/groups/${group.id}`);
     } catch {
@@ -143,6 +153,20 @@ export default function NewGroupScreen() {
           </View>
         )}
 
+        {/* Terms acceptance */}
+        <TouchableOpacity style={styles.termsRow} onPress={() => setTermsAccepted((v) => !v)} activeOpacity={0.7}>
+          <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+            {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.termsText}>
+            I agree to the{' '}
+            <Text style={styles.termsLink} onPress={() => setTermsModalOpen(true)}>
+              Group Savings Circle Terms
+            </Text>
+            , including default risk, payout schedule, and platform fees.
+          </Text>
+        </TouchableOpacity>
+
         <Pressable
           style={[styles.submitBtn, (!isValid || createGroup.isPending) && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -155,6 +179,32 @@ export default function NewGroupScreen() {
           )}
         </Pressable>
       </View>
+
+      {/* Terms modal */}
+      <Modal visible={termsModalOpen} animationType="slide" onRequestClose={() => setTermsModalOpen(false)}>
+        <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 24, paddingBottom: 48 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 20 }}>Group Savings Circle Terms</Text>
+          {TERMS_SECTIONS.map((s) => (
+            <View key={s.title} style={{ marginBottom: 18 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 4 }}>{s.title}</Text>
+              <Text style={{ fontSize: 14, color: colors.textMuted, lineHeight: 21 }}>{s.body}</Text>
+            </View>
+          ))}
+          <TouchableOpacity
+            style={{ marginTop: 8, height: 50, backgroundColor: colors.primary, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => setTermsModalOpen(false)}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Close</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </Modal>
+
+      <KycRequiredModal
+        visible={kycModalOpen}
+        onClose={() => setKycModalOpen(false)}
+        context="create"
+        redirectPath="/groups/new"
+      />
     </ScrollView>
   );
 }
@@ -239,5 +289,15 @@ function createStyles(colors: import('@/lib/colors').Colors) {
     },
     submitBtnDisabled: { opacity: 0.5 },
     submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+    checkbox: {
+      width: 20, height: 20, borderRadius: 5, borderWidth: 1.5,
+      borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
+      marginTop: 1, flexShrink: 0,
+    },
+    checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+    checkmark: { color: '#fff', fontSize: 12, fontWeight: '700', lineHeight: 14 },
+    termsText: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+    termsLink: { color: colors.primary, fontWeight: '600', textDecorationLine: 'underline' },
   });
 }

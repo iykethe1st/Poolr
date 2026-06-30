@@ -52,6 +52,21 @@ export class PaystackService {
     this.baseUrl = config.get('PAYSTACK_BASE_URL', 'https://api.paystack.co');
   }
 
+  /**
+   * Gross up so that after Paystack deducts their local fee, the merchant
+   * receives exactly `amountNgn`.
+   * Nigeria local: 1.5% + ₦100, capped at ₦2,000. ₦100 waived under ₦2,500.
+   * Formula: https://support.paystack.com/en/articles/2130306
+   */
+  grossUpAmount(amountNgn: number): number {
+    const PCT  = 0.015;
+    const FLAT = amountNgn < 2_500 ? 0 : 100;
+    const CAP  = 2_000;
+
+    if (PCT * amountNgn + FLAT >= CAP) return amountNgn + CAP;
+    return (amountNgn + FLAT) / (1 - PCT) + 0.01;
+  }
+
   async initializeTransaction(params: InitializeParams): Promise<InitializeResult> {
     const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
 

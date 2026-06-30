@@ -1,8 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { PageHeader } from "@/components/layout/page-shell";
 import { GroupsList } from "./groups-list";
 import { UpcomingContributions } from "./upcoming-contributions";
@@ -16,6 +26,52 @@ import {
   useNotifications,
 } from "@/hooks/use-dashboard";
 import { useNextPayout } from "@/hooks/use-payments";
+
+function KycPromptModal({ userId }: { userId: string }) {
+  const router = useRouter();
+  const storageKey = `poolr_kyc_prompt_dismissed_${userId}`;
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem(storageKey)) {
+      setOpen(true);
+    }
+  }, [storageKey]);
+
+  function dismiss() {
+    localStorage.setItem(storageKey, '1');
+    setOpen(false);
+  }
+
+  function verify() {
+    dismiss();
+    router.push('/kyc');
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) dismiss(); }}>
+      <DialogContent className="max-w-sm text-center">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10">
+          <ShieldCheck className="size-7 text-primary" />
+        </div>
+        <DialogHeader className="items-center">
+          <DialogTitle className="text-center">Verify your identity</DialogTitle>
+          <DialogDescription className="text-center">
+            Complete a quick identity check to join and create savings circles on Poolr. It only takes a minute.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button className="w-full" onClick={verify}>
+            Verify now
+          </Button>
+          <Button variant="ghost" className="w-full text-muted-foreground" onClick={dismiss}>
+            Maybe later
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function DashboardContent() {
   const { data: user } = useCurrentUser();
@@ -38,6 +94,7 @@ export function DashboardContent() {
 
   return (
     <div className="space-y-6">
+      {user && !kycVerified && <KycPromptModal userId={user.id} />}
       <PageHeader
         title={greeting}
         description="Here's an overview of your savings."

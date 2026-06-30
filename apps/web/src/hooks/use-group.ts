@@ -147,7 +147,7 @@ export type CreateGroupInput = {
   frequency: string;
   maxMembers: number;
   startDate?: string;
-  penaltyConfig?: unknown;
+  penaltyEnabled?: boolean;
 };
 
 export function useCreateGroup() {

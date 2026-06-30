@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { HTTPError } from 'ky';
+import { useState } from "react";
+import { HTTPError } from "ky";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -10,23 +10,23 @@ import {
   CreditCard,
   Loader2,
   Trash2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   useBanks,
   useMyBankAccount,
   useResolveAccount,
   useRemoveBankAccount,
   useSaveBankAccount,
-} from '@/hooks/use-bank-account';
+} from "@/hooks/use-bank-account";
 
-type Step = 'idle' | 'form' | 'confirm' | 'saved';
+type Step = "idle" | "form" | "confirm" | "saved";
 
 export function BankAccountSection() {
   const { data: account, isLoading } = useMyBankAccount();
-  const [step, setStep] = useState<Step>('idle');
+  const [step, setStep] = useState<Step>("idle");
 
   if (isLoading) {
     return (
@@ -37,11 +37,13 @@ export function BankAccountSection() {
     );
   }
 
-  if (account && step !== 'form') {
-    return <ExistingAccount account={account} onRemove={() => setStep('idle')} />;
+  if (account && step !== "form") {
+    return (
+      <ExistingAccount account={account} onRemove={() => setStep("idle")} />
+    );
   }
 
-  if (step === 'idle') {
+  if (step === "idle") {
     return (
       <div className="rounded-xl border border-dashed bg-card px-4 py-6 text-center">
         <CreditCard className="mx-auto mb-2 size-8 text-muted-foreground/40" />
@@ -49,7 +51,7 @@ export function BankAccountSection() {
         <p className="mt-0.5 text-xs text-muted-foreground mb-4">
           Required to withdraw funds from your Poolr wallet
         </p>
-        <Button size="sm" onClick={() => setStep('form')}>
+        <Button size="sm" onClick={() => setStep("form")}>
           Add bank account
         </Button>
       </div>
@@ -58,8 +60,8 @@ export function BankAccountSection() {
 
   return (
     <AddBankAccountFlow
-      onSuccess={() => setStep('saved')}
-      onCancel={() => setStep('idle')}
+      onSuccess={() => setStep("saved")}
+      onCancel={() => setStep("idle")}
     />
   );
 }
@@ -100,7 +102,11 @@ function ExistingAccount({
               onClick={handleRemove}
               disabled={remove.isPending}
             >
-              {remove.isPending ? <Loader2 className="size-3 animate-spin" /> : 'Yes'}
+              {remove.isPending ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                "Yes"
+              )}
             </Button>
             <Button
               size="sm"
@@ -126,7 +132,7 @@ function ExistingAccount({
   );
 }
 
-function AddBankAccountFlow({
+export function AddBankAccountFlow({
   onSuccess,
   onCancel,
 }: {
@@ -137,11 +143,11 @@ function AddBankAccountFlow({
   const resolve = useResolveAccount();
   const save = useSaveBankAccount();
 
-  const [bankCode, setBankCode] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [resolvedName, setResolvedName] = useState('');
-  const [error, setError] = useState('');
+  const [bankCode, setBankCode] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [resolvedName, setResolvedName] = useState("");
+  const [error, setError] = useState("");
 
   const selectedBank = banks.find((b) => b.code === bankCode);
   const canResolve = bankCode && accountNumber.length === 10;
@@ -150,30 +156,35 @@ function AddBankAccountFlow({
   function handleBankChange(code: string) {
     setBankCode(code);
     const b = banks.find((b) => b.code === code);
-    setBankName(b?.name ?? '');
-    setResolvedName('');
-    setError('');
+    setBankName(b?.name ?? "");
+    setResolvedName("");
+    setError("");
   }
 
   function handleAccountNumberChange(val: string) {
-    const digits = val.replace(/\D/g, '').slice(0, 10);
+    const digits = val.replace(/\D/g, "").slice(0, 10);
     setAccountNumber(digits);
-    setResolvedName('');
-    setError('');
+    setResolvedName("");
+    setError("");
   }
 
   function handleVerify() {
-    setError('');
+    setError("");
     resolve.mutate(
       { bankCode, accountNumber },
       {
         onSuccess: (result) => setResolvedName(result.accountName),
         onError: async (err) => {
           if (err instanceof HTTPError) {
-            const body: { message?: string } = await err.response.json().catch(() => ({}));
-            setError(body.message ?? 'Could not verify account. Check details and try again.');
+            const body: { message?: string } = await err.response
+              .json()
+              .catch(() => ({}));
+            setError(
+              body.message ??
+                "Could not verify account. Check details and try again.",
+            );
           } else {
-            setError('Could not verify account. Check details and try again.');
+            setError("Could not verify account. Check details and try again.");
           }
         },
       },
@@ -181,17 +192,19 @@ function AddBankAccountFlow({
   }
 
   function handleSave() {
-    setError('');
+    setError("");
     save.mutate(
       { bankCode, bankName, accountNumber, accountName: resolvedName },
       {
         onSuccess: onSuccess,
         onError: async (err) => {
           if (err instanceof HTTPError) {
-            const body: { message?: string } = await err.response.json().catch(() => ({}));
-            setError(body.message ?? 'Failed to save account.');
+            const body: { message?: string } = await err.response
+              .json()
+              .catch(() => ({}));
+            setError(body.message ?? "Failed to save account.");
           } else {
-            setError('Failed to save account.');
+            setError("Failed to save account.");
           }
         },
       },
@@ -208,7 +221,8 @@ function AddBankAccountFlow({
       <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 flex gap-2">
         <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <p className="text-xs text-amber-800 dark:text-amber-300">
-          Withdrawals can only be sent to <strong>your own bank account</strong>. Make sure the account name matches your verified identity.
+          Withdrawals can only be sent to <strong>your own bank account</strong>
+          . Make sure the account name matches your verified identity.
         </p>
       </div>
 
@@ -222,7 +236,9 @@ function AddBankAccountFlow({
             disabled={banksLoading || isStep2}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           >
-            <option value="">{banksLoading ? 'Loading banks…' : 'Select your bank'}</option>
+            <option value="">
+              {banksLoading ? "Loading banks…" : "Select your bank"}
+            </option>
             {banks.map((b) => (
               <option key={b.code} value={b.code}>
                 {b.name}
@@ -264,7 +280,9 @@ function AddBankAccountFlow({
               <CheckCircle2 className="size-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs text-muted-foreground">Account name</p>
-                <p className="text-sm font-semibold text-green-800 dark:text-green-300">{resolvedName}</p>
+                <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                  {resolvedName}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {selectedBank?.name} · {accountNumber}
                 </p>
@@ -286,7 +304,9 @@ function AddBankAccountFlow({
               </Button>
               <Button
                 variant="outline"
-                onClick={() => { setResolvedName(''); }}
+                onClick={() => {
+                  setResolvedName("");
+                }}
                 disabled={save.isPending}
               >
                 Change
@@ -303,7 +323,12 @@ function AddBankAccountFlow({
         )}
       </div>
 
-      <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={onCancel}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full text-muted-foreground"
+        onClick={onCancel}
+      >
         Cancel
       </Button>
     </div>

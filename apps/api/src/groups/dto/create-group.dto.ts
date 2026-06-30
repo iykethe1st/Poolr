@@ -3,7 +3,6 @@ import {
   IsEnum,
   IsInt,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -44,8 +43,7 @@ export class CreateGroupDto {
   @IsDateString()
   startDate?: string;
 
-  @ApiPropertyOptional({ example: { enabled: true, percentage: 5 } })
+  @ApiPropertyOptional({ example: true, description: 'Enable late-payment penalties (percentage configured via PENALTY_PERCENTAGE_DEFAULT env)' })
   @IsOptional()
-  @IsObject()
-  penaltyConfig?: Record<string, unknown>;
+  penaltyEnabled?: boolean;
 }

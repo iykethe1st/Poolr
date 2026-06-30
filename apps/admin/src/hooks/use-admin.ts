@@ -143,6 +143,17 @@ export function useTriggerPayout() {
   });
 }
 
+export function useRunPenaltyCheck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post('admin/penalties/run-check').json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-penalties'] });
+    },
+  });
+}
+
 export function useWaivePenalty() {
   const qc = useQueryClient();
   return useMutation({

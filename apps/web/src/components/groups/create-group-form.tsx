@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useCreateGroup } from '@/hooks/use-group';
 import { useCurrentUser } from '@/hooks/use-dashboard';
+import { GroupTermsDialog } from './group-terms-dialog';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -29,7 +30,7 @@ const schema = z.object({
     .max(50, 'Maximum 50 members'),
   startDate: z.string().optional(),
   penaltyEnabled: z.boolean(),
-  penaltyPercentage: z.number().min(1).max(100).optional(),
+  termsAccepted: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms to continue' }) }),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -44,6 +45,7 @@ export function CreateGroupForm() {
   const { data: me } = useCurrentUser();
   const { mutateAsync, isPending } = useCreateGroup();
   const [serverError, setServerError] = useState('');
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
 
   if (me && me.kycProfile?.kycStatus !== 'VERIFIED') {
     return (
@@ -70,33 +72,27 @@ export function CreateGroupForm() {
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       frequency: 'MONTHLY',
       maxMembers: 5,
-      penaltyEnabled: false,
+      penaltyEnabled: true,
+      termsAccepted: undefined as unknown as true,
     },
   });
-
-  const penaltyEnabled = watch('penaltyEnabled');
 
   async function onSubmit(values: FormValues) {
     setServerError('');
     try {
-      const penaltyConfig = values.penaltyEnabled
-        ? { enabled: true, percentage: values.penaltyPercentage ?? 5 }
-        : { enabled: false };
-
       const group = await mutateAsync({
         name: values.name,
         contributionAmount: values.contributionAmount,
         frequency: values.frequency,
         maxMembers: values.maxMembers,
         startDate: values.startDate || undefined,
-        penaltyConfig,
+        penaltyEnabled: values.penaltyEnabled,
       });
 
       router.push(`/groups/${group.id}/invite`);
@@ -189,12 +185,12 @@ export function CreateGroupForm() {
       </div>
 
       {/* Penalty config */}
-      <div className="rounded-xl border p-4 space-y-3">
+      <div className="rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Late payment penalties</p>
             <p className="text-xs text-muted-foreground">
-              Charge members a percentage for overdue contributions
+              Charge members 5% of their contribution for overdue payments
             </p>
           </div>
           <label className="relative inline-flex cursor-pointer items-center">
@@ -206,27 +202,6 @@ export function CreateGroupForm() {
             <div className="h-5 w-9 rounded-full bg-muted peer-checked:bg-primary transition-colors after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4" />
           </label>
         </div>
-
-        {penaltyEnabled && (
-          <div className="space-y-1.5">
-            <Label htmlFor="penaltyPercentage">Penalty rate (%)</Label>
-            <div className="relative">
-              <Input
-                id="penaltyPercentage"
-                type="number"
-                min="1"
-                max="100"
-                placeholder="5"
-                className="pr-8"
-                {...register('penaltyPercentage', { valueAsNumber: true })}
-              />
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-                %
-              </span>
-            </div>
-            <FieldError message={errors.penaltyPercentage?.message} />
-          </div>
-        )}
       </div>
 
       <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 p-3 text-sm text-amber-800 dark:text-amber-300">
@@ -236,6 +211,30 @@ export function CreateGroupForm() {
           contributing, <strong>the loss is shared by everyone in the group.</strong> Poolr cannot
           recover funds from dishonest members.
         </p>
+      </div>
+
+      {/* Terms acceptance */}
+      <GroupTermsDialog open={termsDialogOpen} onClose={() => setTermsDialogOpen(false)} />
+      <div className="space-y-1">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary cursor-pointer"
+            {...register('termsAccepted')}
+          />
+          <span className="text-sm text-muted-foreground leading-snug">
+            I have read and agree to the{' '}
+            <button
+              type="button"
+              onClick={() => setTermsDialogOpen(true)}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Group Savings Circle Terms
+            </button>
+            , including the payout schedule, default risk, and platform fees.
+          </span>
+        </label>
+        <FieldError message={errors.termsAccepted?.message} />
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>

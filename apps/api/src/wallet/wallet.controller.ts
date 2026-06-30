@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { WalletService } from './wallet.service';
+import { FeeService } from '../payments/fee.service';
 import { ListTransactionsDto } from './dto/list-transactions.dto';
 import { TopUpDto } from './dto/topup.dto';
 import { WithdrawDto } from './dto/withdraw.dto';
@@ -12,7 +13,10 @@ import { WithdrawDto } from './dto/withdraw.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly walletService: WalletService) {}
+  constructor(
+    private readonly walletService: WalletService,
+    private readonly feeService: FeeService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get own wallet balance' })
@@ -48,5 +52,14 @@ export class WalletController {
   @ApiOperation({ summary: 'Withdraw from wallet to registered bank account' })
   withdraw(@CurrentUser() user: { id: string }, @Body() dto: WithdrawDto) {
     return this.walletService.withdraw(user.id, dto.amountNgn);
+  }
+
+  @Get('can-pay/:cycleId')
+  @ApiOperation({ summary: 'Check if wallet balance covers contribution + platform fee for a cycle' })
+  async canPay(
+    @CurrentUser() user: { id: string },
+    @Param('cycleId') cycleId: string,
+  ) {
+    return this.walletService.canPayFromWallet(user.id, cycleId, this.feeService);
   }
 }

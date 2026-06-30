@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import type { Prisma } from "@prisma/client";
+import { PrismaService } from "../database/prisma.service";
 
 @Injectable()
 export class FeeService {
@@ -15,13 +15,16 @@ export class FeeService {
    * Thresholds and amounts are read from env so they can be changed without a deploy.
    */
   calculateFee(contributionAmountNgn: number): number {
-    const tier1Max = this.config.get<number>('CONTRIBUTION_FEE_TIER_1_MAX', 10_000);
-    const tier1Fee = this.config.get<number>('CONTRIBUTION_FEE_TIER_1_AMOUNT', 100);
-    const tier2Max = this.config.get<number>('CONTRIBUTION_FEE_TIER_2_MAX', 50_000);
-    const tier2Fee = this.config.get<number>('CONTRIBUTION_FEE_TIER_2_AMOUNT', 200);
-    const tier3Fee = this.config.get<number>('CONTRIBUTION_FEE_TIER_3_AMOUNT', 500);
+    const n = (key: string, def: number) =>
+      Number(this.config.get(key, String(def)));
 
-    if (contributionAmountNgn < tier1Max) return tier1Fee;
+    const tier1Max = n("CONTRIBUTION_FEE_TIER_1_MAX", 10_000);
+    const tier1Fee = n("CONTRIBUTION_FEE_TIER_1_AMOUNT", 300);
+    const tier2Max = n("CONTRIBUTION_FEE_TIER_2_MAX", 50_000);
+    const tier2Fee = n("CONTRIBUTION_FEE_TIER_2_AMOUNT", 900);
+    const tier3Fee = n("CONTRIBUTION_FEE_TIER_3_AMOUNT", 1_800);
+
+    if (contributionAmountNgn <= tier1Max) return tier1Fee;
     if (contributionAmountNgn <= tier2Max) return tier2Fee;
     return tier3Fee;
   }
@@ -38,11 +41,15 @@ export class FeeService {
     contributionAmountNgn: number,
     tx: Prisma.TransactionClient,
   ): Promise<void> {
-    const existing = await tx.contributionFee.findUnique({ where: { contributionId } });
+    const existing = await tx.contributionFee.findUnique({
+      where: { contributionId },
+    });
     if (existing) return;
 
     const feeAmount = this.calculateFee(contributionAmountNgn);
-    const reservePct = this.config.get<number>('RESERVE_CONTRIBUTION_PERCENTAGE', 0.2);
+    const reservePct = Number(
+      this.config.get("RESERVE_CONTRIBUTION_PERCENTAGE", "0.2"),
+    );
     const reserveAmount = Math.round(feeAmount * reservePct * 100) / 100;
     const revenueAmount = Math.round((feeAmount - reserveAmount) * 100) / 100;
 
@@ -66,7 +73,11 @@ export class FeeService {
     });
   }
 
-  async getFeeSummary(filters?: { startDate?: Date; endDate?: Date; groupId?: string }) {
+  async getFeeSummary(filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    groupId?: string;
+  }) {
     const where: Prisma.ContributionFeeWhereInput = {};
 
     if (filters?.startDate || filters?.endDate) {
@@ -101,7 +112,7 @@ export class FeeService {
           },
           user: { select: { id: true, fullName: true, email: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: 100,
       }),
     ]);
@@ -122,7 +133,10 @@ export class FeeService {
         contribution: {
           include: {
             cycle: {
-              select: { cycleNumber: true, group: { select: { id: true, name: true } } },
+              select: {
+                cycleNumber: true,
+                group: { select: { id: true, name: true } },
+              },
             },
           },
         },

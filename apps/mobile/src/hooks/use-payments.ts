@@ -1,15 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 
-export interface InitContribResult {
+export interface FeeBreakdown {
+  contributionAmountNgn: number;
+  feeAmountNgn: number;
+  totalChargedNgn: number;
+}
+
+export interface InitContribResult extends FeeBreakdown {
   authorizationUrl: string;
   reference: string;
+}
+
+export interface CanPayResult {
+  can_pay: boolean;
+  wallet_balance: number;
+  contribution_amount: number;
+  fee_amount: number;
+  penalty_amount: number;
+  total_amount: number;
 }
 
 export interface VerifyResult {
   status: string;
   amount?: number;
-  paidAt?: string;
+  groupId?: string;
+  groupName?: string;
+  cycleNumber?: number;
 }
 
 export interface NextPayout {
@@ -44,6 +61,15 @@ export function useVerifyPayment() {
       qc.invalidateQueries({ queryKey: ['contributions'] });
       qc.invalidateQueries({ queryKey: ['group'] });
     },
+  });
+}
+
+export function useCanPayFromWallet(cycleId: string | undefined) {
+  return useQuery<CanPayResult>({
+    queryKey: ['can-pay', cycleId],
+    queryFn: () => apiClient.get(`wallet/can-pay/${cycleId}`).json<CanPayResult>(),
+    enabled: !!cycleId,
+    staleTime: 15_000,
   });
 }
 

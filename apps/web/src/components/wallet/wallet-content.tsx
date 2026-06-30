@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { HTTPError } from 'ky';
 import {
   AlertCircle,
@@ -34,6 +33,7 @@ import {
   type WalletTransaction,
 } from '@/hooks/use-wallet';
 import { useMyBankAccount } from '@/hooks/use-bank-account';
+import { AddBankAccountFlow } from '@/components/settings/bank-account-form';
 
 const TX_LABEL: Record<WalletTransaction['type'], string> = {
   CONTRIBUTION: 'Contribution',
@@ -50,6 +50,7 @@ export function WalletContent() {
   const { data: bankAccount } = useMyBankAccount();
   const [topUpOpen, setTopUpOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [linkBankOpen, setLinkBankOpen] = useState(false);
 
   const balance = Number(wallet?.balance ?? 0);
 
@@ -121,19 +122,32 @@ export function WalletContent() {
           </div>
           <span className="text-xs text-muted-foreground shrink-0">Withdrawal account</span>
         </div>
+      ) : linkBankOpen ? (
+        <AddBankAccountFlow
+          onSuccess={() => setLinkBankOpen(false)}
+          onCancel={() => setLinkBankOpen(false)}
+        />
       ) : (
-        <div className="flex items-center gap-3 rounded-xl border border-dashed bg-card px-4 py-3">
+        <button
+          className="flex w-full items-center gap-3 rounded-xl border border-dashed bg-card px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+          onClick={() => setLinkBankOpen(true)}
+        >
           <AlertCircle className="size-4 text-muted-foreground/60 shrink-0" />
           <p className="text-sm text-muted-foreground">
             No bank account linked —{' '}
-            <a href="/settings" className="text-primary underline underline-offset-2">add one in Settings</a>
+            <span className="text-primary underline underline-offset-2">add one here</span>
             {' '}to withdraw.
           </p>
-        </div>
+        </button>
       )}
 
       <TopUpDialog open={topUpOpen} onClose={() => setTopUpOpen(false)} />
-      <WithdrawDialog open={withdrawOpen} onClose={() => setWithdrawOpen(false)} balance={balance} />
+      <WithdrawDialog
+        open={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        balance={balance}
+        onNoBankAccount={() => { setWithdrawOpen(false); setLinkBankOpen(true); }}
+      />
     </div>
   );
 }
@@ -234,10 +248,12 @@ function WithdrawDialog({
   open,
   onClose,
   balance,
+  onNoBankAccount,
 }: {
   open: boolean;
   onClose: () => void;
   balance: number;
+  onNoBankAccount: () => void;
 }) {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
@@ -326,9 +342,13 @@ function WithdrawDialog({
                   <AlertCircle className="size-3 mt-0.5 shrink-0" />
                   <span>
                     No bank account registered.{' '}
-                    <Link href="/settings" className="underline underline-offset-2" onClick={handleClose}>
-                      Add one in Settings
-                    </Link>
+                    <button
+                      type="button"
+                      className="underline underline-offset-2"
+                      onClick={onNoBankAccount}
+                    >
+                      Add one now
+                    </button>
                     {' '}to withdraw.
                   </span>
                 </p>
