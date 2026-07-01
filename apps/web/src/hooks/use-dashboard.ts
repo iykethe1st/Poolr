@@ -8,7 +8,9 @@ const STALE = 30_000;
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ContributionStats = {
-  tier: 'NEW' | 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  tier: 'New' | 'Trusted' | 'Reliable' | 'Elite';
+  trustScore: number;
+  maxSlotsEligible: number;
   totalPaid: number;
   onTimePaid: number;
   onTimeRate: number;

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/layout/page-shell';
 import { useGroups, useCurrentUser, type GroupWithMembers } from '@/hooks/use-dashboard';
-import { useAcceptInvite, useDeclineInvite, useJoinByToken } from '@/hooks/use-group';
+import { useDeclineInvite, useJoinByToken } from '@/hooks/use-group';
 import { formatCurrency, formatFrequency, formatGroupStatus } from '@/lib/format';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'outline' | 'destructive' | 'default'> = {
@@ -136,34 +136,9 @@ export function GroupsContent() {
 }
 
 function InviteCard({ group }: { group: GroupWithMembers }) {
-  const router = useRouter();
-  const accept = useAcceptInvite(group.id);
   const decline = useDeclineInvite(group.id);
   const [error, setError] = useState('');
-  const [kycDialogOpen, setKycDialogOpen] = useState(false);
-  const busy = accept.isPending || decline.isPending;
-
-  const kycRedirect = encodeURIComponent(`/groups/${group.id}`);
-
-  function handleAccept(e: React.MouseEvent) {
-    e.preventDefault();
-    setError('');
-    accept.mutate(undefined, {
-      onSuccess: () => router.push(`/groups/${group.id}`),
-      onError: async (err) => {
-        if (err instanceof HTTPError) {
-          const body: { message?: string } = await err.response.json().catch(() => ({}));
-          if (err.response.status === 403 && body.message?.toLowerCase().includes('kyc')) {
-            setKycDialogOpen(true);
-            return;
-          }
-          setError(body.message ?? 'Failed to accept. Please try again.');
-        } else {
-          setError('Failed to accept. Please try again.');
-        }
-      },
-    });
-  }
+  const busy = decline.isPending;
 
   function handleDecline(e: React.MouseEvent) {
     e.preventDefault();
@@ -173,31 +148,7 @@ function InviteCard({ group }: { group: GroupWithMembers }) {
   }
 
   return (
-    <>
-      <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <div className="mb-2 flex size-12 items-center justify-center rounded-2xl bg-amber-100">
-              <ShieldCheck className="size-6 text-amber-600" />
-            </div>
-            <DialogTitle>Identity verification required</DialogTitle>
-            <DialogDescription>
-              You need to verify your identity before joining a savings group. This protects
-              everyone in the circle and is required for all members.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setKycDialogOpen(false)}>
-              Not now
-            </Button>
-            <Button asChild>
-              <Link href={`/kyc?redirect=${kycRedirect}`}>Verify identity</Link>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <div className="flex flex-col gap-3 rounded-2xl border border-dashed bg-card p-5 shadow-sm">
+    <div className="flex flex-col gap-3 rounded-2xl border border-dashed bg-card p-5 shadow-sm">
         <Link href={`/groups/${group.id}`} className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate font-semibold">{group.name}</p>
@@ -221,13 +172,11 @@ function InviteCard({ group }: { group: GroupWithMembers }) {
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex gap-2 border-t pt-3">
-          <Button size="sm" className="flex-1" onClick={handleAccept} disabled={busy}>
-            {accept.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
+          <Button size="sm" className="flex-1" asChild>
+            <Link href={`/groups/${group.id}/join`}>
               <Check className="size-3.5" />
-            )}
-            Accept
+              Review &amp; accept
+            </Link>
           </Button>
           <Button size="sm" variant="outline" className="flex-1" onClick={handleDecline} disabled={busy}>
             {decline.isPending ? (
@@ -239,7 +188,6 @@ function InviteCard({ group }: { group: GroupWithMembers }) {
           </Button>
         </div>
       </div>
-    </>
   );
 }
 

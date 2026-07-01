@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { Feather } from '@expo/vector-icons';
 import { useCurrentUser } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
 import { API_BASE_URL } from '@/api/client';
@@ -23,10 +24,10 @@ try {
   launchDojahKyc = require('dojah-kyc-sdk-react-expo').launchDojahKyc;
 } catch { /* native module not compiled into this build */ }
 
-const STEPS = [
-  { icon: '🪪', label: 'Government-issued ID', desc: "National ID, passport, or driver's licence" },
-  { icon: '🤳', label: 'Selfie check', desc: 'A quick photo to match your ID' },
-  { icon: '⏱️', label: 'Takes ~2 minutes', desc: 'Instant result in most cases' },
+const STEPS: Array<{ icon: React.ComponentProps<typeof Feather>['name']; label: string; desc: string }> = [
+  { icon: 'credit-card', label: 'Government-issued ID', desc: "National ID, passport, or driver's licence" },
+  { icon: 'camera', label: 'Selfie check', desc: 'A quick photo to match your ID' },
+  { icon: 'clock', label: 'Takes ~2 minutes', desc: 'Instant result in most cases' },
 ];
 
 export default function KycScreen() {
@@ -79,13 +80,15 @@ export default function KycScreen() {
       {/* Status banner */}
       {isVerified && (
         <View style={[styles.statusBanner, styles.statusVerified]}>
-          <Text style={styles.statusText}>✓ Your identity has been verified</Text>
+          <Feather name="check-circle" size={16} color={colors.successText} />
+          <Text style={styles.statusText}>Your identity has been verified</Text>
         </View>
       )}
       {isPending && (
         <View style={[styles.statusBanner, styles.statusPending]}>
+          <Feather name="clock" size={16} color={colors.warningText} />
           <Text style={[styles.statusText, { color: colors.warningText }]}>
-            ⏳ Verification is in review — we'll notify you when it's complete
+            Verification is in review — we'll notify you when it's complete
           </Text>
         </View>
       )}
@@ -95,7 +98,9 @@ export default function KycScreen() {
         <Text style={styles.stepsTitle}>What you'll need</Text>
         {STEPS.map((s) => (
           <View key={s.label} style={styles.stepRow}>
-            <Text style={styles.stepIcon}>{s.icon}</Text>
+            <View style={styles.stepIcon}>
+              <Feather name={s.icon} size={20} color={colors.primary} />
+            </View>
             <View style={styles.stepText}>
               <Text style={styles.stepLabel}>{s.label}</Text>
               <Text style={styles.stepDesc}>{s.desc}</Text>
@@ -145,6 +150,9 @@ function createStyles(colors: import('@/lib/colors').Colors) {
     subtitle: { fontSize: 14, color: colors.textMuted, lineHeight: 22 },
 
     statusBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
       borderRadius: 12,
       padding: 14,
       borderWidth: 1,
@@ -170,7 +178,14 @@ function createStyles(colors: import('@/lib/colors').Colors) {
     },
     stepsTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
     stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-    stepIcon: { fontSize: 28, lineHeight: 36 },
+    stepIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.primaryBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     stepText: { flex: 1, gap: 2 },
     stepLabel: { fontSize: 14, fontWeight: '700', color: colors.text },
     stepDesc: { fontSize: 13, color: colors.textMuted },

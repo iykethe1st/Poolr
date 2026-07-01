@@ -3,7 +3,9 @@ import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 
 export interface ContributionStats {
-  tier: 'NEW' | 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+  tier: 'New' | 'Trusted' | 'Reliable' | 'Elite';
+  trustScore: number;
+  maxSlotsEligible: number;
   totalPaid: number;
   onTimePaid: number;
   onTimeRate: number;

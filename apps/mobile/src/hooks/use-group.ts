@@ -145,10 +145,13 @@ export function useCreateGroup() {
 export interface InviteMemberInput {
   phone?: string;
   email?: string;
+  slotCount?: number;
 }
 
 export interface InviteResult {
   message: string;
+  memberIds: string[];
+  slotCount: number;
   token: string;
 }
 
@@ -162,8 +165,10 @@ export function useInviteMember(groupId: string) {
 export function useAcceptInvite(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      apiClient.post(`groups/${groupId}/accept-invite`).json<{ message: string }>(),
+    mutationFn: (slotCount: number = 1) =>
+      apiClient
+        .post(`groups/${groupId}/accept-invite`, { json: { slotCount } })
+        .json<{ message: string; slotCount: number }>(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['groups'] }),
   });
 }
@@ -174,6 +179,76 @@ export function useDeclineInvite(groupId: string) {
     mutationFn: () =>
       apiClient.delete(`groups/${groupId}/decline-invite`).json<{ message: string }>(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['groups'] }),
+  });
+}
+
+export function useUpdateMySlots(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (slotCount: number) =>
+      apiClient
+        .patch(`groups/${groupId}/my-slots`, { json: { slotCount } })
+        .json<{ message: string; slotCount: number }>(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['groups'] }),
+  });
+}
+
+export function useOfferSlot(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (targetUserId: string) =>
+      apiClient
+        .post(`groups/${groupId}/members/${targetUserId}/offer-slot`)
+        .json<{ message: string }>(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['groups'] }),
+  });
+}
+
+export function useRemoveMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (memberId: string) =>
+      apiClient
+        .delete(`groups/${groupId}/members/${memberId}`)
+        .json<{ message: string }>(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['group', groupId] }),
+  });
+}
+
+export function useDeleteGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.delete(`groups/${groupId}`).json<{ message: string }>(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['groups'] }),
+  });
+}
+
+export function useUpdateGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { startDate?: string }) =>
+      apiClient
+        .patch(`groups/${groupId}`, { json: data })
+        .json<GroupDetail>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useStartGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient
+        .post(`groups/${groupId}/start`)
+        .json<{ message: string; cyclesGenerated: number }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
   });
 }
 

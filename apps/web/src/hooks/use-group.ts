@@ -161,6 +161,18 @@ export function useCreateGroup() {
   });
 }
 
+export function useDeleteGroup(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.delete(`groups/${groupId}`).json<{ message: string }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.removeQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
 export function useUpdateGroup(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -176,10 +188,10 @@ export function useUpdateGroup(groupId: string) {
 export function useInviteMember(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { phone?: string; email?: string }) =>
+    mutationFn: (data: { phone?: string; email?: string; slotCount?: number }) =>
       apiClient
         .post(`groups/${groupId}/invite`, { json: data })
-        .json<{ message: string; memberId: string; token: string }>(),
+        .json<{ message: string; memberIds: string[]; slotCount: number; token: string }>(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', groupId] });
     },
@@ -242,10 +254,10 @@ export function useJoinByToken() {
 export function useJoinGroup(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (token: string) =>
+    mutationFn: ({ token, slotCount }: { token: string; slotCount?: number }) =>
       apiClient
-        .post(`groups/${groupId}/join`, { json: { token } })
-        .json<{ message: string }>(),
+        .post(`groups/${groupId}/join`, { json: { token, slotCount: slotCount ?? 1 } })
+        .json<{ message: string; slotCount: number }>(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['groups'] });
       qc.invalidateQueries({ queryKey: ['group', groupId] });
@@ -256,12 +268,39 @@ export function useJoinGroup(groupId: string) {
 export function useAcceptInvite(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (slotCount: number = 1) =>
       apiClient
-        .post(`groups/${groupId}/accept-invite`)
-        .json<{ message: string }>(),
+        .post(`groups/${groupId}/accept-invite`, { json: { slotCount } })
+        .json<{ message: string; slotCount: number }>(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+    },
+  });
+}
+
+export function useUpdateMySlots(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (slotCount: number) =>
+      apiClient
+        .patch(`groups/${groupId}/my-slots`, { json: { slotCount } })
+        .json<{ message: string; slotCount: number }>(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group', groupId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+export function useOfferSlot(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (targetUserId: string) =>
+      apiClient
+        .post(`groups/${groupId}/members/${targetUserId}/offer-slot`)
+        .json<{ message: string }>(),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['group', groupId] });
     },
   });

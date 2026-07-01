@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import {
   useCurrentUser,
@@ -86,6 +87,14 @@ export default function HomeScreen() {
     (c) => c.status === "PENDING" || c.status === "OVERDUE",
   );
   const activeGroups = groups.filter((g) => g.status === "ACTIVE");
+  const pendingInvites = groups.filter((g) =>
+    g.members.some((mb) => mb.userId === me?.id && mb.memberStatus === "INVITED"),
+  );
+  const slotOfferGroups = groups.filter((g) => {
+    const hasActive = g.members.some((mb) => mb.userId === me?.id && mb.memberStatus === "ACTIVE");
+    const hasInvited = g.members.some((mb) => mb.userId === me?.id && mb.memberStatus === "INVITED");
+    return hasActive && hasInvited;
+  });
   const balance = parseFloat(wallet?.balance ?? "0");
 
   return (
@@ -125,12 +134,13 @@ export default function HomeScreen() {
             activeOpacity={0.85}
           >
             <View style={styles.kycBannerLeft}>
-              <Text style={styles.kycBannerIcon}>
-                {me.kycProfile?.kycStatus === "PENDING" ||
-                me.kycProfile?.kycStatus === "UNDER_REVIEW"
-                  ? "⏳"
-                  : "🪪"}
-              </Text>
+              <View style={styles.kycBannerIcon}>
+                <Feather
+                  name={me.kycProfile?.kycStatus === "PENDING" || me.kycProfile?.kycStatus === "UNDER_REVIEW" ? "clock" : "shield"}
+                  size={18}
+                  color={me.kycProfile?.kycStatus === "PENDING" || me.kycProfile?.kycStatus === "UNDER_REVIEW" ? colors.infoText : colors.warning}
+                />
+              </View>
               <View>
                 <Text style={styles.kycBannerTitle}>
                   {me.kycProfile?.kycStatus === "PENDING" ||
@@ -148,7 +158,7 @@ export default function HomeScreen() {
             </View>
             {me.kycProfile?.kycStatus !== "PENDING" &&
               me.kycProfile?.kycStatus !== "UNDER_REVIEW" && (
-                <Text style={styles.kycBannerArrow}>›</Text>
+                <Feather name="chevron-right" size={18} color={colors.textMuted} />
               )}
           </TouchableOpacity>
         )}
@@ -179,6 +189,37 @@ export default function HomeScreen() {
                 </Text>
               )}
             </View>
+          </View>
+        )}
+
+        {/* Pending invites */}
+        {pendingInvites.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Pending invites{" "}
+              <Text style={styles.inviteBadge}>{pendingInvites.length}</Text>
+            </Text>
+            {pendingInvites.map((g) => (
+              <TouchableOpacity
+                key={g.id}
+                style={styles.inviteCard}
+                activeOpacity={0.75}
+                onPress={() => router.push(`/groups/invite-review/${g.id}`)}
+              >
+                <View style={styles.inviteCardTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inviteName} numberOfLines={1}>{g.name}</Text>
+                    <Text style={styles.inviteMeta}>
+                      {g.frequency.toLowerCase()} · {formatCurrency(g.contributionAmount)} per member
+                    </Text>
+                  </View>
+                  <StatusBadge label="Invited" variant="warning" />
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.inviteReview}>Review invite →</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 
@@ -217,10 +258,36 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Empty state — no groups at all */}
-        {groups.length === 0 && !groupsLoading && (
+        {/* Slot offers from admin */}
+        {slotOfferGroups.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Slot offers</Text>
+            {slotOfferGroups.map((g) => (
+              <TouchableOpacity
+                key={g.id}
+                style={styles.slotOfferCard}
+                activeOpacity={0.75}
+                onPress={() => router.push(`/groups/${g.id}`)}
+              >
+                <MaterialCommunityIcons name="hand-coin" size={22} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.slotOfferCardTitle}>{g.name}</Text>
+                  <Text style={styles.slotOfferCardMeta}>
+                    Admin offered you an extra rotation slot — tap to accept or decline
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Empty state — no groups and no pending invites */}
+        {groups.length === 0 && pendingInvites.length === 0 && !groupsLoading && (
           <View style={styles.getStarted}>
-            <Text style={styles.getStartedEmoji}>💰</Text>
+            <View style={styles.getStartedIcon}>
+              <Feather name="users" size={32} color={colors.primary} />
+            </View>
             <Text style={styles.getStartedTitle}>Start saving together</Text>
             <Text style={styles.getStartedBody}>
               Create your own savings circle or join one from a friend. Everyone
@@ -305,7 +372,9 @@ export default function HomeScreen() {
           onPress={() => void dismissKycPrompt()}
         >
           <Pressable style={styles.kycModalCard} onPress={() => {}}>
-            <Text style={styles.kycModalIcon}>🪪</Text>
+            <View style={styles.kycModalIcon}>
+              <Feather name="shield" size={32} color={colors.primary} />
+            </View>
             <Text style={styles.kycModalTitle}>Verify your identity</Text>
             <Text style={styles.kycModalBody}>
               To create or join a savings group, you need to verify your
@@ -441,6 +510,34 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     groupMeta: { fontSize: 12, color: colors.textMuted },
     groupAmount: { fontSize: 14, fontWeight: "700", color: colors.primary },
 
+    slotOfferCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1.5,
+      borderColor: colors.primaryBorder,
+    },
+    slotOfferCardTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
+    slotOfferCardMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+
+    inviteBadge: { fontSize: 12, fontWeight: "700", color: colors.primary },
+    inviteCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      gap: 10,
+      borderWidth: 1.5,
+      borderColor: colors.primaryBorder,
+      borderStyle: "dashed",
+    },
+    inviteCardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+    inviteName: { fontSize: 14, fontWeight: "700", color: colors.text },
+    inviteMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    inviteReview: { fontSize: 13, fontWeight: "600", color: colors.primary },
+
     empty: {
       backgroundColor: colors.card,
       borderRadius: 14,
@@ -463,7 +560,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    getStartedEmoji: { fontSize: 52, marginBottom: 4 },
+    getStartedIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.primaryBg, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 4 },
     getStartedTitle: {
       fontSize: 20,
       fontWeight: "800",
@@ -523,7 +620,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       gap: 12,
       flex: 1,
     },
-    kycBannerIcon: { fontSize: 28 },
+    kycBannerIcon: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
     kycBannerTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
     kycBannerSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
     kycBannerArrow: { fontSize: 22, color: colors.textMuted },
@@ -542,7 +639,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignItems: "center",
       gap: 8,
     },
-    kycModalIcon: { fontSize: 48 },
+    kycModalIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.primaryBg, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 4 },
     kycModalTitle: {
       fontSize: 20,
       fontWeight: "800",

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { PaymentsModule } from '../payments/payments.module';
+import { TrustScoreService } from '../users/trust-score.service';
 import { PayoutProcessor } from './payout.processor';
 import { PayoutScheduler } from './payout.scheduler';
 
@@ -9,6 +10,6 @@ import { PayoutScheduler } from './payout.scheduler';
     BullModule.registerQueue({ name: 'payout' }),
     PaymentsModule,
   ],
-  providers: [PayoutProcessor, PayoutScheduler],
+  providers: [PayoutProcessor, PayoutScheduler, TrustScoreService],
 })
 export class SchedulerModule {}

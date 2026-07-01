@@ -14,6 +14,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { PaystackService } from '../payments/paystack.service';
+import { TrustScoreService } from '../users/trust-score.service';
 import {
   PAYOUT_EVENTS,
   PayoutDeadLetteredEvent,
@@ -30,6 +31,7 @@ export class PayoutProcessor extends WorkerHost {
     private readonly paystack: PaystackService,
     private readonly eventEmitter: EventEmitter2,
     private readonly config: ConfigService,
+    private readonly trustScore: TrustScoreService,
   ) {
     super();
   }
@@ -122,6 +124,10 @@ export class PayoutProcessor extends WorkerHost {
     this.eventEmitter.emit(PAYOUT_EVENTS.INITIATED, event);
 
     this.logger.log(`Cycle ${cycleId}: payout initiated — ${transferCode}, ${payoutAmountNgn} NGN`);
+
+    // Trust score: +20 for cycle completed; +3 bonus if recipient had zero misses in this group
+    this.applyPayoutTrustScore(cycleId, cycle.recipientId, cycle.group.name).catch(() => null);
+
     return { transferCode, amountNgn: payoutAmountNgn };
   }
 
@@ -164,6 +170,40 @@ export class PayoutProcessor extends WorkerHost {
       }
     } catch (notifyErr) {
       this.logger.error(`Failed to send dead-letter notification: ${(notifyErr as Error).message}`);
+    }
+  }
+
+  private async applyPayoutTrustScore(cycleId: string, recipientId: string, groupName: string): Promise<void> {
+    const cycle = await this.prisma.cycle.findUnique({
+      where: { id: cycleId },
+      select: { groupId: true, cycleNumber: true },
+    });
+    if (!cycle) return;
+
+    await this.trustScore.applyScoreEvent(
+      recipientId,
+      'CYCLE_COMPLETED',
+      20,
+      `Cycle ${cycle.cycleNumber} completed — ${groupName}`,
+      { groupId: cycle.groupId },
+    );
+
+    // Bonus: check if recipient had zero missed/overdue contributions across all cycles in this group
+    const missCount = await this.prisma.contribution.count({
+      where: {
+        cycle: { groupId: cycle.groupId },
+        member: { userId: recipientId },
+        status: { in: [ContribStatus.OVERDUE] },
+      },
+    });
+    if (missCount === 0) {
+      await this.trustScore.applyScoreEvent(
+        recipientId,
+        'CYCLE_COMPLETED_NO_MISSES_BONUS',
+        3,
+        `Perfect payment record — ${groupName}`,
+        { groupId: cycle.groupId },
+      );
     }
   }
 

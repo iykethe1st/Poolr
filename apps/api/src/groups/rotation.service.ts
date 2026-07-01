@@ -1,7 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { ContribStatus, Frequency, GroupStatus, MemberStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service";
+import { SlotService } from "./slot.service";
 
 interface GroupForRotation {
   id: string;
@@ -20,12 +21,22 @@ interface MemberForRotation {
 
 @Injectable()
 export class RotationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly slots: SlotService,
+  ) {}
 
   async generateCycles(
     group: GroupForRotation,
     members: MemberForRotation[],
   ): Promise<void> {
+    const { valid, conflicts } = await this.slots.validateSlotSpacing(group.id);
+    if (!valid) {
+      throw new BadRequestException(
+        `Cannot start group — multi-slot spacing violations detected:\n${conflicts.join('\n')}\nPlease adjust rotation positions before starting.`,
+      );
+    }
+
     const sorted = [...members].sort(
       (a, b) => a.rotationPosition - b.rotationPosition,
     );

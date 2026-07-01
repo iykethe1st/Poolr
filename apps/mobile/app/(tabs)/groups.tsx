@@ -23,8 +23,8 @@ import { StatusBadge } from '@/components/status-badge';
 import type { BadgeVariant } from '@/components/status-badge';
 
 const STATUS_VARIANT: Record<string, { variant: BadgeVariant; label: string }> = {
+  DRAFT:     { variant: 'warning',   label: 'Draft' },
   ACTIVE:    { variant: 'success',   label: 'Active' },
-  PENDING:   { variant: 'warning',   label: 'Pending' },
   COMPLETED: { variant: 'completed', label: 'Completed' },
   PAUSED:    { variant: 'neutral',   label: 'Paused' },
 };
@@ -139,7 +139,7 @@ export default function GroupsScreen() {
         ) : myGroups.length > 0 ? (
           <View style={[styles.list, pendingInvites.length > 0 && { marginTop: 0 }]}>
             {myGroups.map((g) => {
-              const statusConfig = STATUS_VARIANT[g.status] ?? STATUS_VARIANT.PENDING;
+              const statusConfig = STATUS_VARIANT[g.status] ?? STATUS_VARIANT.DRAFT;
               return (
                 <TouchableOpacity
                   key={g.id}

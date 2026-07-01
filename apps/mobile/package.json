@@ -11,9 +11,11 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@poolr/types": "workspace:*",
     "@poolr/utils": "workspace:*",
     "@tanstack/react-query": "^5.101.0",
+    "dojah-kyc-sdk-react-expo": "*",
     "expo": "~56.0.12",
     "expo-constants": "~56.0.18",
     "expo-dev-client": "~56.0.20",
@@ -22,7 +24,6 @@
     "expo-router": "~56.2.11",
     "expo-secure-store": "~56.0.4",
     "expo-status-bar": "~56.0.4",
-    "dojah-kyc-sdk-react-expo": "*",
     "expo-web-browser": "~56.0.5",
     "ky": "^1.14.3",
     "react": "19.2.3",

@@ -103,10 +103,10 @@ export class WalletService {
     const contributionAmountNgn = cycle ? Number(cycle.group.contributionAmount) : 0;
     const feeAmountNgn = feeService.calculateFee(contributionAmountNgn);
 
-    // Look up any PENDING penalty for this member's contribution in this cycle
+    // Look up the member slot that has a contribution for this cycle (first active slot as fallback)
     const member = cycle
-      ? await this.prisma.groupMember.findUnique({
-          where: { groupId_userId: { groupId: cycle.groupId, userId } },
+      ? await this.prisma.groupMember.findFirst({
+          where: { groupId: cycle.groupId, userId, memberStatus: 'ACTIVE' },
         })
       : null;
 

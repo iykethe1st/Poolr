@@ -30,7 +30,7 @@ const schema = z.object({
     .max(50, 'Maximum 50 members'),
   startDate: z.string().optional(),
   penaltyEnabled: z.boolean(),
-  termsAccepted: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms to continue' }) }),
+  termsAccepted: z.literal(true, { error: 'You must accept the terms to continue' }),
 });
 
 type FormValues = z.infer<typeof schema>;

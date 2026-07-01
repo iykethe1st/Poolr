@@ -17,6 +17,7 @@ import {
 import { HTTPError } from "ky";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import {
   useWallet,
   useWalletTransactions,
@@ -216,7 +217,7 @@ export default function WalletScreen() {
                 setSheet("topup");
               }}
             >
-              <Text style={styles.actionBtnIcon}>+</Text>
+              <Feather name="plus-circle" size={22} color="#fff" />
               <Text style={styles.actionBtnText}>Top up</Text>
             </TouchableOpacity>
             <View style={styles.actionDivider} />
@@ -227,7 +228,7 @@ export default function WalletScreen() {
                 setSheet("withdraw");
               }}
             >
-              <Text style={styles.actionBtnIcon}>↑</Text>
+              <Feather name="arrow-up-right" size={22} color="#fff" />
               <Text style={styles.actionBtnText}>Withdraw</Text>
             </TouchableOpacity>
           </View>
@@ -279,9 +280,11 @@ export default function WalletScreen() {
                         isCredit ? styles.txIconCredit : styles.txIconDebit,
                       ]}
                     >
-                      <Text style={{ fontSize: 13 }}>
-                        {isCredit ? "↓" : "↑"}
-                      </Text>
+                      <Feather
+                        name={isCredit ? "arrow-down-left" : "arrow-up-right"}
+                        size={14}
+                        color={isCredit ? "#16a34a" : "#dc2626"}
+                      />
                     </View>
                     <View style={styles.txInfo}>
                       <Text style={styles.txDesc} numberOfLines={1}>
@@ -430,7 +433,6 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     },
     actionBtn: { flex: 1, alignItems: "center", paddingVertical: 12, gap: 2 },
     actionDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
-    actionBtnIcon: { fontSize: 18, color: "#fff", fontWeight: "700" },
     actionBtnText: { fontSize: 12, color: "#fff", fontWeight: "600" },
 
     bankCard: {

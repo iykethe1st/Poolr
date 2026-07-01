@@ -51,7 +51,7 @@ export class GroupsController {
   @UseGuards(KycGuard)
   @ApiOperation({ summary: 'Join a group using an invitation token (no group ID needed)' })
   joinByToken(@CurrentUser() user: AuthUser, @Body() dto: JoinGroupDto) {
-    return this.groups.joinByToken(user.id, dto.token);
+    return this.groups.joinByToken(user.id, dto.token, dto.slotCount ?? 1);
   }
 
   @Get(':id')
@@ -97,8 +97,34 @@ export class GroupsController {
   @HttpCode(200)
   @UseGuards(KycGuard)
   @ApiOperation({ summary: 'Accept group invitation without token (KYC required)' })
-  acceptInvite(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {
-    return this.groups.acceptInvite(groupId, user.id);
+  acceptInvite(
+    @Param('id') groupId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { slotCount?: number },
+  ) {
+    return this.groups.acceptInvite(groupId, user.id, body.slotCount ?? 1);
+  }
+
+  @Patch(':id/my-slots')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Update own slot count in a group (DRAFT only)' })
+  updateMySlots(
+    @Param('id') groupId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { slotCount: number },
+  ) {
+    return this.groups.updateMySlots(groupId, user.id, body.slotCount);
+  }
+
+  @Post(':id/members/:userId/offer-slot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Offer an extra slot to a member (admin only, DRAFT)' })
+  offerSlot(
+    @Param('id') groupId: string,
+    @Param('userId') targetUserId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.groups.offerSlot(groupId, user.id, targetUserId);
   }
 
   @Delete(':id/decline-invite')
@@ -124,6 +150,13 @@ export class GroupsController {
     @Body() dto: UpdatePositionDto,
   ) {
     return this.groups.updatePosition(groupId, user.id, memberId, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Soft-delete a group (admin only, not allowed while ACTIVE)' })
+  deleteGroup(@Param('id') groupId: string, @CurrentUser() user: AuthUser) {
+    return this.groups.deleteGroup(groupId, user.id);
   }
 
   @Post(':id/start')

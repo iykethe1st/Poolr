@@ -15,6 +15,7 @@ import { RedisService } from '../redis/redis.service';
 import { PaystackService } from './paystack.service';
 import { FeeService } from './fee.service';
 import { WalletService } from '../wallet/wallet.service';
+import { TrustScoreService } from '../users/trust-score.service';
 import {
   NOTIFICATION_EVENTS,
   ContributionReceivedEvent,
@@ -36,6 +37,7 @@ export class PaymentsService {
     private readonly walletService: WalletService,
     private readonly eventEmitter: EventEmitter2,
     private readonly config: ConfigService,
+    private readonly trustScore: TrustScoreService,
   ) {}
 
   // ── Contribute ──────────────────────────────────────────────────────────────
@@ -52,16 +54,20 @@ export class PaymentsService {
     });
     if (!cycle) throw new NotFoundException('Cycle not found');
 
-    const member = await this.prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId: cycle.groupId, userId } },
+    // Find the specific member slot that has (or will have) a contribution for this cycle.
+    // With multi-slot, a user may have several GroupMember rows for the same group.
+    const existing = await this.prisma.contribution.findFirst({
+      where: { cycleId, member: { userId, groupId: cycle.groupId } },
+      include: { member: true },
+    });
+
+    // If no contribution record yet, fall back to the first active slot for this user/group.
+    const member = existing?.member ?? await this.prisma.groupMember.findFirst({
+      where: { groupId: cycle.groupId, userId, memberStatus: MemberStatus.ACTIVE },
     });
     if (!member || member.memberStatus !== MemberStatus.ACTIVE) {
       throw new ForbiddenException('Not an active member of this group');
     }
-
-    const existing = await this.prisma.contribution.findUnique({
-      where: { cycleId_memberId: { cycleId, memberId: member.id } },
-    });
 
     if (existing?.status === ContribStatus.PAID) {
       throw new BadRequestException('Contribution for this cycle is already paid');
@@ -195,6 +201,17 @@ export class PaymentsService {
     } satisfies ContributionReceivedEvent);
     this.emitMemberContributed(userId, cycle.groupId, cycle.group.name, contributionAmountNgn).catch(() => null);
 
+    // Trust score: on-time vs late
+    const paidAt = new Date();
+    const isOnTime = paidAt <= cycle.dueDate;
+    const scoreEventType = isOnTime ? 'ON_TIME_CONTRIBUTION' as const : 'LATE_CONTRIBUTION' as const;
+    const scoreDelta = isOnTime ? 5 : -5;
+    this.trustScore.applyScoreEvent(
+      userId, scoreEventType, scoreDelta,
+      `${isOnTime ? 'On-time' : 'Late'} contribution — ${cycle.group.name}`,
+      { groupId: cycle.groupId, contributionId: contributionId! },
+    ).catch(() => null);
+
     const unpaid = await this.prisma.contribution.count({
       where: { cycleId, status: { not: ContribStatus.PAID } },
     });
@@ -324,6 +341,17 @@ export class PaymentsService {
       };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.CONTRIBUTION_RECEIVED, evt);
       this.emitMemberContributed(contribution.member.userId, cycle.groupId, cycle.group.name, amountNgn).catch(() => null);
+
+      // Trust score: on-time vs late
+      const paidAt = new Date();
+      const isOnTime = paidAt <= cycle.dueDate;
+      this.trustScore.applyScoreEvent(
+        contribution.member.userId,
+        isOnTime ? 'ON_TIME_CONTRIBUTION' : 'LATE_CONTRIBUTION',
+        isOnTime ? 5 : -5,
+        `${isOnTime ? 'On-time' : 'Late'} contribution — ${cycle.group.name}`,
+        { groupId: cycle.groupId, contributionId: contribution.id },
+      ).catch(() => null);
     }
 
     const unpaid = await this.prisma.contribution.count({

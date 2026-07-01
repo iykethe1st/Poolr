@@ -31,7 +31,7 @@ interface InviteFormProps {
 
 export function InviteForm({ groupId, groupName }: InviteFormProps) {
   const { mutateAsync, isPending } = useInviteMember(groupId);
-  const [success, setSuccess] = useState<{ message: string; token: string } | null>(null);
+  const [success, setSuccess] = useState<{ message: string; slotCount: number; token: string } | null>(null);
   const [serverError, setServerError] = useState('');
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
@@ -151,6 +151,11 @@ export function InviteForm({ groupId, groupName }: InviteFormProps) {
           <div className="flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-200">
             <CheckCircle2 className="size-4" />
             {success.message}
+            {success.slotCount > 1 && (
+              <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs dark:bg-emerald-900">
+                {success.slotCount} slots
+              </span>
+            )}
           </div>
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">
