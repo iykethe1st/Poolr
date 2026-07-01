@@ -17,7 +17,10 @@ export interface DojahWebhookData {
 @Injectable()
 export class DojahService {
   private readonly logger = new Logger(DojahService.name);
-  private readonly baseUrl = 'https://api.dojah.io';
+  private readonly baseUrl =
+    this.config.get('DOJAH_ENV') === 'production'
+      ? 'https://api.dojah.io'
+      : 'https://sandbox.dojah.io';
 
   constructor(private readonly config: ConfigService) {}
 

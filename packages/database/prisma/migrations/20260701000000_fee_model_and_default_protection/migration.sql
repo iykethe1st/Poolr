@@ -9,13 +9,6 @@ ALTER TABLE "contributions" ADD COLUMN IF NOT EXISTS "total_charged" DECIMAL(12,
 -- ── 2. Add soft-delete to groups ─────────────────────────────────────────────
 ALTER TABLE "groups" ADD COLUMN IF NOT EXISTS "deleted_at" TIMESTAMP(3);
 
--- ── 3. Add payout-held columns to cycles ─────────────────────────────────────
-ALTER TABLE "cycles" ADD COLUMN IF NOT EXISTS "payout_held" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "cycles" ADD COLUMN IF NOT EXISTS "payout_held_reason" TEXT;
-
--- ── 4. Add group terms acceptance timestamp to group_members ─────────────────
-ALTER TABLE "group_members" ADD COLUMN IF NOT EXISTS "group_terms_accepted_at" TIMESTAMP(3);
-
 -- ── 3. ContributionFee table ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "contribution_fees" (
   "id"                  TEXT NOT NULL,
