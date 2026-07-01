@@ -21,3 +21,4 @@ minimumReleaseAgeExclude:
   - '@nestjs/core@11.1.25'
   - '@nestjs/platform-express@11.1.25'
   - '@nestjs/testing@11.1.25'
+  - expo-build-properties@56.0.20

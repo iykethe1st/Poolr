@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   ActivityIndicator,
   Alert,
@@ -91,7 +92,7 @@ export default function GroupDetailScreen() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<"card" | "wallet">("card");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [dateInput, setDateInput] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -250,16 +251,11 @@ export default function GroupDetailScreen() {
   const canStart =
     isAdmin && isDraft && activeMembers.length >= 2 && !!group.startDate;
 
-  async function handleSaveDate() {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-      Alert.alert(
-        "Invalid date",
-        "Enter a date as YYYY-MM-DD, e.g. 2025-08-01",
-      );
-      return;
-    }
+  async function handleSaveDate(date?: Date) {
+    const d = date ?? selectedDate;
+    const dateStr = d.toISOString().split("T")[0];
     updateGroup.mutate(
-      { startDate: dateInput },
+      { startDate: dateStr },
       {
         onSuccess: () => setDatePickerOpen(false),
         onError: async (err: unknown) => {
@@ -581,14 +577,29 @@ export default function GroupDetailScreen() {
       {/* Admin self-slot control */}
       {isAdmin && isDraft && (
         <View style={styles.slotControlCard}>
-          <Text style={styles.slotControlTitle}>Your slots</Text>
-          <Text style={styles.slotControlSub}>
-            Reserve multiple positions in the rotation for yourself.
-          </Text>
+          {/* Header */}
+          <View style={styles.slotControlHeader}>
+            <View style={styles.slotControlIconWrap}>
+              <MaterialCommunityIcons
+                name="hand-coin"
+                size={18}
+                color={colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.slotControlTitle}>Your rotation slots</Text>
+              <Text style={styles.slotControlSub}>
+                You receive a payout once per slot you hold.
+              </Text>
+            </View>
+          </View>
+
+          {/* Slot picker */}
           <View style={styles.slotControlRow}>
             {([1, 2, 3] as const).map((n) => {
               const wouldFit = totalSlots - mySlots + n <= group.maxMembers;
               const isSelected = n === mySlots;
+              const isLoading = updateMySlots.isPending && isSelected;
               const disabled = !wouldFit || updateMySlots.isPending;
               return (
                 <TouchableOpacity
@@ -618,20 +629,53 @@ export default function GroupDetailScreen() {
                   disabled={disabled && !isSelected}
                   activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.slotOptionText,
-                      isSelected && styles.slotOptionTextSelected,
-                      disabled && !isSelected && styles.slotOptionTextDisabled,
-                    ]}
-                  >
-                    {n}
-                  </Text>
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Text
+                        style={[
+                          styles.slotOptionNum,
+                          isSelected && styles.slotOptionTextSelected,
+                          disabled &&
+                            !isSelected &&
+                            styles.slotOptionTextDisabled,
+                        ]}
+                      >
+                        {n}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.slotOptionLabel,
+                          isSelected && styles.slotOptionTextSelected,
+                          disabled &&
+                            !isSelected &&
+                            styles.slotOptionTextDisabled,
+                        ]}
+                      >
+                        {n === 1 ? "slot" : "slots"}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               );
             })}
+          </View>
+
+          {/* Progress bar */}
+          <View style={styles.slotControlFooter}>
+            <View style={styles.slotControlProgress}>
+              <View
+                style={[
+                  styles.slotControlProgressFill,
+                  {
+                    width: `${Math.round((totalSlots / group.maxMembers) * 100)}%`,
+                  },
+                ]}
+              />
+            </View>
             <Text style={styles.slotControlHint}>
-              {group.maxMembers - totalSlots + mySlots} open
+              {totalSlots}/{group.maxMembers} spots taken
             </Text>
           </View>
         </View>
@@ -752,10 +796,8 @@ export default function GroupDetailScreen() {
             <TouchableOpacity
               style={styles.startCardEditBtn}
               onPress={() => {
-                setDateInput(
-                  group.startDate
-                    ? new Date(group.startDate).toISOString().slice(0, 10)
-                    : "",
+                setSelectedDate(
+                  group.startDate ? new Date(group.startDate) : new Date(),
                 );
                 setDatePickerOpen(true);
               }}
@@ -902,62 +944,66 @@ export default function GroupDetailScreen() {
         )}
       </ScrollView>
 
-      {/* Date picker modal */}
+      {/* Date picker — Android shows system dialog, iOS shows bottom sheet */}
+      {datePickerOpen && Platform.OS === "android" && (
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="calendar"
+          minimumDate={new Date()}
+          onChange={(event, date) => {
+            setDatePickerOpen(false);
+            if (event.type === "set" && date) {
+              setSelectedDate(date);
+              handleSaveDate(date);
+            }
+          }}
+        />
+      )}
+
       <Modal
-        visible={datePickerOpen}
+        visible={datePickerOpen && Platform.OS === "ios"}
         transparent
         animationType="slide"
         onRequestClose={() => setDatePickerOpen(false)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: "rgba(0,0,0,0.4)" },
-            ]}
-            activeOpacity={1}
-            onPress={() => setDatePickerOpen(false)}
-          />
-          <View style={{ flex: 1, justifyContent: "flex-end" }}>
-            <View style={styles.datePickerSheet}>
-              <Text style={styles.datePickerTitle}>Set start date</Text>
-              <TextInput
-                style={styles.datePickerInput}
-                value={dateInput}
-                onChangeText={setDateInput}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
-                maxLength={10}
-                autoFocus
-              />
-              <Text style={styles.datePickerHint}>e.g. 2025-08-15</Text>
-              <TouchableOpacity
-                style={[
-                  styles.datePickerSave,
-                  updateGroup.isPending && { opacity: 0.6 },
-                ]}
-                onPress={handleSaveDate}
-                disabled={updateGroup.isPending}
-              >
-                {updateGroup.isPending ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.datePickerSaveText}>Save</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.datePickerCancel}
-                onPress={() => setDatePickerOpen(false)}
-              >
-                <Text style={styles.datePickerCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+        <TouchableOpacity
+          style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.4)" }]}
+          activeOpacity={1}
+          onPress={() => setDatePickerOpen(false)}
+        />
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <View style={styles.datePickerSheet}>
+            <Text style={styles.datePickerTitle}>Set start date</Text>
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="inline"
+              minimumDate={new Date()}
+              onChange={(_event, date) => {
+                if (date) setSelectedDate(date);
+              }}
+              style={{ alignSelf: "stretch" }}
+            />
+            <TouchableOpacity
+              style={[styles.datePickerSave, updateGroup.isPending && { opacity: 0.6 }]}
+              onPress={() => handleSaveDate()}
+              disabled={updateGroup.isPending}
+            >
+              {updateGroup.isPending ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.datePickerSaveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.datePickerCancel}
+              onPress={() => setDatePickerOpen(false)}
+            >
+              <Text style={styles.datePickerCancelText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Invite modal */}
@@ -1319,7 +1365,7 @@ function MembersTab({
                   <MaterialCommunityIcons
                     name="hand-coin"
                     size={12}
-                    color={colors.primaryLight}
+                    color={colors.primary}
                   />
                   <Text style={styles.slotsBadgeText}>{slots}</Text>
                 </View>
@@ -2086,7 +2132,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     slotsBadgeText: {
       fontSize: 11,
       fontWeight: "700",
-      color: colors.primaryLight,
+      color: colors.primary,
     },
     offerSlotBtn: {
       flexDirection: "row",
@@ -2203,33 +2249,62 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       marginHorizontal: 16,
       marginVertical: 8,
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: 16,
+      padding: 16,
       borderWidth: 1,
       borderColor: colors.border,
-      gap: 8,
+      gap: 14,
+    },
+    slotControlHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+    slotControlIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.primaryBg,
+      alignItems: "center",
+      justifyContent: "center",
     },
     slotControlTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-    slotControlSub: { fontSize: 12, color: colors.textMuted },
-    slotControlRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    slotControlSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    slotControlRow: { flexDirection: "row", gap: 10 },
     slotOption: {
-      width: 44,
-      height: 44,
-      borderRadius: 10,
+      flex: 1,
+      height: 64,
+      borderRadius: 12,
       borderWidth: 2,
       borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
+      gap: 2,
     },
     slotOptionSelected: {
       borderColor: colors.primary,
       backgroundColor: colors.primary,
     },
     slotOptionDisabled: { opacity: 0.35 },
+    slotOptionNum: { fontSize: 20, fontWeight: "800", color: colors.text },
+    slotOptionLabel: {
+      fontSize: 11,
+      fontWeight: "500",
+      color: colors.textMuted,
+    },
     slotOptionText: { fontSize: 15, fontWeight: "700", color: colors.text },
     slotOptionTextSelected: { color: "#fff" },
     slotOptionTextDisabled: { color: colors.textMuted },
-    slotControlHint: { fontSize: 12, color: colors.textMuted, marginLeft: 4 },
+    slotControlFooter: { flexDirection: "row", alignItems: "center", gap: 10 },
+    slotControlProgress: {
+      flex: 1,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      overflow: "hidden",
+    },
+    slotControlProgressFill: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.primary,
+    },
+    slotControlHint: { fontSize: 11, color: colors.textMuted },
 
     slotOfferBanner: {
       flexDirection: "row",

@@ -166,17 +166,30 @@ function AdminSlotCard({
     });
   }
 
+  const spotsRemaining = maxMembers - totalSlots + currentSlots;
+  const fillPct = Math.round((totalSlots / maxMembers) * 100);
+
   return (
-    <div className="rounded-xl border bg-card px-4 py-4 shadow-sm space-y-3">
-      <div>
-        <p className="text-sm font-semibold">Your slots</p>
-        <p className="text-xs text-muted-foreground">
-          Reserve multiple positions in the rotation for yourself.
-        </p>
+    <div className="rounded-xl border bg-card px-4 py-5 shadow-sm space-y-4">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+          <HandCoins className="size-4 text-primary" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold">Your rotation slots</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            You receive a payout once per slot you hold.
+          </p>
+        </div>
       </div>
+
+      {/* Slot picker */}
       <div className="flex gap-2">
         {SLOT_OPTIONS.map((n) => {
           const disabled = !availableAfterMe(n) || update.isPending;
+          const isSelected = n === currentSlots;
+          const isLoading = update.isPending && isSelected;
           return (
             <button
               key={n}
@@ -184,26 +197,45 @@ function AdminSlotCard({
               disabled={disabled}
               onClick={() => handleSelect(n)}
               className={cn(
-                'flex h-10 w-14 items-center justify-center rounded-lg border-2 text-sm font-semibold transition-all',
-                n === currentSlots
+                'flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 py-3 transition-all',
+                isSelected
                   ? 'border-primary bg-primary text-primary-foreground'
                   : disabled
                   ? 'cursor-not-allowed border-border opacity-40'
-                  : 'border-border hover:border-primary/60 hover:bg-primary/5',
+                  : 'border-border hover:border-primary/50 hover:bg-primary/5',
               )}
             >
-              {update.isPending && n === currentSlots ? (
-                <Loader2 className="size-3.5 animate-spin" />
+              {isLoading ? (
+                <Loader2 className="size-4 animate-spin" />
               ) : (
-                n
+                <>
+                  <span className="text-xl font-extrabold leading-none">{n}</span>
+                  <span className={cn('text-[10px] font-medium', isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+                    {n === 1 ? 'slot' : 'slots'}
+                  </span>
+                </>
               )}
             </button>
           );
         })}
-        <p className="ml-2 self-center text-xs text-muted-foreground">
-          {maxMembers - totalSlots + currentSlots} slot{maxMembers - totalSlots + currentSlots !== 1 ? 's' : ''} still open
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-1.5">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{ width: `${fillPct}%` }}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {totalSlots}/{maxMembers} spots taken
+          {spotsRemaining > 0 && (
+            <span className="text-foreground font-medium"> · {spotsRemaining} still open</span>
+          )}
         </p>
       </div>
+
       {error && (
         <p className="flex items-center gap-1.5 text-xs text-destructive">
           <span className="font-medium">⚠</span> {error}

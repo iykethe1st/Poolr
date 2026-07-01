@@ -5,11 +5,13 @@ import { createHmac, timingSafeEqual } from 'crypto';
 export interface DojahVerification {
   verificationStatus: 'Completed' | 'Failed' | 'Ongoing' | 'Pending' | 'Abandoned';
   referenceId: string;
+  fullName?: string;
 }
 
 export interface DojahWebhookData {
   userId: string | null;
   verificationStatus: string;
+  fullName?: string;
 }
 
 @Injectable()
@@ -45,17 +47,36 @@ export class DojahService {
     }
 
     const data = (await res.json()) as {
-      entity?: { verification_status?: string; reference_id?: string };
+      entity?: {
+        verification_status?: string;
+        reference_id?: string;
+        full_name?: string;
+        first_name?: string;
+        last_name?: string;
+        government_data?: { first_name?: string; last_name?: string; full_name?: string };
+      };
       verification_status?: string;
     };
+
+    this.logger.log(`Dojah verification response keys: ${JSON.stringify(Object.keys(data.entity ?? {}))}`);
+    this.logger.log(`Dojah verification entity: ${JSON.stringify(data.entity)}`);
 
     const status = (data.entity?.verification_status ??
       data.verification_status ??
       'Ongoing') as DojahVerification['verificationStatus'];
 
+    const e = data.entity;
+    const fullName =
+      (e?.full_name ??
+      e?.government_data?.full_name ??
+      [e?.first_name ?? e?.government_data?.first_name, e?.last_name ?? e?.government_data?.last_name]
+        .filter(Boolean)
+        .join(' ')) || undefined;
+
     return {
       verificationStatus: status,
-      referenceId: data.entity?.reference_id ?? referenceId,
+      referenceId: e?.reference_id ?? referenceId,
+      fullName: fullName || undefined,
     };
   }
 
@@ -80,10 +101,16 @@ export class DojahService {
         entity?: {
           verification_status?: string;
           metadata?: { user_id?: string };
+          full_name?: string;
+          first_name?: string;
+          last_name?: string;
+          government_data?: { first_name?: string; last_name?: string; full_name?: string };
         };
         verification_status?: string;
         metadata?: { user_id?: string };
       };
+
+      this.logger.log(`Dojah webhook entity: ${JSON.stringify(payload.entity)}`);
 
       const verificationStatus =
         payload.entity?.verification_status ?? payload.verification_status ?? 'Ongoing';
@@ -91,7 +118,15 @@ export class DojahService {
       const userId =
         payload.entity?.metadata?.user_id ?? payload.metadata?.user_id ?? null;
 
-      return { userId, verificationStatus };
+      const e = payload.entity;
+      const fullName =
+        (e?.full_name ??
+        e?.government_data?.full_name ??
+        [e?.first_name ?? e?.government_data?.first_name, e?.last_name ?? e?.government_data?.last_name]
+          .filter(Boolean)
+          .join(' ')) || undefined;
+
+      return { userId, verificationStatus, fullName };
     } catch {
       return { userId: null, verificationStatus: 'Ongoing' };
     }

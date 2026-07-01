@@ -111,6 +111,13 @@ export class UsersService {
       },
     });
 
+    if (newStatus === KycStatus.VERIFIED && result.fullName) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { fullName: result.fullName },
+      });
+    }
+
     if (newStatus === KycStatus.VERIFIED) {
       // Check if this identity was previously flagged (banned user attempting re-registration)
       const kycNow = await this.prisma.kycProfile.findUnique({ where: { userId } });
@@ -145,7 +152,7 @@ export class UsersService {
     };
   }
 
-  async handleDojahWebhook(userId: string, verificationStatus: string) {
+  async handleDojahWebhook(userId: string, verificationStatus: string, fullName?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { kycProfile: true },
@@ -177,8 +184,15 @@ export class UsersService {
       },
     });
 
+    if (newStatus === KycStatus.VERIFIED && fullName) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { fullName },
+      });
+    }
+
     if (newStatus === KycStatus.VERIFIED) {
-      const evt: KycApprovedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
+      const evt: KycApprovedEvent = { userId: user.id, email: user.email, fullName: fullName ?? user.fullName };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_APPROVED, evt);
     } else {
       const evt: KycRejectedEvent = { userId: user.id, email: user.email, fullName: user.fullName };

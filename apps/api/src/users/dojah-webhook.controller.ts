@@ -32,11 +32,11 @@ export class DojahWebhookController {
       throw new BadRequestException('Invalid signature');
     }
 
-    const { userId, verificationStatus } = this.dojah.parseWebhookPayload(rawBody);
+    const { userId, verificationStatus, fullName } = this.dojah.parseWebhookPayload(rawBody);
 
     if (userId) {
-      this.logger.log(`Dojah webhook: userId=${userId} status=${verificationStatus}`);
-      await this.users.handleDojahWebhook(userId, verificationStatus);
+      this.logger.log(`Dojah webhook: userId=${userId} status=${verificationStatus} fullName=${fullName ?? '(none)'}`);
+      await this.users.handleDojahWebhook(userId, verificationStatus, fullName);
     } else {
       this.logger.warn('Dojah webhook received without user_id in metadata — skipping');
     }
