@@ -18,10 +18,10 @@ import { StatusBar } from 'expo-status-bar';
 const DOJAH_WIDGET_ID = process.env.EXPO_PUBLIC_DOJAH_WIDGET_ID ?? '';
 
 // Loaded at runtime so a dev build without the native module doesn't crash
-let launchDojahKyc: ((widgetId: string, refId: string, email: string) => Promise<void>) | null = null;
+let dojahSdk: { launch: (widgetId: string, refId: string | null, email: string | null) => Promise<string> } | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  launchDojahKyc = require('dojah-kyc-sdk-react-expo').launchDojahKyc;
+  dojahSdk = require('dojah-kyc-sdk-react-expo').default;
 } catch { /* native module not compiled into this build */ }
 
 const STEPS: Array<{ icon: React.ComponentProps<typeof Feather>['name']; label: string; desc: string }> = [
@@ -40,12 +40,23 @@ export default function KycScreen() {
 
   async function handleStart() {
     if (!me?.id) return;
-    if (launchDojahKyc && DOJAH_WIDGET_ID) {
+    if (dojahSdk && DOJAH_WIDGET_ID) {
+      // Defined outside try-catch so it's accessible in the catch block
+      const attemptRef = `${me.id}-${Date.now()}`;
       try {
-        await launchDojahKyc(DOJAH_WIDGET_ID, me.id, me.email);
-        router.replace({ pathname: '/kyc-callback', params: { status: 'success', reference_id: me.id } });
+        await dojahSdk.restoreInteractions().catch(() => {});
+        const result = await dojahSdk.launch(DOJAH_WIDGET_ID, attemptRef, me.email);
+        if (result === 'closed') {
+          // "closed" can mean genuine cancel OR SDK auto-dismissing after completion —
+          // always verify so a completed session isn't silently discarded.
+          router.replace({ pathname: '/kyc-callback', params: { status: 'success', reference_id: attemptRef } });
+        } else {
+          router.replace({ pathname: '/kyc-callback', params: { status: 'success', reference_id: attemptRef } });
+        }
       } catch {
-        router.replace({ pathname: '/kyc-callback', params: { status: 'error', reference_id: '' } });
+        // SDK threw — verification may still have completed (e.g. dismiss race condition).
+        // Ask the backend rather than immediately showing failure.
+        router.replace({ pathname: '/kyc-callback', params: { status: 'success', reference_id: attemptRef } });
       }
     } else {
       // Fallback for dev builds without native module compiled
