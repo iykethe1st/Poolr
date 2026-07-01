@@ -49,36 +49,36 @@ export class DojahService {
       throw new Error('Failed to fetch verification details from Dojah');
     }
 
+    // Dojah returns the entity fields at the top level (no 'entity' wrapper)
     const data = (await res.json()) as {
-      entity?: {
-        verification_status?: string;
-        reference_id?: string;
-        full_name?: string;
-        first_name?: string;
-        last_name?: string;
-        government_data?: { first_name?: string; last_name?: string; full_name?: string };
-      };
       verification_status?: string;
+      reference_id?: string;
+      data?: {
+        government_data?: {
+          data?: {
+            bvn?: { entity?: { first_name?: string; last_name?: string; middle_name?: string; full_name?: string } };
+            nin?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+            passport?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+          };
+        };
+      };
     };
 
-    this.logger.log(`Dojah verification response keys: ${JSON.stringify(Object.keys(data.entity ?? {}))}`);
-    this.logger.log(`Dojah verification entity: ${JSON.stringify(data.entity)}`);
+    this.logger.log(`Dojah verification entity: ${JSON.stringify(data)}`);
 
-    const status = (data.entity?.verification_status ??
-      data.verification_status ??
-      'Ongoing') as DojahVerification['verificationStatus'];
+    const status = (data.verification_status ?? 'Ongoing') as DojahVerification['verificationStatus'];
 
-    const e = data.entity;
+    const govData = data.data?.government_data?.data;
+    const idEntity = govData?.bvn?.entity ?? govData?.nin?.entity ?? govData?.passport?.entity;
+
     const fullName =
-      (e?.full_name ??
-      e?.government_data?.full_name ??
-      [e?.first_name ?? e?.government_data?.first_name, e?.last_name ?? e?.government_data?.last_name]
-        .filter(Boolean)
-        .join(' ')) || undefined;
+      (idEntity?.full_name ||
+      [idEntity?.first_name, idEntity?.last_name].filter(Boolean).join(' ')) ||
+      undefined;
 
     return {
       verificationStatus: status,
-      referenceId: e?.reference_id ?? referenceId,
+      referenceId: data.reference_id ?? referenceId,
       fullName: fullName || undefined,
     };
   }
