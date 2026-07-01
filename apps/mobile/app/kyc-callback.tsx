@@ -24,16 +24,38 @@ export default function KycCallbackScreen() {
       return;
     }
     if (status === 'success' && reference_id) {
-      verify.mutate(reference_id, {
-        onSuccess: (res) => {
-          setState(res.kycStatus === 'VERIFIED' ? 'success' : 'pending');
-          setTimeout(() => router.replace('/(tabs)/'), 2500);
-        },
-        onError: () => {
-          setState('pending');
-          setTimeout(() => router.replace('/(tabs)/'), 2500);
-        },
-      });
+      // Dojah needs a moment to record the Completed status after the SDK dismisses.
+      // Retry up to 4 times with 3s gaps before giving up and showing "under review".
+      let attempts = 0;
+      const MAX_ATTEMPTS = 4;
+      const RETRY_DELAY = 3000;
+
+      const attempt = () => {
+        attempts += 1;
+        verify.mutate(reference_id, {
+          onSuccess: (res) => {
+            if (res.kycStatus === 'VERIFIED') {
+              setState('success');
+              setTimeout(() => router.replace('/(tabs)/'), 2500);
+            } else if (attempts < MAX_ATTEMPTS) {
+              setTimeout(attempt, RETRY_DELAY);
+            } else {
+              setState('pending');
+              setTimeout(() => router.replace('/(tabs)/'), 2500);
+            }
+          },
+          onError: () => {
+            if (attempts < MAX_ATTEMPTS) {
+              setTimeout(attempt, RETRY_DELAY);
+            } else {
+              setState('pending');
+              setTimeout(() => router.replace('/(tabs)/'), 2500);
+            }
+          },
+        });
+      };
+
+      attempt();
     } else {
       setState('pending');
       setTimeout(() => router.replace('/(tabs)/'), 2500);
