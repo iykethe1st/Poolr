@@ -10,17 +10,9 @@ import {
   KycRejectedEvent,
 } from '../notifications/events/notification.events';
 import type { UpdateProfileDto } from './dto/update-profile.dto';
+import { getTier, getMaxSlotsEligible, TrustScoreService } from './trust-score.service';
 
 const MAX_KYC_ATTEMPTS = 3;
-
-export function computeTier(totalPaid: number, onTimePaid: number, totalPenalties: number): string {
-  if (totalPaid === 0) return 'NEW';
-  const rate = onTimePaid / totalPaid;
-  if (totalPaid >= 15 && rate === 1 && totalPenalties === 0) return 'PLATINUM';
-  if (totalPaid >= 10 && rate >= 0.9 && totalPenalties === 0) return 'GOLD';
-  if (totalPaid >= 5 && rate >= 0.75) return 'SILVER';
-  return 'BRONZE';
-}
 
 @Injectable()
 export class UsersService {
@@ -29,6 +21,7 @@ export class UsersService {
     private readonly dojah: DojahService,
     private readonly eventEmitter: EventEmitter2,
     private readonly defaultProtection: DefaultProtectionService,
+    private readonly trustScore: TrustScoreService,
   ) {}
 
   async getProfile(userId: string) {
@@ -44,12 +37,17 @@ export class UsersService {
     const totalPaid = paidContribs.length;
     const onTimePaid = paidContribs.filter((c) => c.paidAt && c.paidAt <= c.dueAt).length;
     const onTimeRate = totalPaid > 0 ? Math.round((onTimePaid / totalPaid) * 100) : 0;
-    const tier = computeTier(totalPaid, onTimePaid, totalPenalties);
+    const tier = getTier(user.trustScore);
+    const maxSlotsEligible = getMaxSlotsEligible(user.trustScore);
     const { passwordHash: _pw, ...profile } = user;
     return {
       ...profile,
-      contributionStats: { tier, totalPaid, onTimePaid, onTimeRate, totalPenalties },
+      contributionStats: { tier, totalPaid, onTimePaid, onTimeRate, totalPenalties, trustScore: user.trustScore, maxSlotsEligible },
     };
+  }
+
+  async getTrustScoreDetail(userId: string) {
+    return this.trustScore.getScoreDetail(userId);
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

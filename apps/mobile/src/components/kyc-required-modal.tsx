@@ -1,5 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/lib/colors';
 
 interface Props {
@@ -23,7 +24,9 @@ export function KycRequiredModal({ visible, onClose, redirectPath, context = 'cr
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.card} onPress={() => {}}>
-          <Text style={s.icon}>🪪</Text>
+          <View style={s.iconWrap}>
+            <Feather name="shield" size={28} color={colors.primary} />
+          </View>
           <Text style={s.title}>Identity verification required</Text>
           <Text style={s.body}>
             {context === 'join'
@@ -59,7 +62,15 @@ const styles = (colors: import('@/lib/colors').Colors) =>
       alignItems: 'center',
       gap: 8,
     },
-    icon: { fontSize: 48 },
+    iconWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 20,
+      backgroundColor: colors.primaryBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
     title: { fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center' },
     body: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 21, marginTop: 2, marginBottom: 8 },
     primaryBtn: {

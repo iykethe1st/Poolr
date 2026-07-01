@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +23,14 @@ import {
   useGroupDetail,
   useGroupHistory,
   useInviteMember,
+  useUpdateGroup,
+  useStartGroup,
+  useDeleteGroup,
+  useRemoveMember,
+  useUpdateMySlots,
+  useOfferSlot,
+  useAcceptInvite,
+  useDeclineInvite,
 } from "@/hooks/use-group";
 import {
   useInitializeContribution,
@@ -55,6 +64,14 @@ export default function GroupDetailScreen() {
   const verifyPayment = useVerifyPayment();
   const inviteMember = useInviteMember(id);
 
+  const updateGroup = useUpdateGroup(id);
+  const startGroup = useStartGroup(id);
+  const deleteGroup = useDeleteGroup(id);
+  const updateMySlots = useUpdateMySlots(id);
+  const offerSlot = useOfferSlot(id);
+  const acceptOffer = useAcceptInvite(id);
+  const declineOffer = useDeclineInvite(id);
+
   const activeCycleId = group?.cycles.find(
     (c) => c.status === "ACTIVE" || c.status === "IN_PROGRESS",
   )?.id;
@@ -70,22 +87,29 @@ export default function GroupDetailScreen() {
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(
     null,
   );
+  const [selectedMemberSlots, setSelectedMemberSlots] = useState(1);
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payMethod, setPayMethod] = useState<"card" | "wallet">("card");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateInput, setDateInput] = useState("");
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  function navigateToSuccess(amount: number | undefined, groupId: string | undefined, groupName: string | undefined) {
+  function navigateToSuccess(
+    amount: number | undefined,
+    groupId: string | undefined,
+    groupName: string | undefined,
+  ) {
     void refetch();
     void refetchHistory();
     router.replace({
-      pathname: '/payment-success',
+      pathname: "/payment-success",
       params: {
-        type: 'contribution',
-        amount: amount !== undefined ? String(amount) : '',
-        groupId: groupId ?? group?.id ?? '',
-        groupName: groupName ?? group?.name ?? '',
+        type: "contribution",
+        amount: amount !== undefined ? String(amount) : "",
+        groupId: groupId ?? group?.id ?? "",
+        groupName: groupName ?? group?.name ?? "",
       },
     } as never);
   }
@@ -112,7 +136,11 @@ export default function GroupDetailScreen() {
             const verified = await verifyPayment.mutateAsync(result.reference);
             if (verified.status === "success") {
               WebBrowser.dismissBrowser();
-              navigateToSuccess(verified.amount ?? result.totalChargedNgn, verified.groupId, verified.groupName);
+              navigateToSuccess(
+                verified.amount ?? result.totalChargedNgn,
+                verified.groupId,
+                verified.groupName,
+              );
               return;
             }
           } catch {
@@ -138,12 +166,22 @@ export default function GroupDetailScreen() {
         try {
           const verified = await verifyPayment.mutateAsync(ref);
           if (verified.status === "success") {
-            navigateToSuccess(verified.amount ?? result.totalChargedNgn, verified.groupId, verified.groupName);
+            navigateToSuccess(
+              verified.amount ?? result.totalChargedNgn,
+              verified.groupId,
+              verified.groupName,
+            );
           } else {
-            Alert.alert("Payment pending", "Payment is being processed. Check back shortly.");
+            Alert.alert(
+              "Payment pending",
+              "Payment is being processed. Check back shortly.",
+            );
           }
         } catch {
-          Alert.alert("Payment pending", "Payment is being processed. Check back shortly.");
+          Alert.alert(
+            "Payment pending",
+            "Payment is being processed. Check back shortly.",
+          );
         }
       }
     } catch (err: unknown) {
@@ -193,7 +231,106 @@ export default function GroupDetailScreen() {
 
   const myMember = group.members.find((m) => m.userId === me?.id);
   const isAdmin = me?.id === group.adminId;
-  const canInvite = isAdmin && group.status === "PENDING";
+  const isDraft = group.status === "DRAFT";
+  const totalSlots = group.members.filter((m) =>
+    ["ACTIVE", "INVITED"].includes(m.memberStatus),
+  ).length;
+  const canInvite = isAdmin && isDraft && totalSlots < group.maxMembers;
+  const myActiveSlots = group.members.filter(
+    (m) => m.userId === me?.id && m.memberStatus === "ACTIVE",
+  );
+  const mySlots = myActiveSlots.length;
+  const myPendingOffer = group.members.find(
+    (m) => m.userId === me?.id && m.memberStatus === "INVITED",
+  );
+  const hasSlotOffer = !isAdmin && mySlots > 0 && !!myPendingOffer;
+  const activeMembers = group.members.filter(
+    (m) => m.memberStatus === "ACTIVE",
+  );
+  const canStart =
+    isAdmin && isDraft && activeMembers.length >= 2 && !!group.startDate;
+
+  async function handleSaveDate() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      Alert.alert(
+        "Invalid date",
+        "Enter a date as YYYY-MM-DD, e.g. 2025-08-01",
+      );
+      return;
+    }
+    updateGroup.mutate(
+      { startDate: dateInput },
+      {
+        onSuccess: () => setDatePickerOpen(false),
+        onError: async (err: unknown) => {
+          const body =
+            err && typeof err === "object" && "response" in err
+              ? ((await (err as { response: Response }).response
+                  .json()
+                  .catch(() => ({}))) as { message?: string })
+              : {};
+          Alert.alert("Error", body.message ?? "Failed to save date.");
+        },
+      },
+    );
+  }
+
+  function handleStartGroup() {
+    const name = group?.name ?? "";
+    Alert.alert(
+      `Start "${name}"?`,
+      `This will lock the rotation and generate ${activeMembers.length} cycles. This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Start group",
+          style: "destructive",
+          onPress: () =>
+            startGroup.mutate(undefined, {
+              onError: async (err: unknown) => {
+                const body =
+                  err && typeof err === "object" && "response" in err
+                    ? ((await (err as { response: Response }).response
+                        .json()
+                        .catch(() => ({}))) as { message?: string })
+                    : {};
+                Alert.alert("Error", body.message ?? "Failed to start group.");
+              },
+            }),
+        },
+      ],
+    );
+  }
+  const canDelete = isAdmin && group.status !== "ACTIVE";
+
+  function handleDeleteGroup() {
+    const name = group?.name ?? "";
+    Alert.alert(
+      `Delete "${name}"?`,
+      "The group will be removed from all members' views. All records are preserved.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete group",
+          style: "destructive",
+          onPress: () =>
+            deleteGroup.mutate(undefined, {
+              onSuccess: () => router.replace("/(tabs)/groups" as never),
+              onError: async (err: unknown) => {
+                const body =
+                  err && typeof err === "object" && "response" in err
+                    ? ((await (err as { response: Response }).response
+                        .json()
+                        .catch(() => ({}))) as { message?: string })
+                    : {};
+                Alert.alert("Error", body.message ?? "Failed to delete group.");
+              },
+            }),
+        },
+      ],
+    );
+  }
+
   const activeCycle = group.cycles.find(
     (c) => c.status === "ACTIVE" || c.status === "IN_PROGRESS",
   );
@@ -268,7 +405,7 @@ export default function GroupDetailScreen() {
           const feeAmountNgn = canPayData?.fee_amount ?? 0;
           const penaltyAmountNgn = canPayData?.penalty_amount ?? 0;
           const totalAmountNgn =
-            canPayData?.total_amount ?? group.contributionAmount;
+            canPayData?.total_amount ?? Number(group.contributionAmount);
           const walletBalance = canPayData?.wallet_balance ?? 0;
           const canWallet = canPayData?.can_pay ?? false;
           const shortfallNgn = totalAmountNgn - walletBalance;
@@ -317,8 +454,20 @@ export default function GroupDetailScreen() {
                     </View>
                     {penaltyAmountNgn > 0 && (
                       <View style={styles.feeRow}>
-                        <Text style={[styles.feeRowLabel, { color: colors.destructive }]}>Late penalty</Text>
-                        <Text style={[styles.feeRowValue, { color: colors.destructive }]}>
+                        <Text
+                          style={[
+                            styles.feeRowLabel,
+                            { color: colors.destructive },
+                          ]}
+                        >
+                          Late penalty
+                        </Text>
+                        <Text
+                          style={[
+                            styles.feeRowValue,
+                            { color: colors.destructive },
+                          ]}
+                        >
                           {formatCurrency(penaltyAmountNgn)}
                         </Text>
                       </View>
@@ -429,8 +578,129 @@ export default function GroupDetailScreen() {
         </View>
       )}
 
-      {/* Invite banner — shown for admin on a PENDING group */}
-      {isAdmin && group.status === "PENDING" && (
+      {/* Admin self-slot control */}
+      {isAdmin && isDraft && (
+        <View style={styles.slotControlCard}>
+          <Text style={styles.slotControlTitle}>Your slots</Text>
+          <Text style={styles.slotControlSub}>
+            Reserve multiple positions in the rotation for yourself.
+          </Text>
+          <View style={styles.slotControlRow}>
+            {([1, 2, 3] as const).map((n) => {
+              const wouldFit = totalSlots - mySlots + n <= group.maxMembers;
+              const isSelected = n === mySlots;
+              const disabled = !wouldFit || updateMySlots.isPending;
+              return (
+                <TouchableOpacity
+                  key={n}
+                  style={[
+                    styles.slotOption,
+                    isSelected && styles.slotOptionSelected,
+                    disabled && !isSelected && styles.slotOptionDisabled,
+                  ]}
+                  onPress={() => {
+                    if (isSelected || disabled) return;
+                    updateMySlots.mutate(n, {
+                      onError: async (err: unknown) => {
+                        const body =
+                          err && typeof err === "object" && "response" in err
+                            ? ((await (err as { response: Response }).response
+                                .json()
+                                .catch(() => ({}))) as { message?: string })
+                            : {};
+                        Alert.alert(
+                          "Can't update slots",
+                          body.message ?? "Failed to update slot count.",
+                        );
+                      },
+                    });
+                  }}
+                  disabled={disabled && !isSelected}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.slotOptionText,
+                      isSelected && styles.slotOptionTextSelected,
+                      disabled && !isSelected && styles.slotOptionTextDisabled,
+                    ]}
+                  >
+                    {n}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            <Text style={styles.slotControlHint}>
+              {group.maxMembers - totalSlots + mySlots} open
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Slot offer banner — shown to member who has a pending extra slot */}
+      {hasSlotOffer && (
+        <View style={styles.slotOfferBanner}>
+          <View style={styles.slotOfferIconWrap}>
+            <MaterialCommunityIcons
+              name="hand-coin"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.slotOfferTitle}>Extra slot offered</Text>
+            <Text style={styles.slotOfferSub}>
+              The admin has offered you an additional position in this group.
+            </Text>
+          </View>
+          <View style={{ gap: 6 }}>
+            <TouchableOpacity
+              style={[
+                styles.slotOfferBtn,
+                (acceptOffer.isPending || declineOffer.isPending) && {
+                  opacity: 0.6,
+                },
+              ]}
+              onPress={() =>
+                acceptOffer.mutate(1, {
+                  onSuccess: () =>
+                    router.replace({
+                      pathname: "/payment-success",
+                      params: {
+                        type: "slot-accepted",
+                        groupId: id,
+                        groupName: group?.name ?? "",
+                      },
+                    } as never),
+                })
+              }
+              disabled={acceptOffer.isPending || declineOffer.isPending}
+            >
+              <Text style={styles.slotOfferBtnText}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                declineOffer.mutate(undefined, {
+                  onSuccess: () =>
+                    router.replace({
+                      pathname: "/payment-success",
+                      params: {
+                        type: "slot-declined",
+                        groupName: group?.name ?? "",
+                      },
+                    } as never),
+                })
+              }
+              disabled={acceptOffer.isPending || declineOffer.isPending}
+            >
+              <Text style={styles.slotOfferDecline}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Invite banner — shown for admin on a DRAFT group */}
+      {isAdmin && group.status === "DRAFT" && canInvite && (
         <View style={styles.inviteBanner}>
           <View style={styles.inviteBannerTop}>
             <View>
@@ -441,6 +711,7 @@ export default function GroupDetailScreen() {
                 {group.members.length} of {group.maxMembers} spots filled
               </Text>
             </View>
+
             <TouchableOpacity
               style={styles.inviteBannerBtn}
               onPress={openInvite}
@@ -460,6 +731,79 @@ export default function GroupDetailScreen() {
             />
           </View>
         </View>
+      )}
+
+      {/* Start date + start group — admin only, DRAFT */}
+      {isAdmin && isDraft && (
+        <View style={styles.startCard}>
+          <View style={styles.startCardRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.startCardLabel}>Start date</Text>
+              <Text style={styles.startCardValue}>
+                {group.startDate
+                  ? new Date(group.startDate).toLocaleDateString("en-NG", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "Not set"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.startCardEditBtn}
+              onPress={() => {
+                setDateInput(
+                  group.startDate
+                    ? new Date(group.startDate).toISOString().slice(0, 10)
+                    : "",
+                );
+                setDatePickerOpen(true);
+              }}
+            >
+              <Text style={styles.startCardEditBtnText}>
+                {group.startDate ? "Change" : "Set date"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.startGroupBtn,
+              !canStart && styles.startGroupBtnDisabled,
+            ]}
+            onPress={handleStartGroup}
+            disabled={!canStart || startGroup.isPending}
+            activeOpacity={0.8}
+          >
+            {startGroup.isPending ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.startGroupBtnText}>
+                {!group.startDate
+                  ? "Set a start date first"
+                  : activeMembers.length < 2
+                    ? "Need at least 2 active members"
+                    : "Start group"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Delete group — admin only, not while ACTIVE */}
+      {canDelete && (
+        <TouchableOpacity
+          style={styles.deleteGroupBtn}
+          onPress={handleDeleteGroup}
+          disabled={deleteGroup.isPending}
+          activeOpacity={0.7}
+        >
+          {deleteGroup.isPending ? (
+            <ActivityIndicator color={colors.destructive} size="small" />
+          ) : (
+            <Text style={styles.deleteGroupBtnText}>Delete group</Text>
+          )}
+        </TouchableOpacity>
       )}
 
       {/* Tabs */}
@@ -503,16 +847,52 @@ export default function GroupDetailScreen() {
         }
       >
         {tab === "cycles" && (
-          <CyclesTab
-            cycles={group.cycles}
-            myMemberId={myMember?.id}
-          />
+          <CyclesTab cycles={group.cycles} myMemberId={myMember?.id} />
         )}
         {tab === "members" && (
           <MembersTab
             members={group.members}
             history={history}
-            onSelectMember={setSelectedMember}
+            groupId={group.id}
+            groupStatus={group.status}
+            isAdmin={isAdmin}
+            isDraft={isDraft}
+            adminId={group.adminId}
+            currentUserId={me?.id}
+            maxMembers={group.maxMembers}
+            totalSlots={totalSlots}
+            onSelectMember={(m, slots) => {
+              setSelectedMember(m);
+              setSelectedMemberSlots(slots);
+            }}
+            onOfferSlot={(userId, memberName) => {
+              Alert.alert(
+                "Offer extra slot",
+                `Offer an additional rotation slot to ${memberName}? They'll need to accept it before it's confirmed.`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Send offer",
+                    onPress: () =>
+                      offerSlot.mutate(userId, {
+                        onSuccess: () => void refetch(),
+                        onError: async (err: unknown) => {
+                          const body =
+                            err && typeof err === "object" && "response" in err
+                              ? ((await (err as { response: Response }).response
+                                  .json()
+                                  .catch(() => ({}))) as { message?: string })
+                              : {};
+                          Alert.alert(
+                            "Can't offer slot",
+                            body.message ?? "Failed to offer slot.",
+                          );
+                        },
+                      }),
+                  },
+                ],
+              );
+            }}
           />
         )}
         {tab === "activity" && <ActivityTab history={history} />}
@@ -521,6 +901,64 @@ export default function GroupDetailScreen() {
           <PenaltiesTab penalties={history?.penalties ?? []} />
         )}
       </ScrollView>
+
+      {/* Date picker modal */}
+      <Modal
+        visible={datePickerOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDatePickerOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: "rgba(0,0,0,0.4)" },
+            ]}
+            activeOpacity={1}
+            onPress={() => setDatePickerOpen(false)}
+          />
+          <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            <View style={styles.datePickerSheet}>
+              <Text style={styles.datePickerTitle}>Set start date</Text>
+              <TextInput
+                style={styles.datePickerInput}
+                value={dateInput}
+                onChangeText={setDateInput}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                maxLength={10}
+                autoFocus
+              />
+              <Text style={styles.datePickerHint}>e.g. 2025-08-15</Text>
+              <TouchableOpacity
+                style={[
+                  styles.datePickerSave,
+                  updateGroup.isPending && { opacity: 0.6 },
+                ]}
+                onPress={handleSaveDate}
+                disabled={updateGroup.isPending}
+              >
+                {updateGroup.isPending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.datePickerSaveText}>Save</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.datePickerCancel}
+                onPress={() => setDatePickerOpen(false)}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Invite modal */}
       <Modal
@@ -645,6 +1083,7 @@ export default function GroupDetailScreen() {
       {selectedMember && (
         <MemberProfileSheet
           member={selectedMember}
+          slots={selectedMemberSlots}
           history={history}
           onClose={() => setSelectedMember(null)}
         />
@@ -780,26 +1219,78 @@ function CycleBadge({ status }: { status: string }) {
 function MembersTab({
   members,
   history,
+  groupId,
+  groupStatus,
+  isAdmin,
+  isDraft,
+  adminId,
+  currentUserId,
+  maxMembers,
+  totalSlots,
   onSelectMember,
+  onOfferSlot,
 }: {
   members: GroupMember[];
   history: GroupHistory | undefined;
-  onSelectMember: (m: GroupMember) => void;
+  groupId: string;
+  groupStatus: string;
+  isAdmin: boolean;
+  isDraft: boolean;
+  adminId: string;
+  currentUserId?: string;
+  maxMembers: number;
+  totalSlots: number;
+  onSelectMember: (m: GroupMember, slots: number) => void;
+  onOfferSlot: (userId: string, memberName: string) => void;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const removeMember = useRemoveMember(groupId);
+
+  const uniqueMembers = useMemo(() => {
+    const map = new Map<
+      string,
+      { member: GroupMember; slots: number; hasOffer: boolean }
+    >();
+    for (const m of members) {
+      const existing = map.get(m.userId);
+      if (existing) {
+        existing.slots += 1;
+        if (m.memberStatus === "INVITED") existing.hasOffer = true;
+      } else {
+        map.set(m.userId, {
+          member: m,
+          slots: 1,
+          hasOffer: m.memberStatus === "INVITED",
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [members]);
 
   if (members.length === 0) {
     return <EmptyState text="No members yet." />;
   }
   return (
     <View style={styles.list}>
-      {members.map((m) => {
+      {uniqueMembers.map(({ member: m, slots, hasOffer }) => {
+        const canOffer =
+          isAdmin &&
+          isDraft &&
+          m.userId !== adminId &&
+          !hasOffer &&
+          totalSlots < maxMembers &&
+          slots < 3;
+        const canRemove =
+          isAdmin &&
+          groupStatus !== "ACTIVE" &&
+          m.userId !== adminId &&
+          m.userId !== currentUserId;
         return (
           <TouchableOpacity
-            key={m.id}
+            key={m.userId}
             style={styles.memberRow}
-            onPress={() => onSelectMember(m)}
+            onPress={() => onSelectMember(m, slots)}
             activeOpacity={0.7}
           >
             <View style={styles.memberAvatar}>
@@ -808,13 +1299,85 @@ function MembersTab({
               </Text>
             </View>
             <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>{m.user.fullName}</Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Text style={styles.memberName}>{m.user.fullName}</Text>
+                {m.userId === adminId && (
+                  <View style={styles.adminBadge}>
+                    <Text style={styles.adminBadgeText}>Admin</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.memberEmail}>{m.user.email}</Text>
             </View>
-            <StatusBadge
-              label={m.memberStatus === "ACTIVE" ? "Active" : "Invited"}
-              variant={m.memberStatus === "ACTIVE" ? "success" : "warning"}
-            />
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              {slots > 1 && (
+                <View style={styles.slotsBadge}>
+                  <MaterialCommunityIcons
+                    name="hand-coin"
+                    size={12}
+                    color={colors.primaryLight}
+                  />
+                  <Text style={styles.slotsBadgeText}>{slots}</Text>
+                </View>
+              )}
+              {canOffer ? (
+                <TouchableOpacity
+                  style={styles.offerSlotBtn}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    onOfferSlot(m.userId, m.user.fullName);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name="hand-coin"
+                    size={12}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.offerSlotBtnText}>Offer slot</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  {m.memberStatus === "ACTIVE" ? (
+                    <></>
+                  ) : (
+                    <StatusBadge
+                      label={m.memberStatus === "ACTIVE" ? "Active" : "Invited"}
+                      variant={
+                        m.memberStatus === "ACTIVE" ? "success" : "warning"
+                      }
+                    />
+                  )}
+                </>
+              )}
+              {canRemove && (
+                <TouchableOpacity
+                  style={styles.removeMemberBtn}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    Alert.alert(
+                      "Remove member",
+                      `Remove ${m.user.fullName} from this group?`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Remove",
+                          style: "destructive",
+                          onPress: () => removeMember.mutate(m.id),
+                        },
+                      ],
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="trash-2" size={14} color={colors.dangerText} />
+                </TouchableOpacity>
+              )}
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -824,10 +1387,12 @@ function MembersTab({
 
 function MemberProfileSheet({
   member,
+  slots,
   history,
   onClose,
 }: {
   member: GroupMember;
+  slots: number;
   history: GroupHistory | undefined;
   onClose: () => void;
 }) {
@@ -884,6 +1449,23 @@ function MemberProfileSheet({
               ) : (
                 <StatusBadge label="Unverified" variant="danger" />
               )}
+              {slots > 1 && (
+                <View
+                  style={[
+                    styles.slotsBadge,
+                    { paddingHorizontal: 8, paddingVertical: 3 },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="hand-coin"
+                    size={13}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.slotsBadgeText, { fontSize: 12 }]}>
+                    {slots} slots
+                  </Text>
+                </View>
+              )}
               {tc && (
                 <View
                   style={[
@@ -892,16 +1474,20 @@ function MemberProfileSheet({
                       backgroundColor: tc.bg,
                       paddingHorizontal: 8,
                       paddingVertical: 3,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
                     },
                   ]}
                 >
+                  <Feather name={tc.icon} size={11} color={tc.color} />
                   <Text
                     style={[
                       styles.tierBadgeText,
                       { color: tc.color, fontSize: 12 },
                     ]}
                   >
-                    {tc.emoji} {tc.label}
+                    {tc.label}
                   </Text>
                 </View>
               )}
@@ -916,10 +1502,17 @@ function MemberProfileSheet({
                 <Text style={styles.profileRowIcon}>📞</Text>
                 <TouchableOpacity
                   onPress={() => Linking.openURL(`tel:${member.user.phone}`)}
-                  onLongPress={() => Share.share({ message: member.user.phone! })}
+                  onLongPress={() =>
+                    Share.share({ message: member.user.phone! })
+                  }
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.profileRowText, { textDecorationLine: "underline" }]}>
+                  <Text
+                    style={[
+                      styles.profileRowText,
+                      { textDecorationLine: "underline" },
+                    ]}
+                  >
                     {member.user.phone}
                   </Text>
                 </TouchableOpacity>
@@ -931,7 +1524,12 @@ function MemberProfileSheet({
                 onPress={() => Share.share({ message: member.user.email })}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.profileRowText, { textDecorationLine: "underline" }]}>
+                <Text
+                  style={[
+                    styles.profileRowText,
+                    { textDecorationLine: "underline" },
+                  ]}
+                >
                   {member.user.email}
                 </Text>
               </TouchableOpacity>
@@ -1120,7 +1718,8 @@ function PenaltiesTab({ penalties }: { penalties: GroupHistory["penalties"] }) {
                 {p.member.user.fullName}
               </Text>
               <Text style={styles.payoutMeta}>
-                {p.reason === 'MISSED_PAYMENT' ? 'Missed payment' : p.reason} · Cycle {p.contribution.cycle.cycleNumber}
+                {p.reason === "MISSED_PAYMENT" ? "Missed payment" : p.reason} ·
+                Cycle {p.contribution.cycle.cycleNumber}
               </Text>
             </View>
             <View style={{ alignItems: "flex-end", gap: 4 }}>
@@ -1473,6 +2072,47 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     memberPhone: { fontSize: 12, color: colors.textMuted },
     tierBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 99 },
     tierBadgeText: { fontSize: 10, fontWeight: "700" },
+    slotsBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 7,
+      paddingVertical: 3,
+      borderRadius: 99,
+      backgroundColor: colors.primaryBg,
+      borderWidth: 1,
+      borderColor: colors.primaryBorder,
+    },
+    slotsBadgeText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: colors.primaryLight,
+    },
+    offerSlotBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1.5,
+      borderColor: colors.primaryBorder,
+      backgroundColor: colors.primaryBg,
+    },
+    offerSlotBtnText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: colors.primary,
+    },
+    adminBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 99,
+      backgroundColor: colors.primaryBg,
+      borderWidth: 1,
+      borderColor: colors.primaryBorder,
+    },
+    adminBadgeText: { fontSize: 10, fontWeight: "700", color: colors.primary },
 
     profileHeader: { alignItems: "center", gap: 8, paddingBottom: 4 },
     profileAvatarLg: {
@@ -1559,6 +2199,79 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     payoutRecipient: { fontSize: 14, fontWeight: "600", color: colors.text },
     payoutMeta: { fontSize: 12, color: colors.textMuted },
 
+    slotControlCard: {
+      marginHorizontal: 16,
+      marginVertical: 8,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 8,
+    },
+    slotControlTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
+    slotControlSub: { fontSize: 12, color: colors.textMuted },
+    slotControlRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    slotOption: {
+      width: 44,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    slotOptionSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
+    },
+    slotOptionDisabled: { opacity: 0.35 },
+    slotOptionText: { fontSize: 15, fontWeight: "700", color: colors.text },
+    slotOptionTextSelected: { color: "#fff" },
+    slotOptionTextDisabled: { color: colors.textMuted },
+    slotControlHint: { fontSize: 12, color: colors.textMuted, marginLeft: 4 },
+
+    slotOfferBanner: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+      marginHorizontal: 16,
+      marginBottom: 8,
+      backgroundColor: colors.primaryBg,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.primaryBorder,
+    },
+    slotOfferIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    slotOfferTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    slotOfferSub: { fontSize: 12, color: colors.primaryTextMid },
+    slotOfferBtn: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    slotOfferBtnText: { fontSize: 13, fontWeight: "700", color: "#fff" },
+    slotOfferDecline: {
+      fontSize: 12,
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+
     emptyState: { paddingVertical: 40, alignItems: "center" },
     emptyStateText: { fontSize: 14, color: colors.textMuted },
 
@@ -1641,5 +2354,104 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       color: colors.textMuted,
       textDecorationLine: "underline",
     },
+
+    // Start date + start group card
+    startCard: {
+      marginHorizontal: 16,
+      marginBottom: 8,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 16,
+      gap: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    startCardRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    startCardLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 2 },
+    startCardValue: { fontSize: 15, fontWeight: "600", color: colors.text },
+    startCardEditBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.primaryBorder,
+      backgroundColor: colors.primaryBg,
+    },
+    startCardEditBtnText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.primaryText,
+    },
+    startGroupBtn: {
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    startGroupBtnDisabled: { opacity: 0.45 },
+    startGroupBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+    deleteGroupBtn: {
+      marginHorizontal: 16,
+      marginBottom: 8,
+      height: 44,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.dangerBorder,
+      backgroundColor: colors.dangerBg + "20",
+    },
+    deleteGroupBtnText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.dangerText,
+    },
+    removeMemberBtn: {
+      width: 28,
+      height: 28,
+      // borderRadius: 6,
+      // borderWidth: 1,
+      // borderColor: colors.dangerBorder,
+      backgroundColor: colors.dangerBg + "20",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    // Date picker modal
+    datePickerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 24,
+      gap: 16,
+    },
+    datePickerTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
+    datePickerInput: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.inputBg,
+      letterSpacing: 1,
+    },
+    datePickerHint: { fontSize: 12, color: colors.textMuted, marginTop: -8 },
+    datePickerSave: {
+      height: 46,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    datePickerSaveText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+    datePickerCancel: { alignItems: "center", paddingVertical: 8 },
+    datePickerCancelText: { fontSize: 14, color: colors.textMuted },
   });
 }

@@ -5,9 +5,10 @@ import { AdminService } from './admin.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { ProtectionModule } from '../protection/protection.module';
 import { PenaltiesModule } from '../penalties/penalties.module';
+import { GroupsModule } from '../groups/groups.module';
 
 @Module({
-  imports: [BullModule.registerQueue({ name: 'payout' }), PaymentsModule, ProtectionModule, PenaltiesModule],
+  imports: [BullModule.registerQueue({ name: 'payout' }), PaymentsModule, ProtectionModule, PenaltiesModule, GroupsModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

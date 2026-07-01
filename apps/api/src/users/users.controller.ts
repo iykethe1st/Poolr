@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Param,
   Patch,
   Post,
   UseGuards,
@@ -52,5 +53,18 @@ export class UsersController {
   @ApiOperation({ summary: 'Confirm Dojah KYC after widget success callback' })
   verifyKyc(@CurrentUser() user: AuthUser, @Body() dto: VerifyKycDto) {
     return this.users.verifyDojahKyc(user.id, dto.referenceId);
+  }
+
+  @Get('me/trust-score')
+  @ApiOperation({ summary: 'Get own trust score, tier, and recent score history' })
+  getMyTrustScore(@CurrentUser() user: AuthUser) {
+    return this.users.getTrustScoreDetail(user.id);
+  }
+
+  @Get(':id/trust-score')
+  @ApiOperation({ summary: 'Get another user trust score and tier (public — no event history)' })
+  async getUserTrustScore(@Param('id') id: string) {
+    const detail = await this.users.getTrustScoreDetail(id);
+    return { score: detail.score, tier: detail.tier };
   }
 }

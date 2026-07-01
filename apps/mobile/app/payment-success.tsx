@@ -9,7 +9,7 @@ export default function PaymentSuccessScreen() {
     amount?: string;
     groupName?: string;
     groupId?: string;
-    type?: 'contribution' | 'topup';
+    type?: 'contribution' | 'topup' | 'joined' | 'declined' | 'slot-accepted' | 'slot-declined';
   }>();
 
   const colors = useColors();
@@ -25,9 +25,13 @@ export default function PaymentSuccessScreen() {
     ]).start();
   }, []);
 
+  const isDeclined = type === 'declined' || type === 'slot-declined';
+
   function handleDone() {
     if (type === 'topup') {
       router.replace('/(tabs)/wallet');
+    } else if (type === 'declined' || type === 'slot-declined') {
+      router.replace('/(tabs)/');
     } else if (groupId) {
       router.replace(`/groups/${groupId}` as never);
     } else {
@@ -37,32 +41,50 @@ export default function PaymentSuccessScreen() {
 
   const amountNum = amount ? Number(amount) : undefined;
 
+  const title = (() => {
+    switch (type) {
+      case 'joined': return "You've joined!";
+      case 'declined': return 'Invite declined';
+      case 'slot-accepted': return 'Extra slot accepted!';
+      case 'slot-declined': return 'Slot offer declined';
+      case 'topup': return 'Top-up successful!';
+      default: return 'Payment successful!';
+    }
+  })();
+
+  const subtitle = (() => {
+    switch (type) {
+      case 'joined': return groupName ? `You're now a member of ${groupName}.` : "You're now a member.";
+      case 'declined': return groupName ? `You've declined the invite to ${groupName}.` : "Invite declined.";
+      case 'slot-accepted': return groupName ? `Your extra slot in ${groupName} is confirmed.` : 'Extra slot confirmed.';
+      case 'slot-declined': return 'The slot offer has been declined.';
+      case 'topup': return 'Your wallet has been credited.';
+      default: return groupName ? `Contribution to ${groupName} confirmed.` : undefined;
+    }
+  })();
+
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.iconWrap, { transform: [{ scale }] }]}>
-        <Text style={styles.icon}>✓</Text>
+      <Animated.View style={[
+        styles.iconWrap,
+        isDeclined && styles.iconWrapNeutral,
+        { transform: [{ scale }] },
+      ]}>
+        <Text style={[styles.icon, isDeclined && styles.iconNeutral]}>
+          {isDeclined ? '✕' : '✓'}
+        </Text>
       </Animated.View>
 
       <Animated.View style={[styles.content, { opacity }]}>
-        <Text style={styles.title}>
-          {type === 'topup' ? 'Top-up successful!' : 'Payment successful!'}
-        </Text>
+        <Text style={styles.title}>{title}</Text>
 
-        {amountNum !== undefined && (
+        {amountNum !== undefined && type !== 'joined' && type !== 'declined' && (
           <Text style={styles.amount}>{formatCurrency(amountNum)}</Text>
         )}
 
-        {groupName && type !== 'topup' && (
-          <Text style={styles.sub}>
-            Contribution to <Text style={{ fontWeight: '700' }}>{groupName}</Text> confirmed.
-          </Text>
-        )}
+        {subtitle && <Text style={styles.sub}>{subtitle}</Text>}
 
-        {type === 'topup' && (
-          <Text style={styles.sub}>Your wallet has been credited.</Text>
-        )}
-
-        <TouchableOpacity style={styles.btn} onPress={handleDone} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.btn, isDeclined && styles.btnNeutral]} onPress={handleDone} activeOpacity={0.85}>
           <Text style={styles.btnText}>Done</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -89,7 +111,10 @@ function createStyles(colors: import('@/lib/colors').Colors) {
       justifyContent: 'center',
       marginBottom: 8,
     },
+    iconWrapNeutral: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
     icon: { fontSize: 44, color: '#16a34a' },
+    iconNeutral: { color: colors.textMuted },
+    btnNeutral: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
     content: { alignItems: 'center', gap: 12, width: '100%' },
     title: { fontSize: 22, fontWeight: '800', color: colors.text, textAlign: 'center' },
     amount: { fontSize: 32, fontWeight: '800', color: colors.text },

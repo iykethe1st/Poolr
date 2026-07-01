@@ -21,6 +21,7 @@ import { AdminService } from './admin.service';
 import { FeeService } from '../payments/fee.service';
 import { DebtClearanceService } from '../protection/debt-clearance.service';
 import { PenaltiesService } from '../penalties/penalties.service';
+import { SlotService } from '../groups/slot.service';
 import { WaivePenaltyDto } from '../penalties/dto/waive-penalty.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -35,6 +36,7 @@ export class AdminController {
     private readonly feeService: FeeService,
     private readonly debtClearance: DebtClearanceService,
     private readonly penaltiesService: PenaltiesService,
+    private readonly slotService: SlotService,
   ) {}
 
   // ── Groups ────────────────────────────────────────────────────────────────
@@ -169,5 +171,14 @@ export class AdminController {
     @CurrentUser('id') adminId: string,
   ) {
     return this.debtClearance.adminLiftBan(userId, adminId);
+  }
+
+  // ── Multi-slot visibility ──────────────────────────────────────────────────
+
+  @Get('groups/:id/multi-slot-members')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'List members holding 2+ slots in a group (concentration risk)' })
+  getMultiSlotMembers(@Param('id') groupId: string) {
+    return this.slotService.getMultiSlotMembers(groupId);
   }
 }

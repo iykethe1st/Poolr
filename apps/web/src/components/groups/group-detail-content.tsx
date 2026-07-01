@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { HTTPError } from 'ky';
@@ -16,6 +16,7 @@ import {
   Clock,
   Copy,
   CreditCard,
+  HandCoins,
   Landmark,
   Loader2,
   Pencil,
@@ -423,23 +424,36 @@ function MembersTab({
   const current = allMembers.filter((m) => ['ACTIVE', 'INVITED'].includes(m.memberStatus));
   const former = allMembers.filter((m) => ['LEFT', 'REMOVED'].includes(m.memberStatus));
 
+  const uniqueCurrent = useMemo(() => {
+    const map = new Map<string, { member: typeof current[0]; slots: number }>();
+    for (const m of current) {
+      const existing = map.get(m.userId);
+      if (existing) {
+        existing.slots += 1;
+      } else {
+        map.set(m.userId, { member: m, slots: 1 });
+      }
+    }
+    return Array.from(map.values());
+  }, [current]);
+
   return (
     <div className="space-y-6">
       <div>
         <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Current members ({current.length})
+          Current members ({uniqueCurrent.length})
         </h3>
-        {current.length === 0 ? (
+        {uniqueCurrent.length === 0 ? (
           <EmptyState icon={Users} text="No current members" />
         ) : (
           <div className="space-y-2">
-            {current.map((m) => {
+            {uniqueCurrent.map(({ member: m, slots }) => {
               const stat = memberStats[m.id];
               const onTimeRate = stat && stat.paid > 0 ? Math.round((stat.onTime / stat.paid) * 100) : null;
               const isVerified = m.user.kycProfile?.kycStatus === 'VERIFIED';
               return (
                 <div
-                  key={m.id}
+                  key={m.userId}
                   className={[
                     'flex items-center gap-3 rounded-xl border bg-card px-4 py-3',
                     m.userId === currentUserId ? 'ring-1 ring-primary/30' : '',
@@ -462,16 +476,21 @@ function MembersTab({
                           Verified
                         </span>
                       )}
-                      {m.tier && m.tier !== 'NEW' && (
-                        <span className={[
+                      {m.tier && m.tier !== 'New' && (
+                        <span className={cn(
                           'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold',
-                          m.tier === 'PLATINUM' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400' :
-                          m.tier === 'GOLD'     ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-400' :
-                          m.tier === 'SILVER'   ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' :
+                          m.tier === 'Elite'    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-400' :
+                          m.tier === 'Reliable' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400' :
                                                   'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400',
-                        ].join(' ')}>
-                          {m.tier === 'PLATINUM' ? '💎' : m.tier === 'GOLD' ? '🥇' : m.tier === 'SILVER' ? '🥈' : '🥉'}{' '}
-                          {m.tier.charAt(0) + m.tier.slice(1).toLowerCase()}
+                        )}>
+                          {m.tier === 'Elite' ? '👑' : m.tier === 'Reliable' ? '🌟' : '⭐'}{' '}
+                          {m.tier}
+                        </span>
+                      )}
+                      {slots > 1 && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                          <HandCoins className="size-2.5" />
+                          {slots} slots
                         </span>
                       )}
                     </div>
@@ -1051,7 +1070,7 @@ function InviteBanner({ groupId }: { groupId: string }) {
 
   function handleAccept() {
     setError('');
-    accept.mutate(undefined, {
+    accept.mutate(1, {
       onSuccess: () => router.refresh(),
       onError: async (err) => {
         if (err instanceof HTTPError) {

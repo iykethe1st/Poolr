@@ -132,6 +132,15 @@ enum PaymentSource {
   WALLET
 }
 
+enum TrustScoreEventType {
+  ON_TIME_CONTRIBUTION
+  CYCLE_COMPLETED
+  CYCLE_COMPLETED_NO_MISSES_BONUS
+  LATE_CONTRIBUTION
+  ACCOUNT_FROZEN
+  ACCOUNT_BANNED
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -147,6 +156,8 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
+  trustScore   Int        @default(0) @map("trust_score")
+
   kycProfile        KycProfile?
   bankAccount       BankAccount?
   groupsAdminOf     Group[]        @relation("GroupAdmin")
@@ -159,6 +170,7 @@ model User {
   debts             Debt[]
   banRecords        BanRecord[]
   flaggedIdentity   FlaggedIdentity?
+  trustScoreEvents  TrustScoreEvent[]
 
   @@map("users")
 }
@@ -192,8 +204,11 @@ model Group {
   status             GroupStatus @default(DRAFT)
   startDate          DateTime?   @map("start_date")
   penaltyConfig      Json?       @map("penalty_config")
+  deletedAt          DateTime?   @map("deleted_at")
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  minTrustScore Int?          @map("min_trust_score")
 
   admin        User          @relation("GroupAdmin", fields: [adminId], references: [id])
   members      GroupMember[]
@@ -221,6 +236,7 @@ model GroupMember {
   id               String       @id @default(cuid())
   groupId          String       @map("group_id")
   userId           String       @map("user_id")
+  slotNumber       Int          @default(1) @map("slot_number")
   rotationPosition Int          @map("rotation_position")
   memberStatus     MemberStatus @default(INVITED) @map("member_status")
   joinedAt         DateTime     @default(now()) @map("joined_at")
@@ -232,7 +248,7 @@ model GroupMember {
   contributions Contribution[]
   penalties     Penalty[]
 
-  @@unique([groupId, userId])
+  @@unique([userId, groupId, slotNumber])
   @@unique([groupId, rotationPosition])
   @@map("group_members")
 }
@@ -439,4 +455,21 @@ model BanRecord {
   user User @relation(fields: [userId], references: [id])
 
   @@map("ban_records")
+}
+
+model TrustScoreEvent {
+  id             String              @id @default(cuid())
+  userId         String              @map("user_id")
+  eventType      TrustScoreEventType @map("event_type")
+  pointsDelta    Int                 @map("points_delta")
+  scoreBefore    Int                 @map("score_before")
+  scoreAfter     Int                 @map("score_after")
+  reason         String
+  groupId        String?             @map("group_id")
+  contributionId String?             @map("contribution_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trust_score_events")
 }

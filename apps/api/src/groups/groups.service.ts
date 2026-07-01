@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -28,7 +28,7 @@ import type { UpdateGroupDto } from './dto/update-group.dto';
 import type { InviteMemberDto } from './dto/invite-member.dto';
 import type { JoinGroupDto } from './dto/join-group.dto';
 import type { UpdatePositionDto } from './dto/update-position.dto';
-import { computeTier } from '../users/users.service';
+import { getTier, getMaxSlotsEligible } from '../users/trust-score.service';
 
 const INVITE_TTL = 60 * 60 * 24 * 7; // 7 days
 
@@ -63,6 +63,7 @@ export class GroupsService {
           currency: dto.currency ?? 'NGN',
           startDate: dto.startDate ? new Date(dto.startDate) : undefined,
           penaltyConfig: penaltyConfig as Prisma.InputJsonValue | undefined,
+          minTrustScore: dto.minTrustScore ?? null,
         },
       });
 
@@ -82,6 +83,7 @@ export class GroupsService {
   async findAll(userId: string) {
     return this.prisma.group.findMany({
       where: {
+        deletedAt: null,
         members: {
           some: {
             userId,
@@ -102,7 +104,7 @@ export class GroupsService {
 
   async findOne(groupId: string, userId: string) {
     const group = await this.prisma.group.findUnique({
-      where: { id: groupId },
+      where: { id: groupId, deletedAt: null },
       include: {
         groupAccount: true,
         members: {
@@ -121,33 +123,17 @@ export class GroupsService {
     const isMember = group.members.some((m) => m.userId === userId);
     if (!isMember) throw new ForbiddenException('Not a member of this group');
 
-    // Batch-compute cross-group contribution tier for all members
-    const memberUserIds = group.members.map((m) => m.userId);
-    const [paidContribs, penaltyCounts] = await Promise.all([
-      this.prisma.contribution.findMany({
-        where: { member: { userId: { in: memberUserIds } }, status: 'PAID' },
-        select: { paidAt: true, dueAt: true, member: { select: { userId: true } } },
-      }),
-      this.prisma.penalty.findMany({
-        where: { member: { userId: { in: memberUserIds } }, status: 'APPLIED' },
-        select: { member: { select: { userId: true } } },
-      }),
-    ]);
-    const tierStats: Record<string, { paid: number; onTime: number; penalties: number }> = {};
-    for (const c of paidContribs) {
-      const uid = c.member.userId;
-      if (!tierStats[uid]) tierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
-      tierStats[uid].paid++;
-      if (c.paidAt && c.paidAt <= c.dueAt) tierStats[uid].onTime++;
-    }
-    for (const p of penaltyCounts) {
-      const uid = p.member.userId;
-      if (!tierStats[uid]) tierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
-      tierStats[uid].penalties++;
-    }
+    // Fetch trust scores for all members and attach tier
+    const memberUserIds = [...new Set(group.members.map((m) => m.userId))];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: memberUserIds } },
+      select: { id: true, trustScore: true, status: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
     const membersWithTier = group.members.map((m) => {
-      const s = tierStats[m.userId] ?? { paid: 0, onTime: 0, penalties: 0 };
-      return { ...m, tier: computeTier(s.paid, s.onTime, s.penalties) };
+      const u = userMap.get(m.userId);
+      const score = u?.trustScore ?? 0;
+      return { ...m, tier: getTier(score), trustScore: score, userStatus: u?.status };
     });
 
     return { ...group, members: membersWithTier };
@@ -213,24 +199,42 @@ export class GroupsService {
       throw new ConflictException('Admin is already a member of this group');
     }
 
-    const existing = await this.prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId, userId: user.id } },
+    const existingSlots = await this.prisma.groupMember.findMany({
+      where: { groupId, userId: user.id, memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
     });
 
-    if (existing?.memberStatus === MemberStatus.ACTIVE || existing?.memberStatus === MemberStatus.INVITED) {
-      throw new ConflictException('User is already a member or has a pending invitation');
+    const userScore = await this.prisma.user.findUnique({ where: { id: user.id }, select: { trustScore: true } });
+    const maxSlots = getMaxSlotsEligible(userScore?.trustScore ?? 0);
+    const slotCount = (dto as { slotCount?: number }).slotCount ?? 1;
+
+    if (existingSlots.length + slotCount > maxSlots) {
+      throw new BadRequestException(
+        `User can hold at most ${maxSlots} slot(s) in this group based on their trust tier (${getTier(userScore?.trustScore ?? 0)}).`,
+      );
     }
 
-    const rotationPosition = currentCount + 1;
+    if (currentCount + slotCount > group.maxMembers) {
+      throw new BadRequestException('Not enough open slots to accommodate requested slot count');
+    }
 
-    const member = await this.prisma.groupMember.upsert({
-      where: { groupId_userId: { groupId, userId: user.id } },
-      create: { groupId, userId: user.id, rotationPosition, memberStatus: MemberStatus.INVITED },
-      update: { memberStatus: MemberStatus.INVITED, rotationPosition },
-    });
+    const nextSlotNumber = existingSlots.length + 1;
+    const createdMembers: { id: string }[] = [];
+
+    for (let i = 0; i < slotCount; i++) {
+      const m = await this.prisma.groupMember.create({
+        data: {
+          groupId,
+          userId: user.id,
+          slotNumber: nextSlotNumber + i,
+          rotationPosition: currentCount + 1 + i,
+          memberStatus: MemberStatus.INVITED,
+        },
+      });
+      createdMembers.push(m);
+    }
 
     const token = randomBytes(32).toString('hex');
-    await this.redis.set(`invite:${token}`, JSON.stringify({ groupId, memberId: member.id }), INVITE_TTL);
+    await this.redis.set(`invite:${token}`, JSON.stringify({ groupId, userId: user.id }), INVITE_TTL);
 
     const smsMessage = `You've been invited to join "${group.name}" on Poolr. Your invite code: ${token}`;
     const notifyPhone = dto.phone ?? user.phone;
@@ -253,87 +257,82 @@ export class GroupsService {
     };
     this.eventEmitter.emit(NOTIFICATION_EVENTS.GROUP_INVITED, evt);
 
-    return { message: 'Invitation sent', memberId: member.id, token };
+    return { message: 'Invitation sent', memberIds: createdMembers.map((m) => m.id), slotCount, token };
   }
 
-  private async assertUserCanJoin(userId: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+  private async assertUserCanJoin(userId: string, group?: { minTrustScore?: number | null }): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true, trustScore: true } });
     if (user?.status === UserStatus.BANNED) {
       throw new ForbiddenException('Your account has been banned. Contact support to resolve your outstanding debt.');
     }
     if (user?.status === UserStatus.FROZEN) {
       throw new ForbiddenException('Your account is frozen due to an outstanding debt. Please clear your debt first.');
     }
+    if (group?.minTrustScore != null && (user?.trustScore ?? 0) < group.minTrustScore) {
+      throw new ForbiddenException(
+        `This group requires a minimum trust score of ${group.minTrustScore}. Your current score is ${user?.trustScore ?? 0}.`,
+      );
+    }
   }
 
   async joinGroup(groupId: string, userId: string, dto: JoinGroupDto) {
-    await this.assertUserCanJoin(userId);
     const raw = await this.redis.get(`invite:${dto.token}`);
     if (!raw) throw new BadRequestException('Invalid or expired invitation token');
 
-    const { groupId: tokenGroupId, memberId } = JSON.parse(raw) as {
+    const { groupId: tokenGroupId, userId: tokenUserId } = JSON.parse(raw) as {
       groupId: string;
-      memberId: string;
+      userId: string;
     };
 
     if (tokenGroupId !== groupId) {
       throw new BadRequestException('Token does not belong to this group');
     }
+    if (tokenUserId !== userId) throw new ForbiddenException('This invitation is not for you');
 
-    const member = await this.prisma.groupMember.findUnique({ where: { id: memberId } });
-    if (!member) throw new NotFoundException('Invitation not found');
-    if (member.userId !== userId) throw new ForbiddenException('This invitation is not for you');
-    if (member.memberStatus !== MemberStatus.INVITED) {
-      throw new BadRequestException('Invitation has already been used');
-    }
-
-    await Promise.all([
-      this.prisma.groupMember.update({
-        where: { id: memberId },
-        data: { memberStatus: MemberStatus.ACTIVE },
-      }),
-      this.redis.del(`invite:${dto.token}`),
-    ]);
-
-    this.emitMemberJoined(groupId, userId).catch(() => null);
-
-    return { message: 'Joined group successfully' };
+    // Delegate to acceptInvite which handles slot creation + tier checks
+    const result = await this.acceptInvite(groupId, userId, dto.slotCount ?? 1);
+    await this.redis.del(`invite:${dto.token}`);
+    return result;
   }
 
-  async joinByToken(userId: string, token: string) {
-    await this.assertUserCanJoin(userId);
+  async joinByToken(userId: string, token: string, slotCount = 1) {
     const raw = await this.redis.get(`invite:${token}`);
     if (!raw) throw new BadRequestException('Invalid or expired invitation token');
 
-    const { groupId, memberId } = JSON.parse(raw) as { groupId: string; memberId: string };
+    const { groupId, userId: tokenUserId } = JSON.parse(raw) as { groupId: string; userId: string };
+    if (tokenUserId !== userId) throw new ForbiddenException('This invitation is not for you');
 
-    const member = await this.prisma.groupMember.findUnique({ where: { id: memberId } });
-    if (!member) throw new NotFoundException('Invitation not found');
-    if (member.userId !== userId) throw new ForbiddenException('This invitation is not for you');
-    if (member.memberStatus !== MemberStatus.INVITED) {
-      throw new BadRequestException('Invitation has already been used');
-    }
+    // Reuse acceptInvite logic (handles slot creation, tier check, activation)
+    const result = await this.acceptInvite(groupId, userId, slotCount);
+    await this.redis.del(`invite:${token}`);
 
-    await Promise.all([
-      this.prisma.groupMember.update({
-        where: { id: memberId },
-        data: { memberStatus: MemberStatus.ACTIVE },
-      }),
-      this.redis.del(`invite:${token}`),
-    ]);
-
-    this.emitMemberJoined(groupId, userId).catch(() => null);
-
-    return { message: 'Joined group successfully' };
+    return { ...result, message: 'Joined group successfully' };
   }
 
-  async acceptInvite(groupId: string, userId: string) {
-    await this.assertUserCanJoin(userId);
-    const member = await this.prisma.groupMember.findFirst({
+  async acceptInvite(groupId: string, userId: string, slotCount = 1) {
+    const group = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { minTrustScore: true, maxMembers: true },
+    });
+    await this.assertUserCanJoin(userId, group ?? undefined);
+
+    const userRow = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { trustScore: true },
+    });
+    const maxSlots = getMaxSlotsEligible(userRow?.trustScore ?? 0);
+    if (slotCount > maxSlots) {
+      throw new ForbiddenException(
+        `SLOT_LIMIT_EXCEEDED: Your trust tier allows at most ${maxSlots} slot(s). Reach Reliable tier (60+ score) to unlock a 2nd slot.`,
+      );
+    }
+
+    const pendingSlots = await this.prisma.groupMember.findMany({
       where: { groupId, userId, memberStatus: MemberStatus.INVITED },
+      orderBy: { slotNumber: 'asc' },
     });
 
-    if (!member) {
+    if (pendingSlots.length === 0) {
       const existing = await this.prisma.groupMember.findFirst({ where: { groupId, userId } });
       if (existing?.memberStatus === MemberStatus.ACTIVE) {
         throw new ConflictException('You are already a member of this group');
@@ -341,14 +340,155 @@ export class GroupsService {
       throw new NotFoundException('No pending invitation found');
     }
 
-    await this.prisma.groupMember.update({
-      where: { id: member.id },
+    // Remove excess slots if user wants fewer than were pre-created
+    if (slotCount < pendingSlots.length) {
+      const toRemove = pendingSlots.slice(slotCount);
+      await this.prisma.groupMember.deleteMany({ where: { id: { in: toRemove.map((m) => m.id) } } });
+    }
+
+    // Create additional slots if user wants more than were pre-created
+    if (slotCount > pendingSlots.length) {
+      const occupiedCount = await this.prisma.groupMember.count({
+        where: { groupId, memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
+      });
+      const additionalNeeded = slotCount - pendingSlots.length;
+      if (occupiedCount + additionalNeeded > (group?.maxMembers ?? 0)) {
+        throw new BadRequestException('Not enough open slots in this group for your request');
+      }
+      const maxRotation = await this.prisma.groupMember.aggregate({
+        where: { groupId },
+        _max: { rotationPosition: true },
+      });
+      let nextPosition = (maxRotation._max.rotationPosition ?? 0) + 1;
+      const nextSlotNumber = pendingSlots.length + 1;
+      for (let i = 0; i < additionalNeeded; i++) {
+        await this.prisma.groupMember.create({
+          data: {
+            groupId,
+            userId,
+            slotNumber: nextSlotNumber + i,
+            rotationPosition: nextPosition + i,
+            memberStatus: MemberStatus.INVITED,
+          },
+        });
+      }
+    }
+
+    await this.prisma.groupMember.updateMany({
+      where: { groupId, userId, memberStatus: MemberStatus.INVITED },
       data: { memberStatus: MemberStatus.ACTIVE },
     });
 
     this.emitMemberJoined(groupId, userId).catch(() => null);
 
-    return { message: 'Invitation accepted' };
+    return { message: 'Invitation accepted', slotCount };
+  }
+
+  async updateMySlots(groupId: string, userId: string, slotCount: number) {
+    const group = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { status: true, maxMembers: true },
+    });
+    if (!group) throw new NotFoundException('Group not found');
+    if (group.status !== GroupStatus.DRAFT) {
+      throw new ForbiddenException('Slot count can only be changed before the group starts');
+    }
+
+    const userRow = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { trustScore: true },
+    });
+    const maxSlots = getMaxSlotsEligible(userRow?.trustScore ?? 0);
+    if (slotCount > maxSlots) {
+      throw new ForbiddenException(
+        `Your trust tier allows at most ${maxSlots} slot(s).`,
+      );
+    }
+
+    const existingSlots = await this.prisma.groupMember.findMany({
+      where: { groupId, userId, memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
+      orderBy: { slotNumber: 'asc' },
+    });
+    if (existingSlots.length === 0) throw new NotFoundException('You are not a member of this group');
+
+    const currentCount = existingSlots.length;
+    if (slotCount === currentCount) return { message: 'No change', slotCount };
+
+    if (slotCount < currentCount) {
+      const toRemove = existingSlots.slice(slotCount);
+      await this.prisma.groupMember.deleteMany({ where: { id: { in: toRemove.map((m) => m.id) } } });
+    } else {
+      const totalOccupied = await this.prisma.groupMember.count({
+        where: { groupId, memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
+      });
+      const additionalNeeded = slotCount - currentCount;
+      if (totalOccupied + additionalNeeded > group.maxMembers) {
+        throw new BadRequestException('Not enough open slots in this group');
+      }
+      const maxRotation = await this.prisma.groupMember.aggregate({
+        where: { groupId },
+        _max: { rotationPosition: true },
+      });
+      const nextPosition = (maxRotation._max.rotationPosition ?? 0) + 1;
+      const nextSlotNumber = currentCount + 1;
+      for (let i = 0; i < additionalNeeded; i++) {
+        await this.prisma.groupMember.create({
+          data: {
+            groupId,
+            userId,
+            slotNumber: nextSlotNumber + i,
+            rotationPosition: nextPosition + i,
+            memberStatus: MemberStatus.ACTIVE,
+          },
+        });
+      }
+    }
+
+    return { message: 'Slot count updated', slotCount };
+  }
+
+  async offerSlot(groupId: string, adminId: string, targetUserId: string) {
+    const group = await this.ensureAdmin(groupId, adminId);
+    if (group.status !== GroupStatus.DRAFT) {
+      throw new ForbiddenException('Slots can only be offered before the group starts');
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { trustScore: true },
+    });
+    const maxSlots = getMaxSlotsEligible(targetUser?.trustScore ?? 0);
+
+    const existingSlots = await this.prisma.groupMember.findMany({
+      where: { groupId, userId: targetUserId, memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
+    });
+    if (existingSlots.length === 0) throw new NotFoundException('Member not found in this group');
+    if (existingSlots.length >= maxSlots) {
+      throw new ForbiddenException(`This member already holds the maximum slots for their tier (${maxSlots}).`);
+    }
+
+    const totalOccupied = await this.prisma.groupMember.count({
+      where: { groupId, memberStatus: { in: [MemberStatus.ACTIVE, MemberStatus.INVITED] } },
+    });
+    if (totalOccupied >= group.maxMembers) {
+      throw new BadRequestException('No open slots remaining in this group');
+    }
+
+    const maxRotation = await this.prisma.groupMember.aggregate({
+      where: { groupId },
+      _max: { rotationPosition: true },
+    });
+    await this.prisma.groupMember.create({
+      data: {
+        groupId,
+        userId: targetUserId,
+        slotNumber: existingSlots.length + 1,
+        rotationPosition: (maxRotation._max.rotationPosition ?? 0) + 1,
+        memberStatus: MemberStatus.INVITED,
+      },
+    });
+
+    return { message: 'Slot offer sent' };
   }
 
   async declineInvite(groupId: string, userId: string) {
@@ -366,11 +506,26 @@ export class GroupsService {
     return { message: 'Invitation declined' };
   }
 
+  async deleteGroup(groupId: string, adminId: string) {
+    const group = await this.ensureAdmin(groupId, adminId);
+
+    if (group.status === GroupStatus.ACTIVE) {
+      throw new ForbiddenException('Cannot delete an active group. End the group first.');
+    }
+
+    await this.prisma.group.update({
+      where: { id: groupId },
+      data: { deletedAt: new Date(), status: GroupStatus.CANCELLED },
+    });
+
+    return { message: 'Group deleted' };
+  }
+
   async removeMember(groupId: string, adminId: string, memberId: string) {
     const group = await this.ensureAdmin(groupId, adminId);
 
-    if (group.status === GroupStatus.ACTIVE || group.status === GroupStatus.COMPLETED) {
-      throw new ForbiddenException('Cannot remove members after group has started');
+    if (group.status === GroupStatus.ACTIVE) {
+      throw new ForbiddenException('Cannot remove members while the group is active');
     }
 
     const member = await this.prisma.groupMember.findFirst({ where: { id: memberId, groupId } });
@@ -468,7 +623,7 @@ export class GroupsService {
       activeMembers,
     );
 
-    // Provision dedicated virtual account (idempotent — skipped if already exists)
+    // Provision dedicated virtual account (idempotent â€” skipped if already exists)
     const existingAccount = await this.prisma.groupAccount.findUnique({ where: { groupId } });
     if (!existingAccount) {
       try {
@@ -545,33 +700,17 @@ export class GroupsService {
       }),
     ]);
 
-    // Batch-compute cross-group tier for each member
-    const histUserIds = allMembers.map((m) => m.userId);
-    const [histPaidContribs, histPenalties] = await Promise.all([
-      this.prisma.contribution.findMany({
-        where: { member: { userId: { in: histUserIds } }, status: 'PAID' },
-        select: { paidAt: true, dueAt: true, member: { select: { userId: true } } },
-      }),
-      this.prisma.penalty.findMany({
-        where: { member: { userId: { in: histUserIds } }, status: 'APPLIED' },
-        select: { member: { select: { userId: true } } },
-      }),
-    ]);
-    const histTierStats: Record<string, { paid: number; onTime: number; penalties: number }> = {};
-    for (const c of histPaidContribs) {
-      const uid = c.member.userId;
-      if (!histTierStats[uid]) histTierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
-      histTierStats[uid].paid++;
-      if (c.paidAt && c.paidAt <= c.dueAt) histTierStats[uid].onTime++;
-    }
-    for (const p of histPenalties) {
-      const uid = p.member.userId;
-      if (!histTierStats[uid]) histTierStats[uid] = { paid: 0, onTime: 0, penalties: 0 };
-      histTierStats[uid].penalties++;
-    }
+    // Fetch trust scores for all members
+    const histUserIds = [...new Set(allMembers.map((m) => m.userId))];
+    const histUsers = await this.prisma.user.findMany({
+      where: { id: { in: histUserIds } },
+      select: { id: true, trustScore: true, status: true },
+    });
+    const histUserMap = new Map(histUsers.map((u) => [u.id, u]));
     const allMembersWithTier = allMembers.map((m) => {
-      const s = histTierStats[m.userId] ?? { paid: 0, onTime: 0, penalties: 0 };
-      return { ...m, tier: computeTier(s.paid, s.onTime, s.penalties) };
+      const u = histUserMap.get(m.userId);
+      const score = u?.trustScore ?? 0;
+      return { ...m, tier: getTier(score), trustScore: score, userStatus: u?.status };
     });
 
     return {

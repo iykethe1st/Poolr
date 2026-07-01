@@ -46,4 +46,11 @@ export class CreateGroupDto {
   @ApiPropertyOptional({ example: true, description: 'Enable late-payment penalties (percentage configured via PENALTY_PERCENTAGE_DEFAULT env)' })
   @IsOptional()
   penaltyEnabled?: boolean;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100, description: 'Minimum trust score required to join this group (0 = open to all)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minTrustScore?: number;
 }

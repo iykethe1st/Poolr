@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import { useAuth } from "@/context/auth-context";
 import { useCurrentUser } from "@/hooks/use-dashboard";
 import {
@@ -73,9 +74,13 @@ export default function SettingsScreen() {
           ]}
         >
           <View style={styles.tierRow}>
-            <Text style={styles.tierEmoji}>
-              {tierConfig(me.contributionStats.tier).emoji}
-            </Text>
+            <View style={[styles.tierIconWrap, { backgroundColor: tierConfig(me.contributionStats.tier).color + '20' }]}>
+              <Feather
+                name={tierConfig(me.contributionStats.tier).icon}
+                size={18}
+                color={tierConfig(me.contributionStats.tier).color}
+              />
+            </View>
             <View style={styles.tierInfo}>
               <Text
                 style={[
@@ -101,21 +106,19 @@ export default function SettingsScreen() {
               )}
             </View>
           </View>
-          {me.contributionStats.tier !== "PLATINUM" && (
+          {me.contributionStats.tier !== "Elite" && (
             <Text
               style={[
                 styles.tierNext,
                 { color: tierConfig(me.contributionStats.tier).color },
               ]}
             >
-              {me.contributionStats.tier === "NEW" &&
-                "Pay 1 contribution to reach Bronze"}
-              {me.contributionStats.tier === "BRONZE" &&
-                `Pay ${Math.max(0, 5 - me.contributionStats.totalPaid)} more on time to reach Silver`}
-              {me.contributionStats.tier === "SILVER" &&
-                `Pay ${Math.max(0, 10 - me.contributionStats.totalPaid)} more (≥90% on time) for Gold`}
-              {me.contributionStats.tier === "GOLD" &&
-                `Pay ${Math.max(0, 15 - me.contributionStats.totalPaid)} more (100% on time) for Platinum`}
+              {me.contributionStats.tier === "New" &&
+                `Reach a trust score of 40 to become Trusted`}
+              {me.contributionStats.tier === "Trusted" &&
+                `Reach a trust score of 60 to become Reliable`}
+              {me.contributionStats.tier === "Reliable" &&
+                `Reach a trust score of 80 to become Elite`}
             </Text>
           )}
         </View>
@@ -139,9 +142,11 @@ export default function SettingsScreen() {
             disabled={kycStatus === "PENDING"}
             activeOpacity={0.8}
           >
-            <Text style={styles.kycRowIcon}>
-              {kycStatus === "PENDING" ? "⏳" : "🪪"}
-            </Text>
+            <View style={styles.kycRowIcon}>
+              {kycStatus === "PENDING"
+                ? <Feather name="clock" size={20} color="#92400e" />
+                : <Feather name="shield" size={20} color={colors.primary} />}
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.kycRowTitle}>
                 {kycStatus === "PENDING"
@@ -178,16 +183,18 @@ export default function SettingsScreen() {
             style={styles.supportRow}
             onPress={() => void Linking.openURL("mailto:support@poolr.app")}
           >
-            <Text style={styles.supportRowText}>✉️ Email support</Text>
-            <Text style={styles.supportRowArrow}>›</Text>
+            <Feather name="mail" size={16} color={colors.textMuted} />
+            <Text style={styles.supportRowText}>Email support</Text>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
           <View style={styles.supportDivider} />
           <TouchableOpacity
             style={styles.supportRow}
             onPress={() => void Linking.openURL("https://wa.me/2348000000000")}
           >
-            <Text style={styles.supportRowText}>💬 WhatsApp chat</Text>
-            <Text style={styles.supportRowArrow}>›</Text>
+            <FontAwesome5 name="whatsapp" size={16} color="#25D366" />
+            <Text style={styles.supportRowText}>WhatsApp support</Text>
+            <Feather name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       </View>
@@ -482,7 +489,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     profileEmail: { fontSize: 13, color: colors.textMuted },
     tierCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
     tierRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-    tierEmoji: { fontSize: 28 },
+    tierIconWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const },
     tierInfo: { flex: 1, gap: 2 },
     tierLabel: { fontSize: 15, fontWeight: "700" },
     tierStats: { fontSize: 12, color: colors.textMuted },
@@ -508,7 +515,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       backgroundColor: colors.warningBg,
       borderColor: colors.warning + "40",
     },
-    kycRowIcon: { fontSize: 28 },
+    kycRowIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' as const },
     kycRowTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
     kycRowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
     kycRowArrow: { fontSize: 22, color: colors.textMuted },
@@ -522,12 +529,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     supportRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
+      gap: 10,
       paddingHorizontal: 14,
       paddingVertical: 14,
     },
-    supportRowText: { fontSize: 14, color: colors.text },
-    supportRowArrow: { fontSize: 18, color: colors.textMuted },
+    supportRowText: { flex: 1, fontSize: 14, color: colors.text },
     supportDivider: {
       height: 1,
       backgroundColor: colors.border,

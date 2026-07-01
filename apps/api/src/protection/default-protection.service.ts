@@ -1,14 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { BanReason, NotifChannel, UserStatus } from '@prisma/client';
+import { BanReason, NotifChannel, PayoutStatus, UserStatus } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { TrustScoreService } from '../users/trust-score.service';
 
 @Injectable()
 export class DefaultProtectionService {
   private readonly logger = new Logger(DefaultProtectionService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly trustScore: TrustScoreService,
+  ) {}
 
   /**
    * Scenario A — recipient already received payout and then defaulted.
@@ -77,6 +81,12 @@ export class DefaultProtectionService {
       },
     });
 
+    this.trustScore.applyScoreEvent(
+      userId, 'ACCOUNT_BANNED', -30,
+      `Banned: received payout then defaulted on cycle ${cycleId}`,
+      { groupId: (await this.prisma.cycle.findUnique({ where: { id: cycleId }, select: { groupId: true } }))?.groupId },
+    ).catch(() => null);
+
     this.logger.log(`User ${userId} banned and debt of ₦${missedAmountNgn} recorded for cycle ${cycleId}`);
   }
 
@@ -122,6 +132,12 @@ export class DefaultProtectionService {
       },
     });
 
+    this.trustScore.applyScoreEvent(
+      userId, 'ACCOUNT_FROZEN', -15,
+      `Account frozen: missed contribution on cycle ${cycleId}`,
+      { groupId: (await this.prisma.cycle.findUnique({ where: { id: cycleId }, select: { groupId: true } }))?.groupId },
+    ).catch(() => null);
+
     this.logger.log(`User ${userId} frozen and payout held for cycle ${cycleId}`);
   }
 
@@ -146,6 +162,21 @@ export class DefaultProtectionService {
 
     this.logger.log(`Freeze lifted for user ${userId}, payout released for cycle ${cycleId}`);
     return true;
+  }
+
+  /**
+   * Multi-slot check: has this user received a payout on ANY slot in this group?
+   * Used to determine Scenario A (ban) vs Scenario B (freeze) when a user defaults.
+   */
+  async hasReceivedPayoutInGroup(userId: string, groupId: string): Promise<boolean> {
+    const payout = await this.prisma.payout.findFirst({
+      where: {
+        recipientId: userId,
+        cycle: { groupId },
+        status: { in: [PayoutStatus.INITIATED, PayoutStatus.COMPLETED] },
+      },
+    });
+    return payout !== null;
   }
 
   /** Check whether a new KYC submission matches a flagged identity hash. */

@@ -1,5 +1,14 @@
 import Link from 'next/link';
-import { Bell } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowDownLeft,
+  Banknote,
+  CircleDollarSign,
+  Clock,
+  Landmark,
+  Sparkles,
+  UserPlus,
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/format';
@@ -8,6 +17,33 @@ import type { NotificationsResult } from '@/hooks/use-dashboard';
 interface RecentActivityProps {
   notifications: NotificationsResult | undefined;
   loading: boolean;
+}
+
+type ActivityIconConfig = {
+  icon: React.ElementType;
+  bg: string;
+  fg: string;
+};
+
+function getActivityIcon(title: string): ActivityIconConfig {
+  const t = title.toLowerCase();
+  if (t.includes('payout') && (t.includes('fail') || t.includes('urgent') || t.includes('action')))
+    return { icon: AlertTriangle, bg: 'bg-red-100 dark:bg-red-950/50', fg: 'text-red-600 dark:text-red-400' };
+  if (t.includes('payout'))
+    return { icon: Banknote, bg: 'bg-green-100 dark:bg-green-950/50', fg: 'text-green-700 dark:text-green-400' };
+  if (t.includes('penalty'))
+    return { icon: AlertTriangle, bg: 'bg-orange-100 dark:bg-orange-950/50', fg: 'text-orange-600 dark:text-orange-400' };
+  if (t.includes('contribution') && t.includes('due'))
+    return { icon: Clock, bg: 'bg-amber-100 dark:bg-amber-950/50', fg: 'text-amber-700 dark:text-amber-400' };
+  if (t.includes('contribution') || t.includes('payment'))
+    return { icon: CircleDollarSign, bg: 'bg-blue-100 dark:bg-blue-950/50', fg: 'text-blue-700 dark:text-blue-400' };
+  if (t.includes('joined') || t.includes('member'))
+    return { icon: UserPlus, bg: 'bg-purple-100 dark:bg-purple-950/50', fg: 'text-purple-700 dark:text-purple-400' };
+  if (t.includes('bank account') || t.includes('withdrawal account'))
+    return { icon: Landmark, bg: 'bg-slate-100 dark:bg-slate-800', fg: 'text-slate-600 dark:text-slate-400' };
+  if (t.includes('top') || t.includes('wallet'))
+    return { icon: ArrowDownLeft, bg: 'bg-emerald-100 dark:bg-emerald-950/50', fg: 'text-emerald-700 dark:text-emerald-400' };
+  return { icon: Sparkles, bg: 'bg-muted', fg: 'text-muted-foreground' };
 }
 
 export function RecentActivity({ notifications, loading }: RecentActivityProps) {
@@ -39,41 +75,29 @@ export function RecentActivity({ notifications, loading }: RecentActivityProps) 
           <EmptyActivity />
         ) : (
           <ul className="divide-y">
-            {items.map((n) => (
-              <li key={n.id}>
-                <div className="flex items-start gap-3 px-4 py-3">
-                  <span
-                    className={cn(
-                      'mt-1 flex size-7 shrink-0 items-center justify-center rounded-full',
-                      n.isRead ? 'bg-muted' : 'bg-foreground',
-                    )}
-                  >
-                    <Bell
-                      className={cn(
-                        'size-3.5',
-                        n.isRead ? 'text-muted-foreground' : 'text-background',
-                      )}
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        'text-sm',
-                        n.isRead ? 'text-muted-foreground' : 'font-medium',
-                      )}
-                    >
-                      {n.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
-                      {n.body}
-                    </p>
+            {items.map((n) => {
+              const { icon: Icon, bg, fg } = getActivityIcon(n.title);
+              return (
+                <li key={n.id}>
+                  <div className="flex items-start gap-3 px-4 py-3">
+                    <span className={cn('mt-1 flex size-7 shrink-0 items-center justify-center rounded-full', bg)}>
+                      <Icon className={cn('size-3.5', fg)} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn('text-sm', n.isRead ? 'text-muted-foreground' : 'font-medium')}>
+                        {n.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                        {n.body}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {timeAgo(n.createdAt)}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {timeAgo(n.createdAt)}
-                  </span>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -84,7 +108,7 @@ export function RecentActivity({ notifications, loading }: RecentActivityProps) 
 function EmptyActivity() {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center">
-      <Bell className="size-8 text-muted-foreground/40" />
+      <Sparkles className="size-8 text-muted-foreground/40" />
       <p className="text-sm font-medium">No activity yet</p>
       <p className="text-xs text-muted-foreground">
         Activity will appear here once you join or create a group.

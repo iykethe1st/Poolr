@@ -5,11 +5,12 @@ import { PaymentsService } from './payments.service';
 import { PaystackService } from './paystack.service';
 import { FeeService } from './fee.service';
 import { WalletModule } from '../wallet/wallet.module';
+import { TrustScoreService } from '../users/trust-score.service';
 
 @Module({
   imports: [WalletModule],
   controllers: [PaymentsController, WebhookController],
-  providers: [PaymentsService, PaystackService, FeeService],
+  providers: [PaymentsService, PaystackService, FeeService, TrustScoreService],
   exports: [PaymentsService, PaystackService, FeeService],
 })
 export class PaymentsModule {}

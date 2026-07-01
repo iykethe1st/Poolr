@@ -1,22 +1,8 @@
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/context/auth-context';
 import { useColors } from '@/lib/colors';
-
-function TabIcon({ name, color }: { name: string; color: string }) {
-  const icons: Record<string, string> = {
-    home: '⊞',
-    groups: '◎',
-    wallet: '◈',
-    notifications: '◉',
-    settings: '⊙',
-  };
-  return (
-    <Text style={{ fontSize: 20, color }}>
-      {icons[name] ?? '●'}
-    </Text>
-  );
-}
 
 export default function TabsLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -53,35 +39,35 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="home" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="groups"
         options={{
           title: 'Groups',
-          tabBarIcon: ({ color }) => <TabIcon name="groups" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="users" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="wallet"
         options={{
           title: 'Wallet',
-          tabBarIcon: ({ color }) => <TabIcon name="wallet" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="credit-card" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
           title: 'Notifications',
-          tabBarIcon: ({ color }) => <TabIcon name="notifications" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="bell" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <TabIcon name="settings" color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="settings" color={color} size={size} />,
         }}
       />
     </Tabs>
