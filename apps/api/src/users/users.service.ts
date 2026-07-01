@@ -79,7 +79,14 @@ export class UsersService {
     const kyc = user.kycProfile;
 
     if (kyc?.kycStatus === KycStatus.VERIFIED) {
-      throw new ForbiddenException('Identity already verified');
+      // If name is still blank, backfill it from Dojah without changing KYC status
+      if (!user.fullName) {
+        const result = await this.dojah.getVerificationDetails(referenceId);
+        if (result.fullName) {
+          await this.prisma.user.update({ where: { id: userId }, data: { fullName: result.fullName } });
+        }
+      }
+      return { kycStatus: KycStatus.VERIFIED, kycAttempts: kyc.kycAttempts, message: 'Identity already verified' };
     }
     if (kyc?.kycStatus === KycStatus.REJECTED && (kyc.kycAttempts ?? 0) >= MAX_KYC_ATTEMPTS) {
       throw new ForbiddenException('Maximum KYC attempts reached. Contact support.');

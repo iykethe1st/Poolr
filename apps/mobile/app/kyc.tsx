@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -9,11 +9,14 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
 import { Feather } from '@expo/vector-icons';
-import { useCurrentUser } from '@/hooks/use-dashboard';
+import { useCurrentUser, useVerifyKyc } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
 import { API_BASE_URL } from '@/api/client';
 import { StatusBar } from 'expo-status-bar';
+
+const LAST_KYC_REF_KEY = 'lastKycRef';
 
 const DOJAH_WIDGET_ID = process.env.EXPO_PUBLIC_DOJAH_WIDGET_ID ?? '';
 
@@ -32,17 +35,28 @@ const STEPS: Array<{ icon: React.ComponentProps<typeof Feather>['name']; label: 
 
 export default function KycScreen() {
   const { data: me, isLoading } = useCurrentUser();
+  const verify = useVerifyKyc();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const kycStatus = me?.kycProfile?.kycStatus ?? 'UNVERIFIED';
   const isVerified = kycStatus === 'VERIFIED';
   const isPending = kycStatus === 'PENDING' || kycStatus === 'UNDER_REVIEW';
 
+  // Backfill name for users who verified before name extraction was fixed
+  useEffect(() => {
+    if (!me || !isVerified || me.fullName) return;
+    SecureStore.getItemAsync(LAST_KYC_REF_KEY).then((ref) => {
+      if (ref) verify.mutate(ref);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id, isVerified]);
+
   async function handleStart() {
     if (!me?.id) return;
     if (dojahSdk && DOJAH_WIDGET_ID) {
       // Defined outside try-catch so it's accessible in the catch block
       const attemptRef = `${me.id}-${Date.now()}`;
+      await SecureStore.setItemAsync(LAST_KYC_REF_KEY, attemptRef);
       try {
         await dojahSdk.restoreInteractions().catch(() => {});
         const result = await dojahSdk.launch(DOJAH_WIDGET_ID, attemptRef, me.email);
