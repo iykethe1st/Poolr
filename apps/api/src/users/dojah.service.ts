@@ -33,20 +33,31 @@ export class DojahService {
       return { verificationStatus: 'Completed', referenceId };
     }
 
-    const res = await fetch(
-      `${this.baseUrl}/api/v1/kyc/verification?reference_id=${encodeURIComponent(referenceId)}`,
-      {
-        headers: {
-          AppId: appId,
-          Authorization: secretKey,
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+
+    let res: Response;
+    try {
+      res = await fetch(
+        `${this.baseUrl}/api/v1/kyc/verification?reference_id=${encodeURIComponent(referenceId)}`,
+        {
+          headers: { AppId: appId, Authorization: secretKey },
+          signal: controller.signal,
         },
-      },
-    );
+      );
+    } catch (err) {
+      clearTimeout(timeout);
+      const msg = err instanceof Error && err.name === 'AbortError' ? 'Dojah API timed out' : 'Dojah API unreachable';
+      this.logger.warn(`${msg} — returning Ongoing so webhook can confirm later`);
+      return { verificationStatus: 'Ongoing', referenceId };
+    }
+    clearTimeout(timeout);
 
     if (!res.ok) {
       const text = await res.text();
       this.logger.error(`Dojah verification API ${res.status}: ${text}`);
-      throw new Error('Failed to fetch verification details from Dojah');
+      // Treat non-fatal errors as Ongoing so the webhook can still confirm
+      return { verificationStatus: 'Ongoing', referenceId };
     }
 
     // Dojah returns the entity fields at the top level (no 'entity' wrapper)
@@ -100,34 +111,46 @@ export class DojahService {
 
   parseWebhookPayload(rawBody: Buffer): DojahWebhookData {
     try {
+      // Dojah webhook payload mirrors the verification response structure
       const payload = JSON.parse(rawBody.toString('utf8')) as {
+        verification_status?: string;
+        reference_id?: string;
         entity?: {
           verification_status?: string;
+          reference_id?: string;
           metadata?: { user_id?: string };
-          full_name?: string;
-          first_name?: string;
-          last_name?: string;
-          government_data?: { first_name?: string; last_name?: string; full_name?: string };
         };
-        verification_status?: string;
         metadata?: { user_id?: string };
+        data?: {
+          government_data?: {
+            data?: {
+              bvn?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+              nin?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+              passport?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+            };
+          };
+        };
       };
 
-      this.logger.log(`Dojah webhook entity: ${JSON.stringify(payload.entity)}`);
+      this.logger.log(`Dojah webhook payload: ${JSON.stringify(payload)}`);
 
       const verificationStatus =
-        payload.entity?.verification_status ?? payload.verification_status ?? 'Ongoing';
+        payload.verification_status ?? payload.entity?.verification_status ?? 'Ongoing';
 
-      const userId =
-        payload.entity?.metadata?.user_id ?? payload.metadata?.user_id ?? null;
+      // Try metadata first, then parse userId from referenceId (format: "${userId}-${timestamp}")
+      const referenceId = payload.reference_id ?? payload.entity?.reference_id ?? '';
+      const userIdFromMeta = payload.entity?.metadata?.user_id ?? payload.metadata?.user_id ?? null;
+      const userIdFromRef = referenceId
+        ? referenceId.substring(0, referenceId.lastIndexOf('-')) || null
+        : null;
+      const userId = userIdFromMeta ?? userIdFromRef;
 
-      const e = payload.entity;
+      const govData = payload.data?.government_data?.data;
+      const idEntity = govData?.bvn?.entity ?? govData?.nin?.entity ?? govData?.passport?.entity;
       const fullName =
-        (e?.full_name ??
-        e?.government_data?.full_name ??
-        [e?.first_name ?? e?.government_data?.first_name, e?.last_name ?? e?.government_data?.last_name]
-          .filter(Boolean)
-          .join(' ')) || undefined;
+        (idEntity?.full_name ||
+        [idEntity?.first_name, idEntity?.last_name].filter(Boolean).join(' ')) ||
+        undefined;
 
       return { userId, verificationStatus, fullName };
     } catch {
