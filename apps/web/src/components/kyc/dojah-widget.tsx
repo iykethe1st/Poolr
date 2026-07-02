@@ -81,15 +81,36 @@ export function DojahWidget({ userId, userEmail, fullName, onComplete }: Props) 
 
         setVerifying(true);
         setError('');
-        try {
-          await apiClient.post('users/kyc/verify', {
-            json: { referenceId },
-          });
-          onComplete();
-        } catch {
-          setError('Verification submitted but confirmation failed. Please refresh the page.');
-          setVerifying(false);
+
+        let attempts = 0;
+        const MAX_ATTEMPTS = 4;
+        const RETRY_DELAY = 3000;
+
+        function attempt() {
+          attempts += 1;
+          apiClient
+            .post('users/kyc/verify', { json: { referenceId } })
+            .json<{ kycStatus: string }>()
+            .then((result) => {
+              if (result.kycStatus === 'VERIFIED') {
+                onComplete();
+              } else if (attempts < MAX_ATTEMPTS) {
+                setTimeout(attempt, RETRY_DELAY);
+              } else {
+                onComplete();
+              }
+            })
+            .catch(() => {
+              if (attempts < MAX_ATTEMPTS) {
+                setTimeout(attempt, RETRY_DELAY);
+              } else {
+                setError('Verification submitted but confirmation failed. Please refresh the page.');
+                setVerifying(false);
+              }
+            });
         }
+
+        attempt();
       },
       onError: () => {
         setError('Verification failed. Please try again.');
