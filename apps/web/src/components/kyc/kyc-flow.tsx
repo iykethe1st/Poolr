@@ -211,6 +211,7 @@ export function KycFlow() {
             message=""
             attemptsLeft={screen.attemptsLeft}
             onRetry={handleRetry}
+            onStatusChange={load}
           />
         )}
       </div>
