@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useVerifyKyc } from '@/hooks/use-dashboard';
 import { useColors } from '@/lib/colors';
 
 export default function KycCallbackScreen() {
   const { status, reference_id } = useLocalSearchParams<{ status?: string; reference_id?: string }>();
   const verify = useVerifyKyc();
+  const qc = useQueryClient();
   const [state, setState] = useState<'verifying' | 'success' | 'pending' | 'closed' | 'failed'>('verifying');
 
   const colors = useColors();
@@ -35,8 +37,12 @@ export default function KycCallbackScreen() {
         verify.mutate(reference_id, {
           onSuccess: (res) => {
             if (res.kycStatus === 'VERIFIED') {
-              setState('success');
-              setTimeout(() => router.replace('/(tabs)/'), 2500);
+              // Force a fresh fetch of the user profile before navigating
+              // so the home screen never shows stale UNDER_REVIEW data.
+              void qc.refetchQueries({ queryKey: ['me'] }).then(() => {
+                setState('success');
+                setTimeout(() => router.replace('/(tabs)/'), 2000);
+              });
             } else if (attempts < MAX_ATTEMPTS) {
               setTimeout(attempt, RETRY_DELAY);
             } else {
