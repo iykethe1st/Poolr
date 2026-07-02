@@ -50,11 +50,13 @@ export function KycStatus({
   message,
   attemptsLeft,
   onRetry,
+  onStatusChange,
 }: {
   kycStatus: string;
   message: string;
   attemptsLeft: number;
   onRetry: () => void;
+  onStatusChange?: (status: string) => void;
 }) {
   const status = (kycStatus as KycStatusValue) in CONFIG
     ? (kycStatus as KycStatusValue)
@@ -74,6 +76,7 @@ export function KycStatus({
         if (s && s !== 'UNDER_REVIEW') {
           setPolledStatus(s);
           clearInterval(intervalRef.current!);
+          onStatusChange?.(s);
         }
       } catch {
         // ignore poll errors
