@@ -21,6 +21,7 @@ interface DojahConnectOptions {
   app_id: string;
   p_key: string;
   type: string;
+  reference_id?: string;
   user_data?: {
     first_name?: string;
     last_name?: string;
@@ -51,10 +52,14 @@ export function DojahWidget({ userId, userEmail, fullName, onComplete }: Props) 
   function openWidget() {
     if (!window.Connect) return;
 
+    // Use the same referenceId format as mobile so the webhook can extract userId reliably.
+    const referenceId = `${userId}-${Date.now()}`;
+
     const connect = new window.Connect({
       app_id: process.env.NEXT_PUBLIC_DOJAH_APP_ID ?? '',
       p_key: process.env.NEXT_PUBLIC_DOJAH_PUBLIC_KEY ?? '',
       type: 'verification',
+      reference_id: referenceId,
       user_data: {
         first_name: firstName,
         last_name: lastName,
@@ -62,23 +67,7 @@ export function DojahWidget({ userId, userEmail, fullName, onComplete }: Props) 
         residence_country: 'NG',
       },
       metadata: { user_id: userId },
-      onSuccess: async (response) => {
-        console.log('[Dojah] onSuccess payload:', JSON.stringify(response, null, 2));
-
-        // Dojah may use snake_case or camelCase depending on SDK version
-        const entity = response.entity as Record<string, unknown> | undefined;
-        const referenceId =
-          (response.reference_id as string) ||
-          (response.referenceId as string) ||
-          (entity?.reference_id as string) ||
-          (entity?.referenceId as string);
-
-        if (!referenceId) {
-          console.error('[Dojah] No reference_id in response:', response);
-          setError('Verification completed but no reference was returned. Please try again.');
-          return;
-        }
-
+      onSuccess: async () => {
         setVerifying(true);
         setError('');
 
