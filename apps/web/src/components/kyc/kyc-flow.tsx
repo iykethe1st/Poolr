@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Smartphone } from 'lucide-react';
 import { getMe, updateProfile, extractHttpError } from '@/lib/kyc-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,17 @@ import { DojahWidget } from './dojah-widget';
 
 type Screen =
   | { type: 'loading' }
+  | { type: 'mobile-redirect' }
   | { type: 'name'; userId: string; userEmail: string }
   | { type: 'widget'; userId: string; userEmail: string; fullName: string }
   | { type: 'status'; kycStatus: string; attemptsLeft: number };
 
 const MAX_ATTEMPTS = 3;
+
+function isMobileBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
 
 const DESCRIPTIONS: Record<string, string> = {
   PENDING: 'Complete the steps below to verify your identity and unlock all Poolr features.',
@@ -28,9 +34,8 @@ const DESCRIPTIONS: Record<string, string> = {
 };
 
 function getDescription(screen: Screen): string {
-  if (screen.type === 'loading') return '';
-  if (screen.type === 'name') return DESCRIPTIONS.PENDING;
-  if (screen.type === 'widget') return DESCRIPTIONS.PENDING;
+  if (screen.type === 'loading' || screen.type === 'mobile-redirect') return '';
+  if (screen.type === 'name' || screen.type === 'widget') return DESCRIPTIONS.PENDING;
   return DESCRIPTIONS[screen.kycStatus] ?? DESCRIPTIONS.PENDING;
 }
 
@@ -44,15 +49,7 @@ const nameSchema = z.object({
 
 type NameFormValues = z.infer<typeof nameSchema>;
 
-function NameStep({
-  userId,
-  userEmail,
-  onDone,
-}: {
-  userId: string;
-  userEmail: string;
-  onDone: (fullName: string) => void;
-}) {
+function NameStep({ onDone }: { onDone: (fullName: string) => void }) {
   const [serverError, setServerError] = useState('');
 
   const {
@@ -115,15 +112,12 @@ export function KycFlow() {
       const user = await getMe();
       const kyc = user.kycProfile;
       if (!kyc || kyc.kycStatus === 'PENDING') {
-        if (!user.fullName) {
+        if (!isMobileBrowser()) {
+          setScreen({ type: 'mobile-redirect' });
+        } else if (!user.fullName) {
           setScreen({ type: 'name', userId: user.id, userEmail: user.email });
         } else {
-          setScreen({
-            type: 'widget',
-            userId: user.id,
-            userEmail: user.email,
-            fullName: user.fullName,
-          });
+          setScreen({ type: 'widget', userId: user.id, userEmail: user.email, fullName: user.fullName });
         }
       } else {
         setScreen({
@@ -134,6 +128,23 @@ export function KycFlow() {
       }
     } catch {
       setScreen({ type: 'loading' });
+    }
+  }, []);
+
+  // Called when the user explicitly clicks "Try again" after a rejection.
+  // Re-fetches to get the latest fullName, then goes straight to the widget.
+  const handleRetry = useCallback(async () => {
+    try {
+      const user = await getMe();
+      if (!isMobileBrowser()) {
+        setScreen({ type: 'mobile-redirect' });
+      } else if (!user.fullName) {
+        setScreen({ type: 'name', userId: user.id, userEmail: user.email });
+      } else {
+        setScreen({ type: 'widget', userId: user.id, userEmail: user.email, fullName: user.fullName });
+      }
+    } catch {
+      // ignore — user stays on status screen
     }
   }, []);
 
@@ -159,22 +170,29 @@ export function KycFlow() {
           </div>
         )}
 
+        {screen.type === 'mobile-redirect' && (
+          <div className="flex flex-col items-center gap-4 py-8 text-center">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10">
+              <Smartphone className="size-7 text-primary" />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-base font-semibold">Verify on the Poolr app</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Identity verification requires a phone camera for the liveness check.
+                Open the Poolr app on your phone to complete verification.
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Once verified on mobile, your status will update here automatically.
+            </p>
+          </div>
+        )}
+
         {screen.type === 'name' && (
           <NameStep
-            userId={screen.userId}
-            userEmail={screen.userEmail}
             onDone={(fullName) =>
               setScreen({ type: 'widget', userId: screen.userId, userEmail: screen.userEmail, fullName })
             }
-          />
-        )}
-
-        {screen.type === 'status' && (
-          <KycStatus
-            kycStatus={screen.kycStatus}
-            message=""
-            attemptsLeft={screen.attemptsLeft}
-            onRetry={load}
           />
         )}
 
@@ -184,6 +202,15 @@ export function KycFlow() {
             userEmail={screen.userEmail}
             fullName={screen.fullName}
             onComplete={load}
+          />
+        )}
+
+        {screen.type === 'status' && (
+          <KycStatus
+            kycStatus={screen.kycStatus}
+            message=""
+            attemptsLeft={screen.attemptsLeft}
+            onRetry={handleRetry}
           />
         )}
       </div>
