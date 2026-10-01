@@ -1,16 +1,24 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { KycStatus } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
-import { DojahService } from './dojah.service';
-import { DefaultProtectionService } from '../protection/default-protection.service';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { KycStatus } from "@prisma/client";
+import { PrismaService } from "../database/prisma.service";
+import { DojahService } from "./dojah.service";
+import { DefaultProtectionService } from "../protection/default-protection.service";
 import {
   NOTIFICATION_EVENTS,
   KycApprovedEvent,
   KycRejectedEvent,
-} from '../notifications/events/notification.events';
-import type { UpdateProfileDto } from './dto/update-profile.dto';
-import { getTier, getMaxSlotsEligible, TrustScoreService } from './trust-score.service';
+} from "../notifications/events/notification.events";
+import type { UpdateProfileDto } from "./dto/update-profile.dto";
+import {
+  getTier,
+  getMaxSlotsEligible,
+  TrustScoreService,
+} from "./trust-score.service";
 
 const MAX_KYC_ATTEMPTS = 3;
 
@@ -26,23 +34,39 @@ export class UsersService {
 
   async getProfile(userId: string) {
     const [user, paidContribs, totalPenalties] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, include: { kycProfile: true } }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { kycProfile: true },
+      }),
       this.prisma.contribution.findMany({
-        where: { member: { userId }, status: 'PAID' },
+        where: { member: { userId }, status: "PAID" },
         select: { paidAt: true, dueAt: true },
       }),
-      this.prisma.penalty.count({ where: { member: { userId }, status: 'APPLIED' } }),
+      this.prisma.penalty.count({
+        where: { member: { userId }, status: "APPLIED" },
+      }),
     ]);
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException("User not found");
     const totalPaid = paidContribs.length;
-    const onTimePaid = paidContribs.filter((c) => c.paidAt && c.paidAt <= c.dueAt).length;
-    const onTimeRate = totalPaid > 0 ? Math.round((onTimePaid / totalPaid) * 100) : 0;
+    const onTimePaid = paidContribs.filter(
+      (c) => c.paidAt && c.paidAt <= c.dueAt,
+    ).length;
+    const onTimeRate =
+      totalPaid > 0 ? Math.round((onTimePaid / totalPaid) * 100) : 0;
     const tier = getTier(user.trustScore);
     const maxSlotsEligible = getMaxSlotsEligible(user.trustScore);
     const { passwordHash: _pw, ...profile } = user;
     return {
       ...profile,
-      contributionStats: { tier, totalPaid, onTimePaid, onTimeRate, totalPenalties, trustScore: user.trustScore, maxSlotsEligible },
+      contributionStats: {
+        tier,
+        totalPaid,
+        onTimePaid,
+        onTimeRate,
+        totalPenalties,
+        trustScore: user.trustScore,
+        maxSlotsEligible,
+      },
     };
   }
 
@@ -52,8 +76,8 @@ export class UsersService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const data: Record<string, unknown> = {};
-    if (dto.fullName !== undefined) data['fullName'] = dto.fullName;
-    if (dto.avatarUrl !== undefined) data['avatarUrl'] = dto.avatarUrl;
+    if (dto.fullName !== undefined) data["fullName"] = dto.fullName;
+    if (dto.avatarUrl !== undefined) data["avatarUrl"] = dto.avatarUrl;
 
     const user = await this.prisma.user.update({
       where: { id: userId },
@@ -65,8 +89,11 @@ export class UsersService {
   }
 
   async updateFcmToken(userId: string, token: string) {
-    await this.prisma.user.update({ where: { id: userId }, data: { fcmToken: token } });
-    return { message: 'FCM token updated' };
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken: token },
+    });
+    return { message: "FCM token updated" };
   }
 
   async verifyDojahKyc(userId: string, referenceId: string) {
@@ -74,7 +101,7 @@ export class UsersService {
       where: { id: userId },
       include: { kycProfile: true },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException("User not found");
 
     const kyc = user.kycProfile;
 
@@ -83,18 +110,31 @@ export class UsersService {
       if (!user.fullName) {
         const result = await this.dojah.getVerificationDetails(referenceId);
         if (result.fullName) {
-          await this.prisma.user.update({ where: { id: userId }, data: { fullName: result.fullName } });
+          await this.prisma.user.update({
+            where: { id: userId },
+            data: { fullName: result.fullName },
+          });
         }
       }
-      return { kycStatus: KycStatus.VERIFIED, kycAttempts: kyc.kycAttempts, message: 'Identity already verified' };
+      return {
+        kycStatus: KycStatus.VERIFIED,
+        kycAttempts: kyc.kycAttempts,
+        message: "Identity already verified",
+      };
     }
-    if (kyc?.kycStatus === KycStatus.REJECTED && (kyc.kycAttempts ?? 0) >= MAX_KYC_ATTEMPTS) {
-      throw new ForbiddenException('Maximum KYC attempts reached. Contact support.');
+    if (
+      kyc?.kycStatus === KycStatus.REJECTED &&
+      (kyc.kycAttempts ?? 0) >= MAX_KYC_ATTEMPTS
+    ) {
+      throw new ForbiddenException(
+        "Maximum KYC attempts reached. Contact support.",
+      );
     }
 
     const result = await this.dojah.getVerificationDetails(referenceId);
 
-    const newStatus = mapDojahStatus(result.verificationStatus) ?? KycStatus.UNDER_REVIEW;
+    const newStatus =
+      mapDojahStatus(result.verificationStatus) ?? KycStatus.UNDER_REVIEW;
 
     const updated = await this.prisma.kycProfile.upsert({
       where: { userId },
@@ -120,22 +160,41 @@ export class UsersService {
 
     if (newStatus === KycStatus.VERIFIED) {
       // Check if this identity was previously flagged (banned user attempting re-registration)
-      const kycNow = await this.prisma.kycProfile.findUnique({ where: { userId } });
-      const isFlagged = await this.defaultProtection.isFlaggedIdentity(kycNow?.bvn, kycNow?.nin);
+      const kycNow = await this.prisma.kycProfile.findUnique({
+        where: { userId },
+      });
+      const isFlagged = await this.defaultProtection.isFlaggedIdentity(
+        kycNow?.bvn,
+        kycNow?.nin,
+      );
       if (isFlagged) {
-        await this.prisma.user.update({ where: { id: userId }, data: { status: 'BANNED' as never } });
-        const attemptsLeft = Math.max(0, MAX_KYC_ATTEMPTS - updated.kycAttempts);
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { status: "BANNED" as never },
+        });
+        const attemptsLeft = Math.max(
+          0,
+          MAX_KYC_ATTEMPTS - updated.kycAttempts,
+        );
         return {
-          kycStatus: 'REJECTED' as KycStatus,
+          kycStatus: "REJECTED" as KycStatus,
           kycAttempts: updated.kycAttempts,
-          message: `Verification failed. ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} remaining.`,
+          message: `Verification failed. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining.`,
         };
       }
 
-      const evt: KycApprovedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
+      const evt: KycApprovedEvent = {
+        userId: user.id,
+        email: user.email,
+        fullName: user.fullName,
+      };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_APPROVED, evt);
     } else if (newStatus === KycStatus.REJECTED) {
-      const evt: KycRejectedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
+      const evt: KycRejectedEvent = {
+        userId: user.id,
+        email: user.email,
+        fullName: user.fullName,
+      };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_REJECTED, evt);
     }
 
@@ -145,14 +204,18 @@ export class UsersService {
       kycAttempts: updated.kycAttempts,
       message:
         newStatus === KycStatus.VERIFIED
-          ? 'Identity verified successfully'
+          ? "Identity verified successfully"
           : newStatus === KycStatus.REJECTED
-          ? `Verification failed. ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} remaining.`
-          : 'Verification submitted. Your identity is being reviewed.',
+            ? `Verification failed. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining.`
+            : "Verification submitted. Your identity is being reviewed.",
     };
   }
 
-  async handleDojahWebhook(userId: string, verificationStatus: string, fullName?: string) {
+  async handleDojahWebhook(
+    userId: string,
+    verificationStatus: string,
+    fullName?: string,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { kycProfile: true },
@@ -186,10 +249,18 @@ export class UsersService {
     }
 
     if (newStatus === KycStatus.VERIFIED) {
-      const evt: KycApprovedEvent = { userId: user.id, email: user.email, fullName: fullName ?? user.fullName };
+      const evt: KycApprovedEvent = {
+        userId: user.id,
+        email: user.email,
+        fullName: fullName ?? user.fullName,
+      };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_APPROVED, evt);
     } else {
-      const evt: KycRejectedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
+      const evt: KycRejectedEvent = {
+        userId: user.id,
+        email: user.email,
+        fullName: user.fullName,
+      };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_REJECTED, evt);
     }
   }
@@ -197,10 +268,10 @@ export class UsersService {
 
 function mapDojahStatus(status: string): KycStatus | null {
   switch (status.trim().toLowerCase()) {
-    case 'completed':
-    case 'successful':
+    case "completed":
+    case "successful":
       return KycStatus.VERIFIED;
-    case 'failed':
+    case "failed":
       return KycStatus.REJECTED;
     default:
       return null;
