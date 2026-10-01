@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -35,7 +36,7 @@ const FREQUENCIES = [
 
 export default function NewGroupScreen() {
   const createGroup = useCreateGroup();
-  const { data: me } = useCurrentUser();
+  const { data: me, refetch: refreshMe } = useCurrentUser();
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -58,7 +59,12 @@ export default function NewGroupScreen() {
 
   async function handleSubmit() {
     if (!isValid) return;
-    if (me?.kycProfile?.kycStatus !== 'VERIFIED') {
+    const userResult = await refreshMe();
+    if (userResult.isError) {
+      Alert.alert('Unable to check verification', 'Please check your connection and try again.');
+      return;
+    }
+    if (userResult.data?.kycProfile?.kycStatus !== 'VERIFIED') {
       setKycModalOpen(true);
       return;
     }
