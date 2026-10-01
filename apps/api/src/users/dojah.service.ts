@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
 
 export interface DojahVerification {
-  verificationStatus: 'Completed' | 'Failed' | 'Ongoing' | 'Pending' | 'Abandoned';
+  verificationStatus: 'Completed' | 'Successful' | 'Failed' | 'Ongoing' | 'Pending' | 'Abandoned';
   referenceId: string;
   fullName?: string;
 }
@@ -75,7 +75,9 @@ export class DojahService {
       };
     };
 
-    this.logger.log(`Dojah verification entity: ${JSON.stringify(data)}`);
+    this.logger.log(
+      `Dojah verification result: referenceId=${data.reference_id ?? referenceId} status=${data.verification_status ?? 'Ongoing'}`,
+    );
 
     const status = (data.verification_status ?? 'Ongoing') as DojahVerification['verificationStatus'];
 

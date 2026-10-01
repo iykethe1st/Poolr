@@ -94,14 +94,7 @@ export class UsersService {
 
     const result = await this.dojah.getVerificationDetails(referenceId);
 
-    let newStatus: KycStatus;
-    if (result.verificationStatus === 'Completed') {
-      newStatus = KycStatus.VERIFIED;
-    } else if (result.verificationStatus === 'Failed') {
-      newStatus = KycStatus.REJECTED;
-    } else {
-      newStatus = KycStatus.UNDER_REVIEW;
-    }
+    const newStatus = mapDojahStatus(result.verificationStatus) ?? KycStatus.UNDER_REVIEW;
 
     const updated = await this.prisma.kycProfile.upsert({
       where: { userId },
@@ -114,7 +107,7 @@ export class UsersService {
       update: {
         kycStatus: newStatus,
         kycAttempts: { increment: 1 },
-        verifiedAt: newStatus === KycStatus.VERIFIED ? new Date() : undefined,
+        verifiedAt: newStatus === KycStatus.VERIFIED ? new Date() : null,
       },
     });
 
@@ -166,14 +159,8 @@ export class UsersService {
     });
     if (!user) return;
 
-    let newStatus: KycStatus;
-    if (verificationStatus === 'Completed') {
-      newStatus = KycStatus.VERIFIED;
-    } else if (verificationStatus === 'Failed') {
-      newStatus = KycStatus.REJECTED;
-    } else {
-      return;
-    }
+    const newStatus = mapDojahStatus(verificationStatus);
+    if (!newStatus) return;
 
     if (user.kycProfile?.kycStatus === KycStatus.VERIFIED) return;
 
@@ -187,7 +174,7 @@ export class UsersService {
       },
       update: {
         kycStatus: newStatus,
-        verifiedAt: newStatus === KycStatus.VERIFIED ? new Date() : undefined,
+        verifiedAt: newStatus === KycStatus.VERIFIED ? new Date() : null,
       },
     });
 
@@ -205,5 +192,17 @@ export class UsersService {
       const evt: KycRejectedEvent = { userId: user.id, email: user.email, fullName: user.fullName };
       this.eventEmitter.emit(NOTIFICATION_EVENTS.KYC_REJECTED, evt);
     }
+  }
+}
+
+function mapDojahStatus(status: string): KycStatus | null {
+  switch (status.trim().toLowerCase()) {
+    case 'completed':
+    case 'successful':
+      return KycStatus.VERIFIED;
+    case 'failed':
+      return KycStatus.REJECTED;
+    default:
+      return null;
   }
 }

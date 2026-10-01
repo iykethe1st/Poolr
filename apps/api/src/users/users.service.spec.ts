@@ -5,6 +5,8 @@ import { KycStatus } from '@prisma/client';
 import { UsersService } from './users.service';
 import { PrismaService } from '../database/prisma.service';
 import { DojahService } from './dojah.service';
+import { DefaultProtectionService } from '../protection/default-protection.service';
+import { TrustScoreService } from './trust-score.service';
 
 const MOCK_USER = {
   id: 'user-1',
@@ -43,6 +45,7 @@ function makePrismaMock() {
     },
     kycProfile: {
       upsert: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue(MOCK_KYC),
     },
   };
 }
@@ -71,6 +74,8 @@ describe('UsersService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: DojahService, useValue: dojah },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: DefaultProtectionService, useValue: { isFlaggedIdentity: jest.fn().mockResolvedValue(false) } },
+        { provide: TrustScoreService, useValue: { getScoreDetail: jest.fn() } },
       ],
     }).compile();
 
@@ -124,6 +129,16 @@ describe('UsersService', () => {
     it('sets VERIFIED when Dojah returns Completed', async () => {
       prisma.user.findUnique.mockResolvedValue(MOCK_USER);
       dojah.getVerificationDetails.mockResolvedValue({ verificationStatus: 'Completed', referenceId: REF });
+      prisma.kycProfile.upsert.mockResolvedValue({ ...MOCK_KYC, kycStatus: KycStatus.VERIFIED, kycAttempts: 1, verifiedAt: new Date() });
+
+      const result = await service.verifyDojahKyc('user-1', REF);
+      expect(result.kycStatus).toBe(KycStatus.VERIFIED);
+      expect(result.message).toMatch(/verified/i);
+    });
+
+    it('sets VERIFIED when Dojah returns Successful', async () => {
+      prisma.user.findUnique.mockResolvedValue(MOCK_USER);
+      dojah.getVerificationDetails.mockResolvedValue({ verificationStatus: 'Successful', referenceId: REF });
       prisma.kycProfile.upsert.mockResolvedValue({ ...MOCK_KYC, kycStatus: KycStatus.VERIFIED, kycAttempts: 1, verifiedAt: new Date() });
 
       const result = await service.verifyDojahKyc('user-1', REF);
