@@ -20,9 +20,27 @@ interface DojahVerificationPayload {
   data?: {
     government_data?: {
       data?: {
-        bvn?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
-        nin?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
-        passport?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+        bvn?: {
+          entity?: {
+            first_name?: string;
+            last_name?: string;
+            full_name?: string;
+          };
+        };
+        nin?: {
+          entity?: {
+            first_name?: string;
+            last_name?: string;
+            full_name?: string;
+          };
+        };
+        passport?: {
+          entity?: {
+            first_name?: string;
+            last_name?: string;
+            full_name?: string;
+          };
+        };
       };
     };
   };
