@@ -14,6 +14,20 @@ export interface DojahVerification {
   fullName?: string;
 }
 
+interface DojahVerificationPayload {
+  verification_status?: string;
+  reference_id?: string;
+  data?: {
+    government_data?: {
+      data?: {
+        bvn?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+        nin?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+        passport?: { entity?: { first_name?: string; last_name?: string; full_name?: string } };
+      };
+    };
+  };
+}
+
 export interface DojahWebhookData {
   userId: string | null;
   verificationStatus: string;
@@ -75,39 +89,10 @@ export class DojahService {
       return { verificationStatus: "Ongoing", referenceId };
     }
 
-    // Dojah returns the entity fields at the top level (no 'entity' wrapper)
-    const data = (await res.json()) as {
-      verification_status?: string;
-      reference_id?: string;
-      data?: {
-        government_data?: {
-          data?: {
-            bvn?: {
-              entity?: {
-                first_name?: string;
-                last_name?: string;
-                middle_name?: string;
-                full_name?: string;
-              };
-            };
-            nin?: {
-              entity?: {
-                first_name?: string;
-                last_name?: string;
-                full_name?: string;
-              };
-            };
-            passport?: {
-              entity?: {
-                first_name?: string;
-                last_name?: string;
-                full_name?: string;
-              };
-            };
-          };
-        };
-      };
+    const response = (await res.json()) as DojahVerificationPayload & {
+      entity?: DojahVerificationPayload;
     };
+    const data = response.entity ?? response;
 
     this.logger.log(
       `Dojah verification result: referenceId=${data.reference_id ?? referenceId} status=${data.verification_status ?? "Ongoing"}`,
