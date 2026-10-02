@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useMyGroups, useCurrentUser } from '@/hooks/use-dashboard';
-import { useJoinGroup } from '@/hooks/use-group';
+import { useDeclineInvite, useJoinGroup } from '@/hooks/use-group';
 import { useColors } from '@/lib/colors';
 import { formatCurrency } from '@/lib/format';
 import { StatusBadge } from '@/components/status-badge';
@@ -229,24 +229,59 @@ export default function GroupsScreen() {
 function InviteCard({ group }: { group: import('@/hooks/use-dashboard').GroupWithMembers }) {
   const colors = useColors();
   const inviteStyles = useMemo(() => createInviteStyles(colors), [colors]);
+  const decline = useDeclineInvite(group.id);
+
+  function handleDecline() {
+    Alert.alert(
+      'Decline invite',
+      `Are you sure you want to decline the invite to "${group.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: () =>
+            decline.mutate(undefined, {
+              onError: () => Alert.alert('Error', 'Failed to decline invite. Please try again.'),
+            }),
+        },
+      ],
+    );
+  }
 
   return (
-    <TouchableOpacity
-      style={inviteStyles.card}
-      activeOpacity={0.75}
-      onPress={() => router.push(`/groups/invite-review/${group.id}`)}
-    >
-      <View style={inviteStyles.cardTop}>
+    <View style={inviteStyles.card}>
+      <TouchableOpacity
+        style={inviteStyles.cardTop}
+        activeOpacity={0.75}
+        onPress={() => router.push(`/groups/invite-review/${group.id}`)}
+      >
         <View style={{ flex: 1 }}>
           <Text style={inviteStyles.name} numberOfLines={1}>{group.name}</Text>
           <Text style={inviteStyles.meta}>{group.frequency.toLowerCase()} · {formatCurrency(group.contributionAmount)} per member</Text>
         </View>
         <StatusBadge label="Invited" variant="warning" />
+      </TouchableOpacity>
+      <View style={inviteStyles.actions}>
+        <Pressable
+          style={inviteStyles.reviewButton}
+          onPress={() => router.push(`/groups/invite-review/${group.id}`)}
+        >
+          <Text style={inviteStyles.reviewText}>Review & accept</Text>
+        </Pressable>
+        <Pressable
+          style={inviteStyles.declineButton}
+          onPress={handleDecline}
+          disabled={decline.isPending}
+        >
+          {decline.isPending ? (
+            <ActivityIndicator size="small" color={colors.textMuted} />
+          ) : (
+            <Text style={inviteStyles.declineText}>Decline</Text>
+          )}
+        </Pressable>
       </View>
-      <View style={inviteStyles.reviewRow}>
-        <Text style={inviteStyles.reviewText}>Review invite →</Text>
-      </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -264,8 +299,27 @@ function createInviteStyles(colors: import('@/lib/colors').Colors) {
     cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     name: { fontSize: 14, fontWeight: '700', color: colors.text },
     meta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    reviewRow: { alignItems: 'flex-end' },
-    reviewText: { fontSize: 13, fontWeight: '600', color: colors.primary },
+    actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    reviewButton: {
+      flex: 1,
+      minHeight: 40,
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    reviewText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+    declineButton: {
+      minHeight: 40,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 14,
+    },
+    declineText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
   });
 }
 
