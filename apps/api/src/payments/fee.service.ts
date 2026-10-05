@@ -19,9 +19,9 @@ export class FeeService {
       Number(this.config.get(key, String(def)));
 
     const tier1Max = n("CONTRIBUTION_FEE_TIER_1_MAX", 10_000);
-    const tier1Fee = n("CONTRIBUTION_FEE_TIER_1_AMOUNT", 300);
+    const tier1Fee = n("CONTRIBUTION_FEE_TIER_1_AMOUNT", 0);
     const tier2Max = n("CONTRIBUTION_FEE_TIER_2_MAX", 50_000);
-    const tier2Fee = n("CONTRIBUTION_FEE_TIER_2_AMOUNT", 900);
+    const tier2Fee = n("CONTRIBUTION_FEE_TIER_2_AMOUNT", 0);
     const tier3Fee = n("CONTRIBUTION_FEE_TIER_3_AMOUNT", 1_800);
 
     if (contributionAmountNgn <= tier1Max) return tier1Fee;
