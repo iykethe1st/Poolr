@@ -21,10 +21,10 @@ export interface Cycle {
   recipientMember?: { user: { fullName: string } };
   contributions?: Array<{
     id: string;
-    status: string;
     memberId: string;
     amount: string;
-    paidAt?: string;
+    status: string;
+    paidAt: string | null;
   }>;
 }
 

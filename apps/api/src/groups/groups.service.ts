@@ -114,7 +114,20 @@ export class GroupsService {
           },
           orderBy: { rotationPosition: 'asc' },
         },
-        cycles: { orderBy: { cycleNumber: 'asc' } },
+        cycles: {
+          orderBy: { cycleNumber: 'asc' },
+          include: {
+            contributions: {
+              select: {
+                id: true,
+                memberId: true,
+                amount: true,
+                status: true,
+                paidAt: true,
+              },
+            },
+          },
+        },
       },
     });
 

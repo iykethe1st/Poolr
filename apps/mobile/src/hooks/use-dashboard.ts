@@ -47,7 +47,7 @@ export interface ContributionWithGroup {
   id: string;
   status: string;
   amount: string;
-  dueAt?: string;
+  dueAt: string;
   paidAt?: string;
   cycle: {
     id: string;

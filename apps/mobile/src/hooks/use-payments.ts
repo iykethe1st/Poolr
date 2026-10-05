@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/api/client';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/api/client";
 
 export interface FeeBreakdown {
   contributionAmountNgn: number;
@@ -32,23 +32,39 @@ export interface VerifyResult {
 export interface NextPayout {
   groupId: string;
   groupName: string;
-  amount: string;
-  estimatedDate?: string;
+  cycleNumber: number;
+  amountNgn: number;
+  dueDate: string;
+  isActive: boolean;
 }
 
-const MOBILE_CONTRIB_CALLBACK = 'poolr://payment-callback';
+const MOBILE_CONTRIB_CALLBACK = "poolr://payment-callback";
 
 export function useInitializeContribution() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ cycleId, useWallet = false }: { cycleId: string; useWallet?: boolean }) =>
+    mutationFn: ({
+      cycleId,
+      useWallet = false,
+    }: {
+      cycleId: string;
+      useWallet?: boolean;
+    }) =>
       apiClient
         .post(`payments/contribute/${cycleId}`, {
           json: {
-            paymentSource: useWallet ? 'WALLET' : 'PAYSTACK',
+            paymentSource: useWallet ? "WALLET" : "PAYSTACK",
             callbackUrl: useWallet ? undefined : MOBILE_CONTRIB_CALLBACK,
           },
         })
         .json<InitContribResult>(),
+    onSuccess: (result) => {
+      if (!result.authorizationUrl) {
+        qc.invalidateQueries({ queryKey: ["contributions"] });
+        qc.invalidateQueries({ queryKey: ["group"] });
+        qc.invalidateQueries({ queryKey: ["next-payout"] });
+      }
+    },
   });
 }
 
@@ -57,17 +73,21 @@ export function useVerifyPayment() {
   return useMutation({
     mutationFn: (reference: string) =>
       apiClient.get(`payments/verify/${reference}`).json<VerifyResult>(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contributions'] });
-      qc.invalidateQueries({ queryKey: ['group'] });
+    onSuccess: (result) => {
+      if (result.status === "success") {
+        qc.invalidateQueries({ queryKey: ["contributions"] });
+        qc.invalidateQueries({ queryKey: ["group"] });
+        qc.invalidateQueries({ queryKey: ["next-payout"] });
+      }
     },
   });
 }
 
 export function useCanPayFromWallet(cycleId: string | undefined) {
   return useQuery<CanPayResult>({
-    queryKey: ['can-pay', cycleId],
-    queryFn: () => apiClient.get(`wallet/can-pay/${cycleId}`).json<CanPayResult>(),
+    queryKey: ["can-pay", cycleId],
+    queryFn: () =>
+      apiClient.get(`wallet/can-pay/${cycleId}`).json<CanPayResult>(),
     enabled: !!cycleId,
     staleTime: 15_000,
   });
@@ -75,8 +95,9 @@ export function useCanPayFromWallet(cycleId: string | undefined) {
 
 export function useNextPayout() {
   return useQuery({
-    queryKey: ['next-payout'],
-    queryFn: () => apiClient.get('payments/next-payout').json<NextPayout | null>(),
+    queryKey: ["next-payout"],
+    queryFn: () =>
+      apiClient.get("payments/next-payout").json<NextPayout | null>(),
     staleTime: 60_000,
   });
 }

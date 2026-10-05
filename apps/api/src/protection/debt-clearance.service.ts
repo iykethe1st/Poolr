@@ -58,7 +58,7 @@ export class DebtClearanceService {
     }
 
     const paymentRef = `debt_${debtId}_${Date.now()}`;
-    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://app.poolr.ng');
+    const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
 
     const { authorizationUrl } = await this.paystack.initializeTransaction({
       amountNgn: Number(debt.amountNgn),
