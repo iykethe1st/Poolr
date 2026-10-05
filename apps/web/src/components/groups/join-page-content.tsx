@@ -18,7 +18,12 @@ import {
 } from "@/components/ui/dialog";
 import { GroupTermsDialog } from "./group-terms-dialog";
 import { isAuthenticated } from "@/lib/auth";
-import { useGroup, useJoinGroup, useDeclineInvite } from "@/hooks/use-group";
+import {
+  useAcceptInvite,
+  useGroup,
+  useJoinGroup,
+  useDeclineInvite,
+} from "@/hooks/use-group";
 import { useCurrentUser } from "@/hooks/use-dashboard";
 import { formatCurrency, formatFrequency } from "@/lib/format";
 
@@ -104,6 +109,7 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
   } = useGroup(groupId);
   const { data: me } = useCurrentUser();
   const joinGroup = useJoinGroup(groupId);
+  const acceptInvite = useAcceptInvite(groupId);
   const declineInvite = useDeclineInvite(groupId);
   const [error, setError] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -125,35 +131,38 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
 
   function handleAccept() {
     setError("");
-    joinGroup.mutate(
-      { token, slotCount },
-      {
-        onSuccess: () => {
-          router.push(`/groups/${groupId}`);
-          router.refresh();
-        },
-        onError: async (err) => {
-          if (err instanceof HTTPError) {
-            const body: { message?: string } = await err.response
-              .json()
-              .catch(() => ({}));
-            if (
-              err.response.status === 403 &&
-              body.message?.toLowerCase().includes("kyc")
-            ) {
-              setKycDialogOpen(true);
-              return;
-            }
-            setError(
-              body.message ??
-                "Failed to accept. The invite link may have expired.",
-            );
-          } else {
-            setError("Something went wrong. Please try again.");
-          }
-        },
+    const options = {
+      onSuccess: () => {
+        router.push(`/groups/${groupId}`);
+        router.refresh();
       },
-    );
+      onError: async (err: Error) => {
+        if (err instanceof HTTPError) {
+          const body: { message?: string } = await err.response
+            .json()
+            .catch(() => ({}));
+          if (
+            err.response.status === 403 &&
+            body.message?.toLowerCase().includes("kyc")
+          ) {
+            setKycDialogOpen(true);
+            return;
+          }
+          setError(
+            body.message ??
+              "Failed to accept. The invite link may have expired.",
+          );
+        } else {
+          setError("Something went wrong. Please try again.");
+        }
+      },
+    };
+
+    if (token) {
+      joinGroup.mutate({ token, slotCount }, options);
+    } else {
+      acceptInvite.mutate(slotCount, options);
+    }
   }
 
   function handleDecline() {
@@ -214,7 +223,8 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
     );
   }
 
-  const busy = joinGroup.isPending || declineInvite.isPending;
+  const busy =
+    joinGroup.isPending || acceptInvite.isPending || declineInvite.isPending;
   const memberCount = group.members.length;
   const penaltyEnabled = !!group.penaltyConfig;
   const maxSlotsByTier = me?.contributionStats?.maxSlotsEligible ?? 1;
@@ -418,7 +428,7 @@ function AuthedView({ groupId, token }: { groupId: string; token: string }) {
               onClick={handleAccept}
               disabled={busy || !termsAccepted}
             >
-              {joinGroup.isPending && (
+              {(joinGroup.isPending || acceptInvite.isPending) && (
                 <Loader2 className="size-4 animate-spin" />
               )}
               Accept invitation
