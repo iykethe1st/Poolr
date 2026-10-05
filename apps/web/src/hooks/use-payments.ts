@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 
 export type FeeBreakdown = {
   contributionAmountNgn: number;
@@ -16,7 +16,7 @@ export type InitContribResult = FeeBreakdown & {
 
 export type WalletContribResult = FeeBreakdown & {
   paid: true;
-  paymentSource: 'WALLET';
+  paymentSource: "WALLET";
   reference: string;
 };
 
@@ -30,7 +30,7 @@ export type CanPayResult = {
 };
 
 export type VerifyResult = {
-  status: 'success' | 'failed' | 'pending' | 'abandoned';
+  status: "success" | "failed" | "pending" | "abandoned";
   amount?: number;
   groupId?: string;
   groupName?: string;
@@ -40,7 +40,9 @@ export type VerifyResult = {
 export function useInitializeContribution() {
   return useMutation({
     mutationFn: (cycleId: string) =>
-      apiClient.post(`payments/contribute/${cycleId}`).json<InitContribResult>(),
+      apiClient
+        .post(`payments/contribute/${cycleId}`)
+        .json<InitContribResult>(),
   });
 }
 
@@ -49,11 +51,15 @@ export function useWalletContribute() {
   return useMutation({
     mutationFn: (cycleId: string) =>
       apiClient
-        .post(`payments/contribute/${cycleId}`, { json: { paymentSource: 'WALLET' } })
+        .post(`payments/contribute/${cycleId}`, {
+          json: { paymentSource: "WALLET" },
+        })
         .json<WalletContribResult>(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['group'] });
-      qc.invalidateQueries({ queryKey: ['wallet'] });
+      qc.invalidateQueries({ queryKey: ["group"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+      qc.invalidateQueries({ queryKey: ["contributions"] });
+      qc.invalidateQueries({ queryKey: ["next-payout"] });
     },
   });
 }
@@ -69,8 +75,9 @@ export type NextPayout = {
 
 export function useNextPayout() {
   return useQuery<NextPayout | null>({
-    queryKey: ['next-payout'],
-    queryFn: () => apiClient.get('payments/next-payout').json<NextPayout | null>(),
+    queryKey: ["next-payout"],
+    queryFn: () =>
+      apiClient.get("payments/next-payout").json<NextPayout | null>(),
     staleTime: 30_000,
   });
 }
@@ -90,16 +97,17 @@ export type MyPayout = {
 
 export function useMyPayouts() {
   return useQuery<MyPayout[]>({
-    queryKey: ['my-payouts'],
-    queryFn: () => apiClient.get('payments/payouts').json<MyPayout[]>(),
+    queryKey: ["my-payouts"],
+    queryFn: () => apiClient.get("payments/payouts").json<MyPayout[]>(),
     staleTime: 30_000,
   });
 }
 
 export function useCanPayFromWallet(cycleId: string | undefined) {
   return useQuery<CanPayResult>({
-    queryKey: ['can-pay', cycleId],
-    queryFn: () => apiClient.get(`wallet/can-pay/${cycleId}`).json<CanPayResult>(),
+    queryKey: ["can-pay", cycleId],
+    queryFn: () =>
+      apiClient.get(`wallet/can-pay/${cycleId}`).json<CanPayResult>(),
     enabled: !!cycleId,
     staleTime: 15_000,
   });
@@ -109,15 +117,19 @@ export function useVerifyPayment(reference: string | null) {
   const qc = useQueryClient();
 
   return useQuery<VerifyResult>({
-    queryKey: ['payment-verify', reference],
+    queryKey: ["payment-verify", reference],
     queryFn: async () => {
       const result = await apiClient
         .get(`payments/verify/${reference}`)
         .json<VerifyResult>();
 
-      if (result.status === 'success') {
-        qc.invalidateQueries({ queryKey: ['contributions'] });
-        qc.invalidateQueries({ queryKey: ['wallet'] });
+      if (result.status === "success") {
+        qc.invalidateQueries({ queryKey: ["contributions"] });
+        qc.invalidateQueries({ queryKey: ["wallet"] });
+        if (result.groupId) {
+          qc.invalidateQueries({ queryKey: ["group", result.groupId] });
+        }
+        qc.invalidateQueries({ queryKey: ["next-payout"] });
       }
 
       return result;

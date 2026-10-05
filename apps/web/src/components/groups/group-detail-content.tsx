@@ -253,12 +253,19 @@ function LiveGroupTabs({
   const activeCycle = group.cycles.find(
     (c) => c.status === 'ACTIVE' || c.status === 'OVERDUE',
   );
-  const isActiveMember = me && group.members.find((m) => m.userId === me.id)?.memberStatus === 'ACTIVE';
+  const myActiveMember = me
+    ? group.members.find(
+        (m) => m.userId === me.id && m.memberStatus === 'ACTIVE',
+      )
+    : undefined;
+  const myContribution = activeCycle?.contributions.find(
+    (contribution) => contribution.memberId === myActiveMember?.id,
+  );
 
   return (
     <div className="space-y-5">
       {/* Pay CTA banner — shown when there is a payable active cycle */}
-      {activeCycle && isActiveMember && (
+      {activeCycle && myActiveMember && myContribution?.status !== 'PAID' && (
         <PayCtaBanner
           cycleId={activeCycle.id}
           cycleNumber={activeCycle.cycleNumber}
@@ -1283,4 +1290,3 @@ function GroupDetailSkeleton() {
     </div>
   );
 }
-

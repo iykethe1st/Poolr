@@ -13,14 +13,18 @@ export function formatRelativeDate(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
+  if (diffDays < -1) return `${Math.abs(diffDays)} days overdue`;
+  if (diffDays === -1) return 'Yesterday';
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
-  if (diffDays < -1 && diffDays >= -7) return `${Math.abs(diffDays)} days ago`;
-  return formatDate(d);
+  if (diffDays <= 7) return `In ${diffDays} days`;
+  return d.toLocaleDateString('en-NG', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 export function timeAgo(date: string | Date): string {

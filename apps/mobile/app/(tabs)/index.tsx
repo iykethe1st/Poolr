@@ -83,16 +83,25 @@ export default function HomeScreen() {
     ]);
   }
 
-  const pendingContribs = contributions.filter(
-    (c) => c.status === "PENDING" || c.status === "OVERDUE",
-  );
+  const pendingContribs = contributions
+    .filter((c) => c.status === "PENDING" || c.status === "OVERDUE")
+    .sort(
+      (a, b) =>
+        new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime(),
+    );
   const activeGroups = groups.filter((g) => g.status === "ACTIVE");
   const pendingInvites = groups.filter((g) =>
-    g.members.some((mb) => mb.userId === me?.id && mb.memberStatus === "INVITED"),
+    g.members.some(
+      (mb) => mb.userId === me?.id && mb.memberStatus === "INVITED",
+    ),
   );
   const slotOfferGroups = groups.filter((g) => {
-    const hasActive = g.members.some((mb) => mb.userId === me?.id && mb.memberStatus === "ACTIVE");
-    const hasInvited = g.members.some((mb) => mb.userId === me?.id && mb.memberStatus === "INVITED");
+    const hasActive = g.members.some(
+      (mb) => mb.userId === me?.id && mb.memberStatus === "ACTIVE",
+    );
+    const hasInvited = g.members.some(
+      (mb) => mb.userId === me?.id && mb.memberStatus === "INVITED",
+    );
     return hasActive && hasInvited;
   });
   const balance = parseFloat(wallet?.balance ?? "0");
@@ -136,9 +145,19 @@ export default function HomeScreen() {
             <View style={styles.kycBannerLeft}>
               <View style={styles.kycBannerIcon}>
                 <Feather
-                  name={me.kycProfile?.kycStatus === "PENDING" || me.kycProfile?.kycStatus === "UNDER_REVIEW" ? "clock" : "shield"}
+                  name={
+                    me.kycProfile?.kycStatus === "PENDING" ||
+                    me.kycProfile?.kycStatus === "UNDER_REVIEW"
+                      ? "clock"
+                      : "shield"
+                  }
                   size={18}
-                  color={me.kycProfile?.kycStatus === "PENDING" || me.kycProfile?.kycStatus === "UNDER_REVIEW" ? colors.infoText : colors.warning}
+                  color={
+                    me.kycProfile?.kycStatus === "PENDING" ||
+                    me.kycProfile?.kycStatus === "UNDER_REVIEW"
+                      ? colors.infoText
+                      : colors.warning
+                  }
                 />
               </View>
               <View>
@@ -158,7 +177,11 @@ export default function HomeScreen() {
             </View>
             {me.kycProfile?.kycStatus !== "PENDING" &&
               me.kycProfile?.kycStatus !== "UNDER_REVIEW" && (
-                <Feather name="chevron-right" size={18} color={colors.textMuted} />
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={colors.textMuted}
+                />
               )}
           </TouchableOpacity>
         )}
@@ -180,12 +203,16 @@ export default function HomeScreen() {
             <View style={styles.payoutCard}>
               <Text style={styles.payoutLabel}>Your next payout</Text>
               <Text style={styles.payoutAmount}>
-                {formatCurrency(nextPayout.amount)}
+                {formatCurrency(nextPayout.amountNgn)}
               </Text>
-              <Text style={styles.payoutFrom}>{nextPayout.groupName}</Text>
-              {nextPayout.estimatedDate && (
+              <Text style={styles.payoutFrom}>
+                {nextPayout.groupName} · Cycle {nextPayout.cycleNumber}
+              </Text>
+              {nextPayout.isActive ? (
+                <Text style={styles.payoutDate}>Collection in progress</Text>
+              ) : (
                 <Text style={styles.payoutDate}>
-                  Est. {formatRelativeDate(nextPayout.estimatedDate)}
+                  Due {formatRelativeDate(nextPayout.dueDate)}
                 </Text>
               )}
             </View>
@@ -208,9 +235,12 @@ export default function HomeScreen() {
               >
                 <View style={styles.inviteCardTop}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.inviteName} numberOfLines={1}>{g.name}</Text>
+                    <Text style={styles.inviteName} numberOfLines={1}>
+                      {g.name}
+                    </Text>
                     <Text style={styles.inviteMeta}>
-                      {g.frequency.toLowerCase()} · {formatCurrency(g.contributionAmount)} per member
+                      {g.frequency.toLowerCase()} ·{" "}
+                      {formatCurrency(g.contributionAmount)} per member
                     </Text>
                   </View>
                   <StatusBadge label="Invited" variant="warning" />
@@ -241,7 +271,7 @@ export default function HomeScreen() {
                   <Text style={styles.contribName}>{c.cycle.group.name}</Text>
                   <Text style={styles.contribMeta}>
                     Cycle {c.cycle.cycleNumber} · Due{" "}
-                    {formatRelativeDate(c.cycle.dueDate)}
+                    {formatRelativeDate(c.dueAt)}
                   </Text>
                 </View>
                 <View style={styles.contribRight}>
@@ -269,46 +299,57 @@ export default function HomeScreen() {
                 activeOpacity={0.75}
                 onPress={() => router.push(`/groups/${g.id}`)}
               >
-                <MaterialCommunityIcons name="hand-coin" size={22} color={colors.primary} />
+                <MaterialCommunityIcons
+                  name="hand-coin"
+                  size={22}
+                  color={colors.primary}
+                />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.slotOfferCardTitle}>{g.name}</Text>
                   <Text style={styles.slotOfferCardMeta}>
-                    Admin offered you an extra rotation slot — tap to accept or decline
+                    Admin offered you an extra rotation slot — tap to accept or
+                    decline
                   </Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={colors.textMuted} />
+                <Feather
+                  name="chevron-right"
+                  size={16}
+                  color={colors.textMuted}
+                />
               </TouchableOpacity>
             ))}
           </View>
         )}
 
         {/* Empty state — no groups and no pending invites */}
-        {groups.length === 0 && pendingInvites.length === 0 && !groupsLoading && (
-          <View style={styles.getStarted}>
-            <View style={styles.getStartedIcon}>
-              <Feather name="users" size={32} color={colors.primary} />
+        {groups.length === 0 &&
+          pendingInvites.length === 0 &&
+          !groupsLoading && (
+            <View style={styles.getStarted}>
+              <View style={styles.getStartedIcon}>
+                <Feather name="users" size={32} color={colors.primary} />
+              </View>
+              <Text style={styles.getStartedTitle}>Start saving together</Text>
+              <Text style={styles.getStartedBody}>
+                Create your own savings circle or join one from a friend.
+                Everyone contributes, everyone benefits.
+              </Text>
+              <TouchableOpacity
+                style={styles.getStartedPrimary}
+                onPress={() => router.push("/groups/new")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.getStartedPrimaryText}>Create a group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.getStartedSecondary}
+                onPress={() => router.push("/(tabs)/groups")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.getStartedSecondaryText}>Join a group</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.getStartedTitle}>Start saving together</Text>
-            <Text style={styles.getStartedBody}>
-              Create your own savings circle or join one from a friend. Everyone
-              contributes, everyone benefits.
-            </Text>
-            <TouchableOpacity
-              style={styles.getStartedPrimary}
-              onPress={() => router.push("/groups/new")}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.getStartedPrimaryText}>Create a group</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.getStartedSecondary}
-              onPress={() => router.push("/(tabs)/groups")}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.getStartedSecondaryText}>Join a group</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          )}
 
         {/* Active groups */}
         {groups.length > 0 && (
@@ -560,7 +601,15 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    getStartedIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.primaryBg, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 4 },
+    getStartedIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 22,
+      backgroundColor: colors.primaryBg,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      marginBottom: 4,
+    },
     getStartedTitle: {
       fontSize: 20,
       fontWeight: "800",
@@ -620,7 +669,12 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       gap: 12,
       flex: 1,
     },
-    kycBannerIcon: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
+    kycBannerIcon: {
+      width: 36,
+      height: 36,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+    },
     kycBannerTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
     kycBannerSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
     kycBannerArrow: { fontSize: 22, color: colors.textMuted },
@@ -639,7 +693,15 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignItems: "center",
       gap: 8,
     },
-    kycModalIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.primaryBg, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 4 },
+    kycModalIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: 22,
+      backgroundColor: colors.primaryBg,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      marginBottom: 4,
+    },
     kycModalTitle: {
       fontSize: 20,
       fontWeight: "800",

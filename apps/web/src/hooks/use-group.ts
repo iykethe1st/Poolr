@@ -35,6 +35,13 @@ export type Cycle = {
   status: string;
   createdAt: string;
   updatedAt: string;
+  contributions: Array<{
+    id: string;
+    memberId: string;
+    amount: number;
+    status: string;
+    paidAt: string | null;
+  }>;
 };
 
 export type GroupVirtualAccount = {

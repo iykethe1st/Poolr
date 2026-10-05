@@ -182,6 +182,25 @@ describe('GroupsService', () => {
       });
       const result = await service.findOne(GROUP_ID, ADMIN_ID);
       expect(result.id).toBe(GROUP_ID);
+      expect(prisma.group.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            cycles: expect.objectContaining({
+              include: {
+                contributions: {
+                  select: {
+                    id: true,
+                    memberId: true,
+                    amount: true,
+                    status: true,
+                    paidAt: true,
+                  },
+                },
+              },
+            }),
+          }),
+        }),
+      );
     });
 
     it('throws NotFoundException for unknown group', async () => {

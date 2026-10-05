@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
@@ -93,17 +93,19 @@ export default function GroupDetailScreen() {
   const [payMethod, setPayMethod] = useState<"card" | "wallet">("card");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const successNavigationStarted = useRef(false);
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  function navigateToSuccess(
+  async function navigateToSuccess(
     amount: number | undefined,
     groupId: string | undefined,
     groupName: string | undefined,
-  ) {
-    void refetch();
-    void refetchHistory();
+  ): Promise<void> {
+    if (successNavigationStarted.current) return;
+    successNavigationStarted.current = true;
+    await Promise.all([refetch(), refetchHistory()]);
     router.replace({
       pathname: "/payment-success",
       params: {
@@ -116,11 +118,16 @@ export default function GroupDetailScreen() {
   }
 
   async function handlePay(cycleId: string, useWallet = false) {
+    successNavigationStarted.current = false;
     try {
       const result = await initContrib.mutateAsync({ cycleId, useWallet });
 
       if (useWallet || !result.authorizationUrl) {
-        navigateToSuccess(result.totalChargedNgn, group?.id, group?.name);
+        await navigateToSuccess(
+          result.totalChargedNgn,
+          group?.id,
+          group?.name,
+        );
         return;
       }
 
@@ -137,7 +144,7 @@ export default function GroupDetailScreen() {
             const verified = await verifyPayment.mutateAsync(result.reference);
             if (verified.status === "success") {
               WebBrowser.dismissBrowser();
-              navigateToSuccess(
+              await navigateToSuccess(
                 verified.amount ?? result.totalChargedNgn,
                 verified.groupId,
                 verified.groupName,
@@ -167,7 +174,7 @@ export default function GroupDetailScreen() {
         try {
           const verified = await verifyPayment.mutateAsync(ref);
           if (verified.status === "success") {
-            navigateToSuccess(
+            await navigateToSuccess(
               verified.amount ?? result.totalChargedNgn,
               verified.groupId,
               verified.groupName,
@@ -968,7 +975,10 @@ export default function GroupDetailScreen() {
         onRequestClose={() => setDatePickerOpen(false)}
       >
         <TouchableOpacity
-          style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.4)" }]}
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: "rgba(0,0,0,0.4)" },
+          ]}
           activeOpacity={1}
           onPress={() => setDatePickerOpen(false)}
         />
@@ -986,7 +996,10 @@ export default function GroupDetailScreen() {
               style={{ alignSelf: "stretch" }}
             />
             <TouchableOpacity
-              style={[styles.datePickerSave, updateGroup.isPending && { opacity: 0.6 }]}
+              style={[
+                styles.datePickerSave,
+                updateGroup.isPending && { opacity: 0.6 },
+              ]}
               onPress={() => handleSaveDate()}
               disabled={updateGroup.isPending}
             >

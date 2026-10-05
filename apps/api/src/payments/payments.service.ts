@@ -111,7 +111,7 @@ export class PaymentsService {
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3003');
+    const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
     const resolvedCallbackUrl = callbackUrl ?? `${frontendUrl}/payments/callback`;
     const { authorizationUrl } = await this.paystack.initializeTransaction({
       email: user.email,
