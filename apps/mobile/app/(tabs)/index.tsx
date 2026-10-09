@@ -5,12 +5,11 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { router } from "expo-router";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import {
   useCurrentUser,
@@ -22,6 +21,12 @@ import { useWallet } from "@/hooks/use-wallet";
 import { useColors } from "@/lib/colors";
 import { formatCurrency, formatRelativeDate } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { radii, spacing, typography } from "@/theme";
 
 export default function HomeScreen() {
   const {
@@ -29,15 +34,22 @@ export default function HomeScreen() {
     isLoading: meLoading,
     refetch: refetchMe,
   } = useCurrentUser();
-  const { data: wallet, refetch: refetchWallet } = useWallet();
+  const {
+    data: wallet,
+    isLoading: walletLoading,
+    isError: walletFailed,
+    refetch: refetchWallet,
+  } = useWallet();
   const {
     data: groups = [],
     isLoading: groupsLoading,
+    isError: groupsFailed,
     refetch: refetchGroups,
   } = useMyGroups();
   const {
     data: contributions = [],
     isLoading: contribLoading,
+    isError: contributionsFailed,
     refetch: refetchContribs,
   } = useMyContributions();
   const { data: nextPayout, refetch: refetchPayout } = useNextPayout();
@@ -71,7 +83,8 @@ export default function HomeScreen() {
     }
   }
 
-  const isRefreshing = meLoading || groupsLoading || contribLoading;
+  const isRefreshing =
+    meLoading || walletLoading || groupsLoading || contribLoading;
 
   function onRefresh() {
     void Promise.all([
@@ -85,10 +98,7 @@ export default function HomeScreen() {
 
   const pendingContribs = contributions
     .filter((c) => c.status === "PENDING" || c.status === "OVERDUE")
-    .sort(
-      (a, b) =>
-        new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime(),
-    );
+    .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
   const activeGroups = groups.filter((g) => g.status === "ACTIVE");
   const pendingInvites = groups.filter((g) =>
     g.members.some(
@@ -122,16 +132,19 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>
-              Hello, {me?.fullName?.split(" ")[0] ?? "—"} 👋
+            <Text variant="title2" style={styles.greeting}>
+              Hello, {me?.fullName?.split(" ")[0] ?? "—"}
             </Text>
             <Text style={styles.greetingSub}>Here's your savings overview</Text>
           </View>
+          <ThemeToggle />
         </View>
 
         {/* KYC banner */}
         {me && me.kycProfile?.kycStatus !== "VERIFIED" && (
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Open identity verification"
             style={[
               styles.kycBanner,
               me.kycProfile?.kycStatus === "PENDING" ||
@@ -188,12 +201,29 @@ export default function HomeScreen() {
 
         {/* Wallet balance card */}
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Open wallet balance"
           style={styles.balanceCard}
           onPress={() => router.push("/(tabs)/wallet")}
           activeOpacity={0.85}
         >
           <Text style={styles.balanceLabel}>Wallet balance</Text>
-          <Text style={styles.balanceAmount}>{formatCurrency(balance)}</Text>
+          {walletLoading ? (
+            <Skeleton style={styles.balanceSkeleton} />
+          ) : walletFailed && !wallet ? (
+            <Text variant="caption" tone="onPrimary">
+              Balance unavailable. Pull down to try again.
+            </Text>
+          ) : (
+            <Text
+              variant="display"
+              tabularNumbers
+              tone="onPrimary"
+              style={styles.balanceAmount}
+            >
+              {formatCurrency(balance)}
+            </Text>
+          )}
           <Text style={styles.balanceSub}>Tap to manage wallet</Text>
         </TouchableOpacity>
 
@@ -202,7 +232,7 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.payoutCard}>
               <Text style={styles.payoutLabel}>Your next payout</Text>
-              <Text style={styles.payoutAmount}>
+              <Text variant="title1" tabularNumbers style={styles.payoutAmount}>
                 {formatCurrency(nextPayout.amountNgn)}
               </Text>
               <Text style={styles.payoutFrom}>
@@ -228,6 +258,8 @@ export default function HomeScreen() {
             </Text>
             {pendingInvites.map((g) => (
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Review invite for ${g.name}`}
                 key={g.id}
                 style={styles.inviteCard}
                 activeOpacity={0.75}
@@ -238,7 +270,7 @@ export default function HomeScreen() {
                     <Text style={styles.inviteName} numberOfLines={1}>
                       {g.name}
                     </Text>
-                    <Text style={styles.inviteMeta}>
+                    <Text tabularNumbers style={styles.inviteMeta}>
                       {g.frequency.toLowerCase()} ·{" "}
                       {formatCurrency(g.contributionAmount)} per member
                     </Text>
@@ -254,37 +286,67 @@ export default function HomeScreen() {
         )}
 
         {/* Pending contributions */}
+        {contributionsFailed && contributions.length === 0 && (
+          <ErrorState
+            title="Contributions unavailable"
+            action={
+              <Button
+                accessibilityLabel="Retry loading contributions"
+                variant="secondary"
+                onPress={() => void refetchContribs()}
+              >
+                Try again
+              </Button>
+            }
+          >
+            Check your connection and try again.
+          </ErrorState>
+        )}
         {pendingContribs.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming contributions</Text>
-            {pendingContribs.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[
-                  styles.contribRow,
-                  c.status === "OVERDUE" && styles.contribOverdue,
-                ]}
-                onPress={() => router.push(`/groups/${c.cycle.group.id}`)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.contribLeft}>
-                  <Text style={styles.contribName}>{c.cycle.group.name}</Text>
-                  <Text style={styles.contribMeta}>
-                    Cycle {c.cycle.cycleNumber} · Due{" "}
-                    {formatRelativeDate(c.dueAt)}
-                  </Text>
-                </View>
-                <View style={styles.contribRight}>
-                  <Text style={styles.contribAmount}>
-                    {formatCurrency(c.amount)}
-                  </Text>
-                  <StatusBadge
-                    label={c.status === "OVERDUE" ? "Overdue" : "Due"}
-                    variant={c.status === "OVERDUE" ? "danger" : "warning"}
-                  />
-                </View>
-              </TouchableOpacity>
-            ))}
+            {pendingContribs.map((c) => {
+              const isDue = new Date(c.dueAt).getTime() <= Date.now();
+              const isOverdue = c.status === "OVERDUE" && isDue;
+
+              return (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open contribution for ${c.cycle.group.name}`}
+                  key={c.id}
+                  style={[
+                    styles.contribRow,
+                    isOverdue && styles.contribOverdue,
+                  ]}
+                  onPress={() => router.push(`/groups/${c.cycle.group.id}`)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.contribLeft}>
+                    <Text style={styles.contribName}>{c.cycle.group.name}</Text>
+                    <Text style={styles.contribMeta}>
+                      Cycle {c.cycle.cycleNumber} · Due{" "}
+                      {formatRelativeDate(c.dueAt)}
+                    </Text>
+                  </View>
+                  <View style={styles.contribRight}>
+                    <Text
+                      variant="bodyStrong"
+                      tabularNumbers
+                      style={styles.contribAmount}
+                    >
+                      {formatCurrency(c.amount)}
+                    </Text>
+                    {isOverdue ? (
+                      <StatusBadge label="Overdue" variant="danger" />
+                    ) : isDue ? (
+                      <StatusBadge label="Due" variant="warning" />
+                    ) : (
+                      <StatusBadge label="Upcoming" variant="neutral" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -294,13 +356,15 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Slot offers</Text>
             {slotOfferGroups.map((g) => (
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Review slot offer for ${g.name}`}
                 key={g.id}
                 style={styles.slotOfferCard}
                 activeOpacity={0.75}
                 onPress={() => router.push(`/groups/${g.id}`)}
               >
-                <MaterialCommunityIcons
-                  name="hand-coin"
+                <Feather
+                  name="gift"
                   size={22}
                   color={colors.primary}
                 />
@@ -322,8 +386,25 @@ export default function HomeScreen() {
         )}
 
         {/* Empty state — no groups and no pending invites */}
+        {groupsFailed && groups.length === 0 ? (
+          <ErrorState
+            title="Groups unavailable"
+            action={
+              <Button
+                accessibilityLabel="Retry loading groups"
+                variant="secondary"
+                onPress={() => void refetchGroups()}
+              >
+                Try again
+              </Button>
+            }
+          >
+            Check your connection and try loading your savings circles again.
+          </ErrorState>
+        ) : null}
         {groups.length === 0 &&
           pendingInvites.length === 0 &&
+          !groupsFailed &&
           !groupsLoading && (
             <View style={styles.getStarted}>
               <View style={styles.getStartedIcon}>
@@ -334,20 +415,21 @@ export default function HomeScreen() {
                 Create your own savings circle or join one from a friend.
                 Everyone contributes, everyone benefits.
               </Text>
-              <TouchableOpacity
+              <Button
+                accessibilityLabel="Create a savings group"
                 style={styles.getStartedPrimary}
                 onPress={() => router.push("/groups/new")}
-                activeOpacity={0.85}
               >
-                <Text style={styles.getStartedPrimaryText}>Create a group</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+                Create a group
+              </Button>
+              <Button
+                accessibilityLabel="Join a savings group"
+                variant="secondary"
                 style={styles.getStartedSecondary}
                 onPress={() => router.push("/(tabs)/groups")}
-                activeOpacity={0.85}
               >
-                <Text style={styles.getStartedSecondaryText}>Join a group</Text>
-              </TouchableOpacity>
+                Join a group
+              </Button>
             </View>
           )}
 
@@ -356,7 +438,11 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Active groups</Text>
-              <TouchableOpacity onPress={() => router.push("/(tabs)/groups")}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="See all savings groups"
+                onPress={() => router.push("/(tabs)/groups")}
+              >
                 <Text style={styles.seeAll}>See all</Text>
               </TouchableOpacity>
             </View>
@@ -366,13 +452,19 @@ export default function HomeScreen() {
                   No active groups yet — your pending groups will appear here
                   once they start.
                 </Text>
-                <TouchableOpacity onPress={() => router.push("/(tabs)/groups")}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="View all savings groups"
+                  onPress={() => router.push("/(tabs)/groups")}
+                >
                   <Text style={styles.emptyLink}>View all groups</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               activeGroups.slice(0, 3).map((g) => (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open savings group ${g.name}`}
                   key={g.id}
                   style={styles.groupCard}
                   onPress={() => router.push(`/groups/${g.id}`)}
@@ -386,12 +478,16 @@ export default function HomeScreen() {
                     </View>
                     <View>
                       <Text style={styles.groupName}>{g.name}</Text>
-                      <Text style={styles.groupMeta}>
+                      <Text tabularNumbers style={styles.groupMeta}>
                         {g.members.length} members · {g.frequency}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.groupAmount}>
+                  <Text
+                    variant="bodyStrong"
+                    tabularNumbers
+                    style={styles.groupAmount}
+                  >
                     {formatCurrency(g.contributionAmount)}
                   </Text>
                 </TouchableOpacity>
@@ -409,10 +505,16 @@ export default function HomeScreen() {
         onRequestClose={() => void dismissKycPrompt()}
       >
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss identity verification prompt"
           style={styles.kycModalBackdrop}
           onPress={() => void dismissKycPrompt()}
         >
-          <Pressable style={styles.kycModalCard} onPress={() => {}}>
+          <Pressable
+            accessible={false}
+            style={styles.kycModalCard}
+            onPress={() => {}}
+          >
             <View style={styles.kycModalIcon}>
               <Feather name="shield" size={32} color={colors.primary} />
             </View>
@@ -422,6 +524,8 @@ export default function HomeScreen() {
               identity. This protects you and every member of your circle.
             </Text>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Verify identity now"
               style={styles.kycModalPrimaryBtn}
               onPress={() => {
                 void dismissKycPrompt();
@@ -431,6 +535,8 @@ export default function HomeScreen() {
               <Text style={styles.kycModalPrimaryBtnText}>Verify now</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss verification reminder"
               style={styles.kycModalSecondaryBtn}
               onPress={() => void dismissKycPrompt()}
             >
@@ -446,74 +552,84 @@ export default function HomeScreen() {
 function createStyles(colors: import("@/lib/colors").Colors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 16, paddingTop: 56, gap: 20 },
+    content: { padding: spacing[4], paddingTop: spacing[10], gap: spacing[5] },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    greeting: { fontSize: 22, fontWeight: "700", color: colors.text },
-    greetingSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    greeting: { color: colors.text },
+    greetingSub: {
+      ...typography.caption,
+      color: colors.textMuted,
+      marginTop: spacing[1],
+    },
 
     balanceCard: {
       backgroundColor: colors.primary,
-      borderRadius: 20,
-      padding: 24,
-      gap: 4,
-      color: "#fff",
+      borderRadius: radii.large,
+      padding: spacing[6],
+      gap: spacing[1],
+    },
+    balanceSkeleton: {
+      width: "70%",
+      minHeight: spacing[8],
+      backgroundColor: colors.primaryPressed,
     },
     balanceLabel: {
-      fontSize: 13,
-      color: "rgba(255,255,255,0.75)",
-      fontWeight: "500",
+      ...typography.caption,
+      color: colors.textOnPrimary,
     },
-    balanceAmount: {
-      fontSize: 34,
-      fontWeight: "800",
-      color: "#fff",
-      letterSpacing: -1,
+    balanceAmount: { color: colors.textOnPrimary },
+    balanceSub: {
+      ...typography.caption,
+      color: colors.textOnPrimary,
+      marginTop: spacing[1],
     },
-    balanceSub: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 },
 
     payoutCard: {
       backgroundColor: colors.primaryBg,
-      borderRadius: 16,
-      padding: 16,
+      borderRadius: radii.large,
+      padding: spacing[4],
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
     payoutLabel: {
-      fontSize: 12,
+      ...typography.overline,
       color: colors.primaryText,
-      fontWeight: "600",
       textTransform: "uppercase",
-      letterSpacing: 0.5,
     },
     payoutAmount: {
-      fontSize: 24,
-      fontWeight: "800",
       color: colors.primaryText,
-      marginTop: 4,
+      marginTop: spacing[1],
     },
-    payoutFrom: { fontSize: 13, color: colors.primaryTextMid, marginTop: 2 },
-    payoutDate: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+    payoutFrom: {
+      ...typography.caption,
+      color: colors.primaryTextMid,
+      marginTop: spacing[1],
+    },
+    payoutDate: {
+      ...typography.caption,
+      color: colors.textMuted,
+      marginTop: spacing[1],
+    },
 
-    section: { gap: 10 },
+    section: { gap: spacing[3] },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
     },
-    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-    seeAll: { fontSize: 13, color: colors.primary, fontWeight: "600" },
+    sectionTitle: { ...typography.bodyStrong, color: colors.text },
+    seeAll: { ...typography.caption, color: colors.primary },
 
     contribRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: radii.medium,
+      padding: spacing[4],
       borderWidth: 1,
       borderColor: colors.border,
     },
@@ -521,219 +637,232 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderColor: colors.dangerBorder,
       backgroundColor: colors.dangerBg,
     },
-    contribLeft: { gap: 3 },
-    contribName: { fontSize: 14, fontWeight: "600", color: colors.text },
-    contribMeta: { fontSize: 12, color: colors.textMuted },
-    contribRight: { alignItems: "flex-end", gap: 4 },
-    contribAmount: { fontSize: 14, fontWeight: "700", color: colors.text },
+    contribLeft: { gap: spacing[1] },
+    contribName: { ...typography.bodyStrong, color: colors.text },
+    contribMeta: { ...typography.caption, color: colors.textMuted },
+    contribRight: { alignItems: "flex-end", gap: spacing[1] },
+    contribAmount: { ...typography.bodyStrong, color: colors.text },
 
     groupCard: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: radii.medium,
+      padding: spacing[4],
       borderWidth: 1,
       borderColor: colors.border,
     },
-    groupLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+    groupLeft: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
     groupAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
+      width: spacing[10],
+      height: spacing[10],
+      borderRadius: radii.medium,
       backgroundColor: colors.successBg,
       alignItems: "center",
       justifyContent: "center",
     },
-    groupAvatarText: { fontSize: 18, fontWeight: "700", color: colors.primary },
-    groupName: { fontSize: 14, fontWeight: "600", color: colors.text },
-    groupMeta: { fontSize: 12, color: colors.textMuted },
-    groupAmount: { fontSize: 14, fontWeight: "700", color: colors.primary },
+    groupAvatarText: { ...typography.headline, color: colors.primary },
+    groupName: { ...typography.bodyStrong, color: colors.text },
+    groupMeta: { ...typography.caption, color: colors.textMuted },
+    groupAmount: { ...typography.bodyStrong, color: colors.primary },
 
     slotOfferCard: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: spacing[3],
       backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 14,
+      borderRadius: radii.large,
+      padding: spacing[4],
       borderWidth: 1.5,
       borderColor: colors.primaryBorder,
     },
-    slotOfferCardTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-    slotOfferCardMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    slotOfferCardTitle: { ...typography.bodyStrong, color: colors.text },
+    slotOfferCardMeta: {
+      ...typography.caption,
+      color: colors.textMuted,
+      marginTop: spacing[1],
+    },
 
-    inviteBadge: { fontSize: 12, fontWeight: "700", color: colors.primary },
+    inviteBadge: { ...typography.caption, color: colors.primary },
     inviteCard: {
       backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 14,
-      gap: 10,
+      borderRadius: radii.large,
+      padding: spacing[4],
+      gap: spacing[3],
       borderWidth: 1.5,
       borderColor: colors.primaryBorder,
       borderStyle: "dashed",
     },
-    inviteCardTop: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-    inviteName: { fontSize: 14, fontWeight: "700", color: colors.text },
-    inviteMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    inviteReview: { fontSize: 13, fontWeight: "600", color: colors.primary },
+    inviteCardTop: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: spacing[3],
+    },
+    inviteName: { ...typography.bodyStrong, color: colors.text },
+    inviteMeta: {
+      ...typography.caption,
+      color: colors.textMuted,
+      marginTop: spacing[1],
+    },
+    inviteReview: { ...typography.caption, color: colors.primary },
 
     empty: {
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 20,
+      borderRadius: radii.medium,
+      padding: spacing[5],
       alignItems: "center",
-      gap: 8,
+      gap: spacing[2],
       borderWidth: 1,
       borderColor: colors.border,
       borderStyle: "dashed",
     },
-    emptyText: { fontSize: 14, color: colors.textMuted, textAlign: "center" },
-    emptyLink: { fontSize: 14, color: colors.primary, fontWeight: "600" },
+    emptyText: {
+      ...typography.caption,
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+    emptyLink: { ...typography.caption, color: colors.primary },
 
     getStarted: {
       backgroundColor: colors.card,
-      borderRadius: 20,
-      padding: 28,
+      borderRadius: radii.large,
+      padding: spacing[6],
       alignItems: "center",
-      gap: 12,
+      gap: spacing[3],
       borderWidth: 1,
       borderColor: colors.border,
     },
     getStartedIcon: {
       width: 72,
       height: 72,
-      borderRadius: 22,
+      borderRadius: radii.large,
       backgroundColor: colors.primaryBg,
       alignItems: "center" as const,
       justifyContent: "center" as const,
-      marginBottom: 4,
+      marginBottom: spacing[1],
     },
     getStartedTitle: {
-      fontSize: 20,
-      fontWeight: "800",
+      ...typography.title2,
       color: colors.text,
       textAlign: "center",
     },
     getStartedBody: {
-      fontSize: 14,
+      ...typography.caption,
       color: colors.textMuted,
       textAlign: "center",
-      lineHeight: 22,
       maxWidth: 280,
     },
     getStartedPrimary: {
       width: "100%",
-      marginTop: 8,
+      marginTop: spacing[2],
       backgroundColor: colors.primary,
-      borderRadius: 14,
-      paddingVertical: 16,
+      borderRadius: radii.medium,
+      paddingVertical: spacing[4],
       alignItems: "center",
     },
-    getStartedPrimaryText: { color: "#fff", fontSize: 16, fontWeight: "700" },
     getStartedSecondary: {
       width: "100%",
       backgroundColor: colors.primaryBg,
-      borderRadius: 14,
-      paddingVertical: 16,
+      borderRadius: radii.medium,
+      paddingVertical: spacing[4],
       alignItems: "center",
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
-    getStartedSecondaryText: {
-      color: colors.primaryText,
-      fontSize: 16,
-      fontWeight: "600",
-    },
-
     kycBanner: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: radii.medium,
+      padding: spacing[4],
       borderWidth: 1,
     },
     kycBannerUnverified: {
-      backgroundColor: colors.warning + "10",
-      borderColor: colors.warning + "60",
+      backgroundColor: colors.warningSubtle,
+      borderColor: colors.warning,
     },
     kycBannerPending: {
       backgroundColor: colors.infoBg,
-      borderColor: colors.infoText + "30",
+      borderColor: colors.borderInput,
     },
     kycBannerLeft: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: spacing[3],
       flex: 1,
     },
     kycBannerIcon: {
-      width: 36,
-      height: 36,
+      width: spacing[10],
+      height: spacing[10],
       alignItems: "center" as const,
       justifyContent: "center" as const,
     },
-    kycBannerTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-    kycBannerSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    kycBannerArrow: { fontSize: 22, color: colors.textMuted },
+    kycBannerTitle: { ...typography.bodyStrong, color: colors.text },
+    kycBannerSub: {
+      ...typography.caption,
+      color: colors.textMuted,
+      marginTop: spacing[1],
+    },
+    kycBannerArrow: { ...typography.title2, color: colors.textMuted },
     kycModalBackdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.55)",
+      backgroundColor: colors.overlay,
       alignItems: "center",
       justifyContent: "center",
-      padding: 24,
+      padding: spacing[6],
     },
     kycModalCard: {
       width: "100%",
       backgroundColor: colors.card,
-      borderRadius: 24,
-      padding: 28,
+      borderRadius: radii.large,
+      padding: spacing[6],
       alignItems: "center",
-      gap: 8,
+      gap: spacing[2],
     },
     kycModalIcon: {
       width: 72,
       height: 72,
-      borderRadius: 22,
+      borderRadius: radii.large,
       backgroundColor: colors.primaryBg,
       alignItems: "center" as const,
       justifyContent: "center" as const,
-      marginBottom: 4,
+      marginBottom: spacing[1],
     },
     kycModalTitle: {
-      fontSize: 20,
-      fontWeight: "800",
+      ...typography.title2,
       color: colors.text,
       textAlign: "center",
     },
     kycModalBody: {
-      fontSize: 14,
+      ...typography.caption,
       color: colors.textMuted,
       textAlign: "center",
-      lineHeight: 21,
-      marginTop: 2,
-      marginBottom: 8,
+      marginTop: spacing[1],
+      marginBottom: spacing[2],
     },
     kycModalPrimaryBtn: {
       width: "100%",
-      height: 50,
+      minHeight: 48,
       backgroundColor: colors.primary,
-      borderRadius: 14,
+      borderRadius: radii.medium,
       alignItems: "center",
       justifyContent: "center",
     },
-    kycModalPrimaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+    kycModalPrimaryBtnText: {
+      ...typography.bodyStrong,
+      color: colors.textOnPrimary,
+    },
     kycModalSecondaryBtn: {
       width: "100%",
-      paddingVertical: 10,
+      minHeight: 44,
+      paddingVertical: spacing[3],
+      justifyContent: "center",
       alignItems: "center",
     },
     kycModalSecondaryBtnText: {
-      fontSize: 14,
+      ...typography.caption,
       color: colors.textMuted,
-      fontWeight: "500",
     },
   });
 }

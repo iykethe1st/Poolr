@@ -1,0 +1,76 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - link "Poolr home" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - text: Poolr
+      - navigation "Main navigation" [ref=f2e5]:
+        - link "Features" [ref=f2e6] [cursor=pointer]:
+          - /url: "#features"
+        - link "How it works" [ref=f2e7] [cursor=pointer]:
+          - /url: "#how-it-works"
+      - generic [ref=f2e8]:
+        - link "Sign in" [ref=f2e9] [cursor=pointer]:
+          - /url: /login
+        - link "Get started" [ref=f2e10] [cursor=pointer]:
+          - /url: /register
+  - main [ref=f2e11]:
+    - generic [ref=f2e14]:
+      - generic [ref=f2e15]: Community savings, made clearer
+      - heading "Save together. Take turns with confidence." [level=1] [ref=f2e16]: Save together.Take turns with confidence.
+      - paragraph [ref=f2e17]: Poolr helps groups organize ajo, esusu, and other rotating savings circles. Keep contributions, payout order, and group activity together in one place.
+      - generic [ref=f2e18]:
+        - link "Create an account" [ref=f2e19] [cursor=pointer]:
+          - /url: /register
+        - link "See how it works" [ref=f2e20] [cursor=pointer]:
+          - /url: "#how-it-works"
+      - paragraph [ref=f2e21]: Start a group or join one you have been invited to.
+    - generic [ref=f2e23]:
+      - generic [ref=f2e24]:
+        - paragraph [ref=f2e25]: Made for groups
+        - heading "The details of your circle, kept clear." [level=2] [ref=f2e26]
+        - paragraph [ref=f2e27]: Everyone can follow the plan and understand what is happening in the cycle.
+      - generic [ref=f2e28]:
+        - article [ref=f2e29]:
+          - heading "One place for your circle" [level=3] [ref=f2e35]
+          - paragraph [ref=f2e36]: Bring your group together and keep its schedule, members, and activity easy to find.
+        - article [ref=f2e37]:
+          - heading "A clear turn for everyone" [level=3] [ref=f2e42]
+          - paragraph [ref=f2e43]: See the contribution cycle and who is next to receive the pooled savings.
+        - article [ref=f2e44]:
+          - heading "Keep track of your money" [level=3] [ref=f2e50]
+          - paragraph [ref=f2e51]: View wallet activity and follow contributions and payouts from your account.
+    - generic [ref=f2e53]:
+      - generic [ref=f2e54]:
+        - paragraph [ref=f2e55]: How it works
+        - heading "A familiar way to save, with a clearer view." [level=2] [ref=f2e56]
+      - list [ref=f2e57]:
+        - listitem [ref=f2e58]:
+          - text: "01"
+          - heading "Create or join a group" [level=3] [ref=f2e59]
+          - paragraph [ref=f2e60]: Start a circle with people you trust, or join a group you have been invited to.
+        - listitem [ref=f2e61]:
+          - text: "02"
+          - heading "Agree on the contribution cycle" [level=3] [ref=f2e62]
+          - paragraph [ref=f2e63]: Your group sets the contribution amount, schedule, and payout order together.
+        - listitem [ref=f2e64]:
+          - text: "03"
+          - heading "Follow each contribution and payout" [level=3] [ref=f2e65]
+          - paragraph [ref=f2e66]: Keep up with the cycle and see the group’s contribution activity in one place.
+    - generic [ref=f2e68]:
+      - generic [ref=f2e69]:
+        - heading "Ready to organize your savings circle?" [level=2] [ref=f2e70]
+        - paragraph [ref=f2e71]: Create a group or sign in to continue with yours.
+      - link "Get started" [ref=f2e72] [cursor=pointer]:
+        - /url: /register
+  - contentinfo [ref=f2e73]:
+    - generic [ref=f2e74]:
+      - link "Poolr home" [ref=f2e75] [cursor=pointer]:
+        - /url: /
+        - text: Poolr
+      - paragraph [ref=f2e76]: Rotating savings circles for people who save together.
+      - generic [ref=f2e77]:
+        - link "Sign in" [ref=f2e78] [cursor=pointer]:
+          - /url: /login
+        - link "Create account" [ref=f2e79] [cursor=pointer]:
+          - /url: /register

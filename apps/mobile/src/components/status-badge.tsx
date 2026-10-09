@@ -1,5 +1,7 @@
-import { View, Text, StyleSheet } from "react-native";
-import { useColors } from "@/lib/colors";
+import { StyleSheet, View } from "react-native";
+import { radii, spacing } from "@/theme";
+import { useTheme } from "@/theme";
+import { Text } from "@/components/ui/text";
 
 export type BadgeVariant =
   | "success"
@@ -10,16 +12,6 @@ export type BadgeVariant =
   | "completed"
   | "primary";
 
-const BORDER: Record<BadgeVariant, string> = {
-  success: "#86efac",
-  warning: "#fde68a",
-  danger: "#fca5a5",
-  info: "#bfdbfe",
-  neutral: "#cbd5e1",
-  completed: "#c7d2fe",
-  primary: "#6ee7b7",
-};
-
 export function StatusBadge({
   label,
   variant = "neutral",
@@ -27,42 +19,66 @@ export function StatusBadge({
   label: string;
   variant?: BadgeVariant;
 }) {
-  const colors = useColors();
+  const { colors } = useTheme();
 
-  const colorMap: Record<BadgeVariant, { bg: string; text: string }> = {
-    success: { bg: colors.successBg + "10", text: colors.successText },
-    warning: { bg: colors.warningBg + "10", text: colors.warningText },
-    danger: { bg: colors.dangerBg + "10", text: colors.dangerText },
-    info: { bg: colors.infoBg + "10", text: colors.infoText },
-    neutral: { bg: colors.mutedBg + "10", text: colors.mutedText },
-    completed: { bg: colors.completedBg + "10", text: colors.completedText },
-    primary: { bg: colors.primaryBg + "10", text: colors.primaryText },
+  const colorMap: Record<
+    BadgeVariant,
+    {
+      bg: string;
+      border: string;
+      tone: "brand" | "success" | "warning" | "danger" | "secondary";
+    }
+  > = {
+    success: {
+      bg: colors.successSubtle,
+      border: colors.success,
+      tone: "success",
+    },
+    warning: {
+      bg: colors.warningSubtle,
+      border: colors.warning,
+      tone: "warning",
+    },
+    danger: { bg: colors.dangerSubtle, border: colors.danger, tone: "danger" },
+    info: {
+      bg: colors.primarySubtle,
+      border: colors.borderInput,
+      tone: "brand",
+    },
+    neutral: {
+      bg: colors.surfaceRaised,
+      border: colors.border,
+      tone: "secondary",
+    },
+    completed: {
+      bg: colors.primarySubtle,
+      border: colors.primary,
+      tone: "brand",
+    },
+    primary: {
+      bg: colors.primarySubtle,
+      border: colors.primary,
+      tone: "brand",
+    },
   };
 
-  const { bg, text } = colorMap[variant];
+  const { bg, border, tone } = colorMap[variant];
 
   return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: bg, borderColor: BORDER[variant] },
-      ]}
-    >
-      <Text style={[styles.label, { color: text }]}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: bg, borderColor: border }]}>
+      <Text variant="overline" tone={tone}>
+        {label}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 99,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1],
+    borderRadius: radii.small,
     borderWidth: 1,
     alignSelf: "flex-start",
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: "700",
   },
 });

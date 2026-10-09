@@ -1,5 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { HTTPError } from 'ky';
 import { apiClient } from '@/api/client';
+
+export async function getBankAccountErrorMessage(
+  error: unknown,
+  fallback: string,
+): Promise<string> {
+  if (!(error instanceof HTTPError)) {
+    return error instanceof Error ? error.message : fallback;
+  }
+
+  try {
+    const body = (await error.response.json()) as {
+      message?: string | string[];
+    };
+    if (Array.isArray(body.message) && body.message.length > 0) {
+      return body.message[0];
+    }
+    if (typeof body.message === "string") {
+      return body.message;
+    }
+  } catch {
+    return `${fallback} (server error ${error.response.status})`;
+  }
+
+  return `${fallback} (server error ${error.response.status})`;
+}
 
 export interface BankAccount {
   id: string;

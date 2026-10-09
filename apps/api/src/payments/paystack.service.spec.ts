@@ -2,8 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { PaystackService } from './paystack.service';
 
-function makeConfigMock(overrides: Record<string, string> = {}) {
-  const values: Record<string, string> = {
+function makeConfigMock(overrides: Record<string, string | boolean> = {}) {
+  const values: Record<string, string | boolean> = {
     PAYSTACK_BASE_URL: 'https://api.paystack.co',
     ...overrides,
   };
@@ -21,7 +21,7 @@ describe('PaystackService', () => {
     jest.clearAllMocks();
   });
 
-  function buildService(configValues?: Record<string, string>) {
+  function buildService(configValues?: Record<string, string | boolean>) {
     const module = Test.createTestingModule({
       providers: [
         PaystackService,
@@ -60,17 +60,60 @@ describe('PaystackService', () => {
   });
 
   describe('initiateTransfer — dev mode', () => {
-    it('returns mock transfer code without calling Paystack', async () => {
+    it('rejects transfers when disabled instead of returning a fake success', async () => {
       service = await buildService();
+
+      await expect(
+        service.initiateTransfer({
+          amountNgn: 25000,
+          recipientCode: 'RCP_test',
+          reference: 'payout_test_123',
+        }),
+      ).rejects.toThrow('PAYSTACK_SECRET_KEY is not configured');
+    });
+
+    it('rejects transfers when disabled even if credentials are configured', async () => {
+      service = await buildService({
+        PAYSTACK_SECRET_KEY: 'sk_test_configured',
+        PAYSTACK_TRANSFERS_ENABLED: false,
+      });
+
+      await expect(
+        service.initiateTransfer({
+          amountNgn: 25000,
+          recipientCode: 'RCP_test',
+          reference: 'payout_test_123',
+        }),
+      ).rejects.toThrow('Paystack transfers are disabled');
+    });
+
+    it('calls Paystack when explicitly enabled with credentials', async () => {
+      service = await buildService({
+        PAYSTACK_SECRET_KEY: 'sk_test_configured',
+        PAYSTACK_TRANSFERS_ENABLED: true,
+      });
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: true,
+          data: { transfer_code: 'TRF_test_123', reference: 'withdrawal_ref' },
+        }),
+      } as Response);
 
       const result = await service.initiateTransfer({
         amountNgn: 25000,
         recipientCode: 'RCP_test',
-        reference: 'payout_test_123',
+        reference: 'withdrawal_ref',
       });
 
-      expect(result.transferCode).toMatch(/^TRF_mock_/);
-      expect(result.reference).toBe('payout_test_123');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.paystack.co/transfer',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"amount":2500000'),
+        }),
+      );
+      expect(result.transferCode).toBe('TRF_test_123');
     });
   });
 
@@ -144,7 +187,10 @@ describe('PaystackService', () => {
 
   describe('initiateTransfer — prod mode', () => {
     it('POSTs to /transfer', async () => {
-      service = await buildService({ PAYSTACK_SECRET_KEY: 'sk_live_test' });
+      service = await buildService({
+        PAYSTACK_SECRET_KEY: 'sk_live_test',
+        NODE_ENV: 'production',
+      });
 
       fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,

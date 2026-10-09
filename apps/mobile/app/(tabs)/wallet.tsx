@@ -1,16 +1,11 @@
 import { useState, useMemo } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -29,6 +24,14 @@ import { useMyBankAccount } from "@/hooks/use-bank-account";
 import { useColors } from "@/lib/colors";
 import { formatCurrency, timeAgo } from "@/lib/format";
 import { AddBankForm } from "@/components/add-bank-form";
+import { AmountInput } from "@/components/ui/amount-input";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Button, IconButton } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
+import { radii, spacing, typography } from "@/theme";
 
 async function extractError(err: unknown): Promise<string> {
   if (err instanceof HTTPError) {
@@ -56,11 +59,13 @@ export default function WalletScreen() {
   const {
     data: wallet,
     isLoading: walletLoading,
+    isError: walletFailed,
     refetch: refetchWallet,
   } = useWallet();
   const {
     data: txData,
     isLoading: txLoading,
+    isError: transactionsFailed,
     refetch: refetchTx,
   } = useWalletTransactions();
   const { data: bankAccount } = useMyBankAccount();
@@ -70,6 +75,7 @@ export default function WalletScreen() {
 
   const [sheet, setSheet] = useState<SheetType>(null);
   const [amount, setAmount] = useState("");
+  const [accountRevealed, setAccountRevealed] = useState(false);
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -99,8 +105,8 @@ export default function WalletScreen() {
       function navigateTopUpSuccess(amount: number) {
         void refetchWallet();
         router.replace({
-          pathname: '/payment-success',
-          params: { type: 'topup', amount: String(amount) },
+          pathname: "/payment-success",
+          params: { type: "topup", amount: String(amount) },
         } as never);
       }
 
@@ -138,10 +144,16 @@ export default function WalletScreen() {
           if (verified.status === "success") {
             navigateTopUpSuccess(n);
           } else {
-            Alert.alert("Processing", "Top-up is being processed. Your balance will update shortly.");
+            Alert.alert(
+              "Processing",
+              "Top-up is being processed. Your balance will update shortly.",
+            );
           }
         } catch {
-          Alert.alert("Processing", "Top-up is being processed. Your balance will update shortly.");
+          Alert.alert(
+            "Processing",
+            "Top-up is being processed. Your balance will update shortly.",
+          );
         }
       }
     } catch (err) {
@@ -196,55 +208,144 @@ export default function WalletScreen() {
           />
         }
       >
-        {/* Balance card */}
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available balance</Text>
-          {walletLoading ? (
-            <ActivityIndicator
-              color="#fff"
-              size="large"
-              style={{ marginVertical: 8 }}
-            />
-          ) : (
-            <Text style={styles.balanceAmount}>{formatCurrency(balance)}</Text>
-          )}
-
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => {
-                setAmount("");
-                setSheet("topup");
-              }}
-            >
-              <Feather name="plus-circle" size={22} color="#fff" />
-              <Text style={styles.actionBtnText}>Top up</Text>
-            </TouchableOpacity>
-            <View style={styles.actionDivider} />
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => {
-                setAmount("");
-                setSheet("withdraw");
-              }}
-            >
-              <Feather name="arrow-up-right" size={22} color="#fff" />
-              <Text style={styles.actionBtnText}>Withdraw</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.screenHeader}>
+          <Text variant="title1">Wallet</Text>
+          <Text variant="body" tone="secondary">
+            Manage your balance, bank account, and recent activity.
+          </Text>
         </View>
+
+        {/* Balance card */}
+        {walletFailed && !wallet ? (
+          <ErrorState
+            title="Wallet unavailable"
+            action={
+              <Button
+                accessibilityLabel="Retry loading wallet"
+                variant="secondary"
+                onPress={() => void refetchWallet()}
+              >
+                Try again
+              </Button>
+            }
+          >
+            Check your connection and try loading your wallet again.
+          </ErrorState>
+        ) : (
+          <View style={styles.balanceCard}>
+            <Text
+              variant="caption"
+              tone="onPrimary"
+              style={styles.balanceLabel}
+            >
+              Available balance
+            </Text>
+            {walletLoading ? (
+              <Skeleton style={styles.balanceSkeleton} />
+            ) : (
+              <Text
+                variant="display"
+                tone="onPrimary"
+                tabularNumbers
+                style={styles.balanceAmount}
+              >
+                {formatCurrency(balance)}
+              </Text>
+            )}
+
+            <View style={styles.actions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Top up wallet"
+                style={styles.actionBtn}
+                onPress={() => {
+                  setAmount("");
+                  setSheet("topup");
+                }}
+              >
+                <Feather
+                  name="plus-circle"
+                  size={22}
+                  color={colors.textOnPrimary}
+                />
+                <Text
+                  variant="caption"
+                  tone="onPrimary"
+                  style={styles.actionBtnText}
+                >
+                  Top up
+                </Text>
+              </TouchableOpacity>
+              <View style={styles.actionDivider} />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Withdraw from wallet"
+                style={styles.actionBtn}
+                onPress={() => {
+                  setAmount("");
+                  setSheet("withdraw");
+                }}
+              >
+                <Feather
+                  name="arrow-up-right"
+                  size={22}
+                  color={colors.textOnPrimary}
+                />
+                <Text
+                  variant="caption"
+                  tone="onPrimary"
+                  style={styles.actionBtnText}
+                >
+                  Withdraw
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Bank account info */}
         {bankAccount ? (
           <View style={styles.bankCard}>
-            <Text style={styles.bankLabel}>Withdrawal account</Text>
+            <View style={styles.bankHeading}>
+              <View style={styles.bankIcon}>
+                <Feather name="home" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.bankHeadingCopy}>
+                <Text variant="bodyStrong">Withdrawal account</Text>
+                <Text style={styles.bankLabel}>
+                  Linked for wallet withdrawals
+                </Text>
+              </View>
+              <Feather name="check-circle" size={18} color={colors.success} />
+            </View>
             <Text style={styles.bankName}>{bankAccount.accountName}</Text>
-            <Text style={styles.bankSub}>
-              {bankAccount.bankName} · {bankAccount.accountNumber}
-            </Text>
+            <View style={styles.bankDetails}>
+              <Text style={styles.bankSub}>
+                {bankAccount.bankName} ·{" "}
+                {accountRevealed
+                  ? bankAccount.accountNumber
+                  : `••••${bankAccount.accountNumber.slice(-4)}`}
+              </Text>
+              <IconButton
+                accessibilityLabel={
+                  accountRevealed
+                    ? "Hide account number"
+                    : "Reveal account number"
+                }
+                onPress={() => setAccountRevealed((revealed) => !revealed)}
+              >
+                <Feather
+                  name={accountRevealed ? "eye-off" : "eye"}
+                  size={18}
+                  color={colors.icon}
+                />
+              </IconButton>
+            </View>
           </View>
         ) : (
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Link a bank account"
             style={[styles.bankCard, styles.bankCardWarning]}
             onPress={() => setSheet("link-bank")}
             activeOpacity={0.8}
@@ -258,16 +359,45 @@ export default function WalletScreen() {
 
         {/* Transaction history */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Transaction history</Text>
-          {txLoading && transactions.length === 0 ? (
-            <ActivityIndicator
-              color={colors.primary}
-              style={{ marginTop: 20 }}
-            />
-          ) : transactions.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No transactions yet.</Text>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionCopy}>
+              <Text variant="title2">Recent activity</Text>
+              <Text variant="caption" tone="secondary">
+                Wallet top-ups and withdrawals.
+              </Text>
             </View>
+            {transactions.length > 0 && (
+              <Text variant="caption" tone="tertiary">
+                {txData?.total ?? transactions.length} total
+              </Text>
+            )}
+          </View>
+          {txLoading && transactions.length === 0 ? (
+            <View style={styles.loadingList}>
+              <Skeleton style={styles.loadingRow} />
+              <Skeleton style={styles.loadingRow} />
+              <Skeleton style={styles.loadingRow} />
+            </View>
+          ) : transactionsFailed && transactions.length === 0 ? (
+            <ErrorState
+              title="Transactions unavailable"
+              action={
+                <Button
+                  accessibilityLabel="Retry loading transactions"
+                  variant="secondary"
+                  onPress={() => void refetchTx()}
+                >
+                  Try again
+                </Button>
+              }
+            >
+              Check your connection and try loading your transactions again.
+            </ErrorState>
+          ) : transactions.length === 0 ? (
+            <EmptyState title="No transactions yet">
+              Wallet activity will appear here when you fund or withdraw from
+              your wallet.
+            </EmptyState>
           ) : (
             <View style={styles.txList}>
               {transactions.map((tx) => {
@@ -283,7 +413,7 @@ export default function WalletScreen() {
                       <Feather
                         name={isCredit ? "arrow-down-left" : "arrow-up-right"}
                         size={14}
-                        color={isCredit ? "#16a34a" : "#dc2626"}
+                        color={isCredit ? colors.success : colors.danger}
                       />
                     </View>
                     <View style={styles.txInfo}>
@@ -293,10 +423,10 @@ export default function WalletScreen() {
                       <Text style={styles.txDate}>{timeAgo(tx.createdAt)}</Text>
                     </View>
                     <Text
-                      style={[
-                        styles.txAmount,
-                        isCredit ? styles.credit : styles.debit,
-                      ]}
+                      variant="bodyStrong"
+                      tone={isCredit ? "success" : "danger"}
+                      tabularNumbers
+                      style={[styles.txAmount]}
                     >
                       {isCredit ? "+" : "-"}
                       {formatCurrency(tx.amount)}
@@ -310,95 +440,85 @@ export default function WalletScreen() {
       </ScrollView>
 
       {/* Bottom sheet */}
-      <Modal
-        visible={sheet !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSheet(null)}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalRoot}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <Pressable
-            style={styles.backdropArea}
-            onPress={() => setSheet(null)}
+      <BottomSheet visible={sheet !== null} onClose={() => setSheet(null)}>
+        {sheet === "link-bank" ? (
+          <AddBankForm
+            onSuccess={() => {
+              setSheet("withdraw");
+              setAmount("");
+            }}
+            onCancel={() => setSheet(null)}
           />
-          <View style={styles.sheetContainer}>
-            <View style={styles.sheetHandle} />
-
-            {sheet === "link-bank" ? (
-              <AddBankForm
-                onSuccess={() => { setSheet("withdraw"); setAmount(""); }}
-                onCancel={() => setSheet(null)}
-              />
-            ) : (<>
+        ) : (
+          <>
             <Text style={styles.sheetTitle}>
               {sheet === "topup" ? "Top up wallet" : "Withdraw funds"}
             </Text>
-            <Text style={styles.sheetSub}>
+            <Text tabularNumbers style={styles.sheetSub}>
               {sheet === "topup"
                 ? "Add funds via Paystack card or bank transfer."
                 : `Available: ${formatCurrency(balance)}. Sent to ${bankAccount?.accountName ?? "your bank account"}.`}
             </Text>
 
-            <View style={styles.amountField}>
-              <Text style={styles.currencyPrefix}>₦</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={amount}
-                onChangeText={(v) => setAmount(v.replace(/[^0-9.]/g, ""))}
-                placeholder="0.00"
-                placeholderTextColor={colors.textMuted}
-                keyboardType={
-                  Platform.OS === "ios" ? "decimal-pad" : "number-pad"
-                }
-                autoFocus
-              />
-            </View>
+            <AmountInput
+              accessibilityLabel="Amount in naira"
+              label="Amount"
+              value={amount}
+              onChangeText={(v) => setAmount(v.replace(/[^0-9.]/g, ""))}
+              placeholder="0.00"
+              keyboardType={
+                Platform.OS === "ios" ? "decimal-pad" : "number-pad"
+              }
+              autoFocus
+            />
 
             <View style={styles.quickAmounts}>
               {[1000, 5000, 10000, 20000].map((n) => (
                 <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Set amount to ₦${n.toLocaleString()}`}
                   key={n}
                   style={styles.quickBtn}
                   onPress={() => setAmount(String(n))}
                 >
-                  <Text style={styles.quickBtnText}>
+                  <Text
+                    variant="caption"
+                    tabularNumbers
+                    style={styles.quickBtnText}
+                  >
                     ₦{(n / 1000).toFixed(0)}k
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Pressable
-              style={[
-                styles.sheetBtn,
-                (!amount || isActionLoading) && styles.sheetBtnDisabled,
-              ]}
+            <Button
+              accessibilityLabel={
+                sheet === "topup" ? "Continue to payment" : "Withdraw"
+              }
+              style={styles.sheetBtn}
               onPress={sheet === "topup" ? handleTopUp : handleWithdraw}
               disabled={!amount || isActionLoading}
+              loading={isActionLoading}
             >
-              {isActionLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.sheetBtnText}>
-                  {sheet === "topup" ? "Continue to payment" : "Withdraw"}
-                </Text>
-              )}
-            </Pressable>
+              {sheet === "topup" ? "Continue to payment" : "Withdraw"}
+            </Button>
             {sheet === "topup" && (
               <Text style={styles.paystackBadge}>
-                🔒 Payments secured by Paystack
+                Payments are processed securely by Paystack.
               </Text>
             )}
-            <Pressable style={styles.cancelBtn} onPress={() => setSheet(null)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              style={styles.cancelBtn}
+              onPress={() => setSheet(null)}
+            >
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </Pressable>
-            </>)}
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          </>
+        )}
+      </BottomSheet>
     </View>
   );
 }
@@ -406,170 +526,162 @@ export default function WalletScreen() {
 function createStyles(colors: import("@/lib/colors").Colors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 16, paddingTop: 56, gap: 16 },
+    content: { padding: spacing[4], paddingTop: spacing[6], gap: spacing[4] },
+    screenHeader: { gap: spacing[1] },
 
     balanceCard: {
       backgroundColor: colors.primary,
-      borderRadius: 20,
-      padding: 24,
-      gap: 12,
+      borderRadius: radii.large,
+      padding: spacing[6],
+      gap: spacing[3],
     },
     balanceLabel: {
-      fontSize: 13,
-      color: "rgba(255,255,255,0.75)",
-      fontWeight: "500",
+      ...typography.caption,
+      color: colors.textOnPrimary,
     },
     balanceAmount: {
-      fontSize: 38,
-      fontWeight: "800",
-      color: "#fff",
-      letterSpacing: -1,
+      color: colors.textOnPrimary,
+    },
+    balanceSkeleton: {
+      width: "70%",
+      minHeight: spacing[8],
+      backgroundColor: colors.primaryPressed,
     },
     actions: {
       flexDirection: "row",
-      backgroundColor: "rgba(255,255,255,0.15)",
-      borderRadius: 14,
+      backgroundColor: colors.primaryPressed,
+      borderRadius: radii.medium,
       overflow: "hidden",
     },
-    actionBtn: { flex: 1, alignItems: "center", paddingVertical: 12, gap: 2 },
-    actionDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
-    actionBtnText: { fontSize: 12, color: "#fff", fontWeight: "600" },
+    actionBtn: {
+      flex: 1,
+      minHeight: 48,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing[2],
+      gap: spacing[1],
+    },
+    actionDivider: { width: 1, backgroundColor: colors.textOnPrimary },
+    actionBtnText: { ...typography.caption, color: colors.textOnPrimary },
 
     bankCard: {
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: radii.large,
+      padding: spacing[4],
       borderWidth: 1,
       borderColor: colors.border,
-      gap: 3,
+      gap: spacing[2],
     },
+    bankHeading: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing[3],
+      marginBottom: spacing[1],
+    },
+    bankIcon: {
+      width: spacing[10],
+      height: spacing[10],
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radii.medium,
+      backgroundColor: colors.primarySubtle,
+    },
+    bankHeadingCopy: { flex: 1, gap: spacing[1] },
     bankCardWarning: {
-      borderColor: colors.dangerBorder + "70",
-      backgroundColor: colors.dangerBg + "20",
+      borderColor: colors.danger,
+      backgroundColor: colors.dangerSubtle,
     },
-    bankLabel: {
-      fontSize: 11,
-      color: colors.textMuted,
-      fontWeight: "600",
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
+    bankLabel: { ...typography.caption, color: colors.textSecondary },
+    bankName: { ...typography.bodyStrong, color: colors.text },
+    bankDetails: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing[2],
     },
-    bankName: { fontSize: 15, fontWeight: "700", color: colors.text },
-    bankSub: { fontSize: 13, color: colors.textMuted },
-    bankWarningText: { fontSize: 13, color: colors.dangerText },
-    bankWarningLink: { fontSize: 13, color: colors.primary, fontWeight: '600', marginTop: 4 },
+    bankSub: { ...typography.caption, color: colors.textMuted, flex: 1 },
+    bankWarningText: { ...typography.caption, color: colors.dangerText },
+    bankWarningLink: {
+      ...typography.caption,
+      color: colors.primary,
+      marginTop: spacing[1],
+    },
 
-    section: { gap: 10 },
-    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+    section: { gap: spacing[3] },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing[3],
+    },
+    sectionCopy: { flex: 1, gap: spacing[1] },
     empty: {
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 24,
+      borderRadius: radii.medium,
+      padding: spacing[6],
       alignItems: "center",
       borderWidth: 1,
       borderColor: colors.border,
     },
-    emptyText: { fontSize: 14, color: colors.textMuted },
-    txList: { gap: 8 },
+    txList: { gap: spacing[2] },
     txRow: {
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 12,
+      borderRadius: radii.medium,
+      padding: spacing[3],
       borderWidth: 1,
       borderColor: colors.border,
-      gap: 12,
+      gap: spacing[3],
     },
     txIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
+      width: spacing[10],
+      height: spacing[10],
+      borderRadius: radii.medium,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
     txIconCredit: { backgroundColor: colors.successBg },
     txIconDebit: { backgroundColor: colors.dangerBg },
-    txInfo: { flex: 1, gap: 2 },
-    txDesc: { fontSize: 13, fontWeight: "600", color: colors.text },
-    txDate: { fontSize: 11, color: colors.textMuted },
-    txAmount: { fontSize: 14, fontWeight: "700" },
-    credit: { color: colors.successText },
-    debit: { color: colors.dangerText },
+    txInfo: { flex: 1, gap: spacing[1] },
+    txDesc: { ...typography.caption, color: colors.text },
+    txDate: { ...typography.overline, color: colors.textMuted },
+    txAmount: { ...typography.bodyStrong, fontVariant: ["tabular-nums"] },
 
-    modalRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-    backdropArea: { flex: 1 },
-    sheetContainer: {
-      backgroundColor: colors.card,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 24,
-      paddingBottom: Platform.OS === "ios" ? 32 : 24,
-      gap: 14,
-    },
-    sheetHandle: {
-      width: 40,
-      height: 4,
-      backgroundColor: colors.border,
-      borderRadius: 99,
-      alignSelf: "center",
-      marginBottom: 4,
-    },
-    sheetTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
+    loadingList: { gap: spacing[3] },
+    loadingRow: { height: 64, borderRadius: radii.medium },
+    sheetTitle: { ...typography.headline, color: colors.text },
     sheetSub: {
-      fontSize: 13,
+      ...typography.caption,
       color: colors.textMuted,
-      marginTop: -6,
-      lineHeight: 18,
+      marginTop: -spacing[2],
     },
-    amountField: {
-      flexDirection: "row",
-      alignItems: "center",
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderRadius: 14,
-      paddingHorizontal: 16,
-      height: 60,
-    },
-    currencyPrefix: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: colors.textMuted,
-      marginRight: 4,
-    },
-    amountInput: {
-      flex: 1,
-      fontSize: 28,
-      fontWeight: "700",
-      color: colors.text,
-    },
-    quickAmounts: { flexDirection: "row", gap: 8 },
+    quickAmounts: { flexDirection: "row", gap: spacing[2] },
     quickBtn: {
       flex: 1,
       backgroundColor: colors.primaryBg,
-      borderRadius: 10,
-      paddingVertical: 8,
+      borderRadius: radii.small,
+      minHeight: 44,
+      paddingVertical: spacing[2],
       alignItems: "center",
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
-    quickBtnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
+    quickBtnText: { ...typography.caption, color: colors.primary },
     sheetBtn: {
-      height: 50,
-      backgroundColor: colors.primary,
-      borderRadius: 12,
+      width: "100%",
+    },
+    paystackBadge: {
+      ...typography.overline,
+      textAlign: "center",
+      color: colors.textMuted,
+    },
+    cancelBtn: {
+      minHeight: 44,
       alignItems: "center",
       justifyContent: "center",
     },
-    sheetBtnDisabled: { opacity: 0.5 },
-    sheetBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-    paystackBadge: {
-      textAlign: "center",
-      fontSize: 11,
-      color: colors.textMuted,
-    },
-    cancelBtn: { alignItems: "center", paddingVertical: 4 },
-    cancelBtnText: { fontSize: 14, color: colors.textMuted },
+    cancelBtnText: { ...typography.caption, color: colors.textMuted },
   });
 }

@@ -135,6 +135,7 @@ This starts a local PostgreSQL instance on port `5432` and Redis on port `6379`.
 | `JWT_REFRESH_SECRET` | Secret for signing JWT refresh tokens |
 | `PAYSTACK_SECRET_KEY` | Paystack secret key |
 | `PAYSTACK_WEBHOOK_SECRET` | Paystack webhook HMAC secret |
+| `PAYSTACK_TRANSFERS_ENABLED` | Enable real bank transfers; disabled by default in development and enabled by default in production. Poolr bears Paystack transfer fees separately from the withdrawal amount. |
 | `SMILE_ID_API_KEY` | Smile ID API key for KYC |
 | `SMILE_ID_PARTNER_ID` | Smile ID partner ID |
 | `TERMII_API_KEY` | Termii API key for OTP SMS |

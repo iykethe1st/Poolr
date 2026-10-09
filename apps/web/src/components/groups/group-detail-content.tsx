@@ -276,17 +276,23 @@ function LiveGroupTabs({
       )}
 
       {/* Tab bar */}
-      <div className="flex gap-1 rounded-xl border bg-muted/40 p-1">
+      <div
+        role="tablist"
+        aria-label="Group details"
+        className="-mx-4 flex gap-1 overflow-x-auto border-b px-4 pb-2 sm:mx-0 sm:gap-2 sm:border-b-0 sm:px-0 sm:pb-0"
+      >
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
+            role="tab"
+            aria-selected={tab === t.key}
             className={[
-              'flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              'min-h-11 shrink-0 rounded-lg px-4 text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               tab === t.key
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             ].join(' ')}
           >
             {t.label}
@@ -374,8 +380,8 @@ function OverviewTab({
       <div>
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold">Cycle timeline</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="text-xl font-semibold tracking-tight">Cycle timeline</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               {group.cycles.length} cycles · {activeMembers.length} members
             </p>
           </div>
@@ -619,68 +625,90 @@ function ActivityTab({
 
   const feed = buildFeed(history);
 
-  if (feed.length === 0) {
-    return <EmptyState icon={Clock} text="No activity yet" subtext="Contributions and payouts will appear here." />;
-  }
-
   return (
-    <div className="space-y-2">
-      {feed.map((item, i) => {
-        if (item.type === 'contribution') {
-          return (
-            <ActivityRow
-              key={i}
-              icon={<CircleDollarSign className="size-4 text-green-600 dark:text-green-400" />}
-              iconBg="bg-green-100 dark:bg-green-950/40"
-              title={`${item.memberName} paid`}
-              sub={`Cycle ${item.cycleNumber}`}
-              right={formatCurrency(item.amountNgn, currency)}
-              rightClass="text-green-600 font-semibold"
-              date={item.date}
-            />
-          );
-        }
-        if (item.type === 'payout') {
-          return (
-            <ActivityRow
-              key={i}
-              icon={<ArrowUpRight className="size-4 text-blue-600 dark:text-blue-400" />}
-              iconBg="bg-blue-100 dark:bg-blue-950/40"
-              title={`${item.recipientName} received payout`}
-              sub={`Cycle ${item.cycleNumber}`}
-              right={formatCurrency(item.amountNgn, currency)}
-              rightClass="text-blue-600 dark:text-blue-400 font-semibold"
-              date={item.date}
-            />
-          );
-        }
-        if (item.type === 'joined') {
-          return (
-            <ActivityRow
-              key={i}
-              icon={<UserPlus className="size-4 text-muted-foreground" />}
-              iconBg="bg-muted"
-              title={`${item.memberName} joined`}
-              date={item.date}
-            />
-          );
-        }
-        if (item.type === 'penalty') {
-          return (
-            <ActivityRow
-              key={i}
-              icon={<AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />}
-              iconBg="bg-amber-100 dark:bg-amber-950/40"
-              title={`Penalty applied to ${item.memberName}`}
-              right={formatCurrency(item.amountNgn, currency)}
-              rightClass="text-amber-600 dark:text-amber-400 font-semibold"
-              date={item.date}
-            />
-          );
-        }
-        return null;
-      })}
-    </div>
+    <section aria-labelledby="group-activity-heading" className="space-y-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 id="group-activity-heading" className="text-xl font-semibold tracking-tight">
+            Recent activity
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Payments, payouts, and membership changes in this group.
+          </p>
+        </div>
+        {feed.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {feed.length} {feed.length === 1 ? 'event' : 'events'}
+          </p>
+        )}
+      </div>
+
+      {feed.length === 0 ? (
+        <EmptyState
+          icon={Clock}
+          text="No activity yet"
+          subtext="Contributions and payouts will appear here."
+        />
+      ) : (
+        <div className="space-y-3">
+          {feed.map((item, i) => {
+            if (item.type === 'contribution') {
+              return (
+                <ActivityRow
+                  key={item.type + '-' + item.date + '-' + i}
+                  icon={<CircleDollarSign className="size-5 text-primary" />}
+                  iconBg="bg-primary/10"
+                  title={item.memberName + ' paid'}
+                  sub={'Cycle ' + item.cycleNumber}
+                  right={formatCurrency(item.amountNgn, currency)}
+                  rightClass="text-primary font-semibold"
+                  date={item.date}
+                />
+              );
+            }
+            if (item.type === 'payout') {
+              return (
+                <ActivityRow
+                  key={item.type + '-' + item.date + '-' + i}
+                  icon={<ArrowUpRight className="size-5 text-primary" />}
+                  iconBg="bg-primary/10"
+                  title={item.recipientName + ' received payout'}
+                  sub={'Cycle ' + item.cycleNumber}
+                  right={formatCurrency(item.amountNgn, currency)}
+                  rightClass="text-primary font-semibold"
+                  date={item.date}
+                />
+              );
+            }
+            if (item.type === 'joined') {
+              return (
+                <ActivityRow
+                  key={item.type + '-' + item.date + '-' + i}
+                  icon={<UserPlus className="size-5 text-muted-foreground" />}
+                  iconBg="bg-muted"
+                  title={item.memberName + ' joined'}
+                  date={item.date}
+                />
+              );
+            }
+            if (item.type === 'penalty') {
+              return (
+                <ActivityRow
+                  key={item.type + '-' + item.date + '-' + i}
+                  icon={<AlertTriangle className="size-5 text-amber-700 dark:text-amber-300" />}
+                  iconBg="bg-amber-100 dark:bg-amber-950/40"
+                  title={'Penalty applied to ' + item.memberName}
+                  right={formatCurrency(item.amountNgn, currency)}
+                  rightClass="text-amber-700 dark:text-amber-300 font-semibold"
+                  date={item.date}
+                />
+              );
+            }
+            return null;
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -702,17 +730,21 @@ function ActivityRow({
   date: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
-      <span className={`flex size-8 shrink-0 items-center justify-center rounded-full ${iconBg}`}>
+    <div className="flex items-center gap-4 rounded-2xl border bg-card px-4 py-4 shadow-sm sm:px-5">
+      <span className={'flex size-11 shrink-0 items-center justify-center rounded-xl ' + iconBg}>
         {icon}
       </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">
-          {sub ? `${sub} · ` : ''}{formatDate(date)}
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-medium leading-6">{title}</p>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">
+          {sub ? sub + ' · ' : ''}{formatDateTime(date)}
         </p>
       </div>
-      {right && <span className={`text-sm shrink-0 ${rightClass ?? ''}`}>{right}</span>}
+      {right && (
+        <span className={'shrink-0 text-right text-base font-semibold tabular-nums ' + (rightClass ?? '')}>
+          {right}
+        </span>
+      )}
     </div>
   );
 }
@@ -1025,6 +1057,14 @@ function formatDate(iso: string) {
   });
 }
 
+function formatDateTime(iso: string) {
+  return new Intl.DateTimeFormat('en-NG', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Lagos',
+  }).format(new Date(iso));
+}
+
 // ── Existing sub-components ────────────────────────────────────────────────────
 
 function VirtualAccountCard({ account }: { account: GroupVirtualAccount }) {
@@ -1258,18 +1298,18 @@ function InfoCard({
 }) {
   return (
     <div className={[
-      'flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm',
-      highlight ? 'border-green-200 bg-green-50/50' : '',
+      'flex min-h-24 items-center gap-4 rounded-2xl border bg-card px-5 py-4 shadow-sm',
+      highlight ? 'border-primary/20 bg-primary/5' : '',
     ].join(' ')}>
       <span className={[
-        'flex size-9 shrink-0 items-center justify-center rounded-lg',
-        highlight ? 'bg-green-100' : 'bg-muted',
+        'flex size-11 shrink-0 items-center justify-center rounded-xl',
+        highlight ? 'bg-primary/10' : 'bg-muted',
       ].join(' ')}>
-        <Icon className={`size-4 ${highlight ? 'text-green-600' : 'text-muted-foreground'}`} />
+        <Icon className={'size-5 ' + (highlight ? 'text-primary' : 'text-muted-foreground')} />
       </span>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={`text-sm font-semibold ${highlight ? 'text-green-700' : ''}`}>{value}</p>
+      <div className="min-w-0">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className={'mt-1 text-base font-semibold tabular-nums ' + (highlight ? 'text-primary' : '')}>{value}</p>
       </div>
     </div>
   );

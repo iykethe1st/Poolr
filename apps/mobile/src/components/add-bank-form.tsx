@@ -8,8 +8,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { HTTPError } from "ky";
 import {
   useBanks,
+  getBankAccountErrorMessage,
   useResolveAccount,
   useSaveBankAccount,
 } from "@/hooks/use-bank-account";
@@ -21,7 +23,13 @@ interface Props {
 }
 
 export function AddBankForm({ onSuccess, onCancel }: Props) {
-  const { data: banks = [], isLoading: banksLoading } = useBanks();
+  const {
+    data: banks = [],
+    isLoading: banksLoading,
+    isError: banksFailed,
+    error: banksError,
+    refetch: refetchBanks,
+  } = useBanks();
   const resolve = useResolveAccount();
   const save = useSaveBankAccount();
 
@@ -41,8 +49,13 @@ export function AddBankForm({ onSuccess, onCancel }: Props) {
     try {
       const result = await resolve.mutateAsync({ bankCode, accountNumber });
       setResolvedName(result.accountName);
-    } catch {
-      setError("Could not verify account. Check the details and try again.");
+    } catch (err) {
+      setError(
+        await getBankAccountErrorMessage(
+          err,
+          "Could not verify account. Check the details and try again.",
+        ),
+      );
     }
   }
 
@@ -56,8 +69,13 @@ export function AddBankForm({ onSuccess, onCancel }: Props) {
         accountName: resolvedName,
       });
       onSuccess();
-    } catch {
-      setError("Failed to save account. Please try again.");
+    } catch (err) {
+      setError(
+        await getBankAccountErrorMessage(
+          err,
+          "Failed to save account. Please try again.",
+        ),
+      );
     }
   }
 
@@ -77,32 +95,47 @@ export function AddBankForm({ onSuccess, onCancel }: Props) {
         <Text style={styles.fieldLabel}>Bank</Text>
         {banksLoading ? (
           <ActivityIndicator color={colors.primary} />
+        ) : banksFailed ? (
+          <View style={styles.bankLoadError}>
+            <Text style={styles.errorText}>
+              {banksError instanceof HTTPError
+                ? `Unable to load banks (server error ${banksError.response.status}).`
+                : "Unable to load banks. Check your connection and try again."}
+            </Text>
+            <Pressable onPress={() => void refetchBanks()}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={styles.pickerWrap}>
             <ScrollView style={styles.bankList} nestedScrollEnabled>
-              {banks.map((b) => (
-                <Pressable
-                  key={b.code}
-                  style={[
-                    styles.bankOption,
-                    bankCode === b.code && styles.bankOptionSelected,
-                  ]}
-                  onPress={() => {
-                    setBankCode(b.code);
-                    setResolvedName("");
-                    setError("");
-                  }}
-                >
-                  <Text
+              {banks.length === 0 ? (
+                <Text style={styles.emptyBanks}>No banks are available.</Text>
+              ) : (
+                banks.map((b) => (
+                  <Pressable
+                    key={b.code}
                     style={[
-                      styles.bankOptionText,
-                      bankCode === b.code && styles.bankOptionTextSelected,
+                      styles.bankOption,
+                      bankCode === b.code && styles.bankOptionSelected,
                     ]}
+                    onPress={() => {
+                      setBankCode(b.code);
+                      setResolvedName("");
+                      setError("");
+                    }}
                   >
-                    {b.name}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text
+                      style={[
+                        styles.bankOptionText,
+                        bankCode === b.code && styles.bankOptionTextSelected,
+                      ]}
+                    >
+                      {b.name}
+                    </Text>
+                  </Pressable>
+                ))
+              )}
             </ScrollView>
           </View>
         )}
@@ -198,6 +231,9 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     },
     field: { gap: 6 },
     fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
+    bankLoadError: { gap: 8 },
+    retryText: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+    emptyBanks: { padding: 12, color: colors.textMuted, fontSize: 13 },
     pickerWrap: {
       borderWidth: 1,
       borderColor: colors.border,

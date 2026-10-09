@@ -1,69 +1,112 @@
-import Link from "next/link";
-import {
-  ArrowRight,
-  BadgeCheck,
-  ChevronRight,
-  CircleDollarSign,
-  Clock,
-  Globe,
-  LayoutGrid,
-  Lock,
-  RefreshCw,
-  Smartphone,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Wallet,
-  Zap,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import Image from "next/image";
+import Link from "next/link";
+import type { Metadata } from "next";
+import {
+  ArrowDownLeft,
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  CircleDollarSign,
+  Clock3,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
-// ─── Nav ──────────────────────────────────────────────────────────────────────
+export const metadata: Metadata = {
+  title: "Community savings circles",
+  description:
+    "Organize ajo, esusu, and rotating savings circles with clear contributions, payout turns, and group activity.",
+};
+
+const BENEFITS = [
+  {
+    icon: UsersRound,
+    title: "One place for your circle",
+    description:
+      "Bring your group together and keep its schedule, members, and activity easy to find.",
+  },
+  {
+    icon: Clock3,
+    title: "A clear turn for everyone",
+    description:
+      "See the contribution cycle and who is next to receive the pooled savings.",
+  },
+  {
+    icon: WalletCards,
+    title: "Keep track of your money",
+    description:
+      "View wallet activity and follow contributions and payouts from your account.",
+  },
+];
+
+const STEPS = [
+  {
+    number: "01",
+    title: "Create or join a group",
+    description:
+      "Start a circle with people you trust, or join a group you have been invited to.",
+  },
+  {
+    number: "02",
+    title: "Agree on the contribution cycle",
+    description:
+      "Your group sets the contribution amount, schedule, and payout order together.",
+  },
+  {
+    number: "03",
+    title: "Follow each contribution and payout",
+    description:
+      "Keep up with the cycle and see the group’s contribution activity in one place.",
+  },
+];
+
+function Brand() {
+  return (
+    <Link
+      href="/"
+      aria-label="Poolr home"
+      className="inline-flex items-center gap-2.5 text-lg font-semibold tracking-tight"
+    >
+      <Image src="/favicon.png" alt="" width={34} height={34} priority />
+      Poolr
+    </Link>
+  );
+}
 
 function LandingNav() {
   return (
-    <header className="fixed top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="flex items-center text-xl font-bold tracking-tight"
-        >
-          <Image src="/favicon.png" alt="Poolr Logo" width={45} height={45} />
-          Poolr
-        </Link>
+    <header className="bg-background">
+      <div className="mx-auto flex h-[72px] max-w-6xl items-center justify-between px-5 sm:px-8">
+        <Brand />
 
-        <nav className="hidden items-center gap-8 md:flex">
-          {[
-            ["Features", "#features"],
-            ["How it works", "#how-it-works"],
-            ["Pricing", "#pricing"],
-          ].map(([label, href]) => (
-            <a
-              key={href}
-              href={href}
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {label}
-            </a>
-          ))}
+        <nav
+          aria-label="Main navigation"
+          className="hidden items-center gap-8 md:flex"
+        >
+          <a
+            href="#features"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Features
+          </a>
+          <a
+            href="#how-it-works"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            How it works
+          </a>
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-            className="hidden sm:inline-flex"
-          >
+          <Button variant="ghost" size="sm" asChild>
             <Link href="/login">Sign in</Link>
           </Button>
           <Button size="sm" asChild>
             <Link href="/register">
-              Get started
-              <ChevronRight className="size-3.5" />
+              Get started <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
         </div>
@@ -72,689 +115,264 @@ function LandingNav() {
   );
 }
 
-// ─── Hero ─────────────────────────────────────────────────────────────────────
-
-function HeroSection() {
+function CycleCard() {
   return (
-    <section className="relative overflow-hidden pb-20 pt-32 sm:pt-40">
-      {/* Subtle grid bg */}
+    <div className="relative mx-auto w-full max-w-md">
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-size-[40px_40px] opacity-40"
+        aria-hidden="true"
+        className="absolute -inset-5 rounded-[2rem] bg-primary/5 blur-2xl"
       />
-      {/* Radial fade */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,var(--background),transparent)]"
-      />
-
-      <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
-        <Badge
-          variant="secondary"
-          className="mb-5 gap-1.5 px-3 py-1 text-xs font-medium"
-        >
-          <Sparkles className="size-3" />
-          Now available in Nigeria
-        </Badge>
-
-        <h1 className="mb-6 text-5xl font-extrabold tracking-tighter sm:text-6xl lg:text-7xl">
-          Save together.
-          <br />
-          <span className="text-muted-foreground/70">Grow together.</span>
-        </h1>
-
-        <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-          Poolr brings the power of community savings circles — ajo, esusu,
-          tontine — into the digital age. Automated contributions, full
-          transparency, and on-time payouts.
-        </p>
-
-        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Button size="lg" asChild className="h-12 px-8 text-base">
-            <Link href="/register">
-              Start saving for free
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            asChild
-            className="h-12 px-8 text-base"
-          >
-            <a href="#how-it-works">See how it works</a>
-          </Button>
+      <div className="relative rounded-2xl border bg-card p-5 shadow-lg shadow-foreground/[0.04] sm:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">
+              A savings circle
+            </p>
+            <p className="mt-1 text-xl font-semibold tracking-tight">
+              Together, by turns
+            </p>
+          </div>
+          <Badge variant="secondary" className="shrink-0">
+            Ajo · Esusu
+          </Badge>
         </div>
 
-        <p className="mt-5 text-xs text-muted-foreground">
-          No credit card required &nbsp;·&nbsp; Free for up to 5 members
-        </p>
-      </div>
-
-      {/* App preview card */}
-      <div className="mx-auto mt-16 max-w-5xl px-4 sm:px-6">
-        <AppPreview />
-      </div>
-    </section>
-  );
-}
-
-function AppPreview() {
-  return (
-    <div className="overflow-hidden rounded-2xl border bg-card shadow-2xl shadow-black/5">
-      {/* Fake browser chrome */}
-      <div className="flex h-10 items-center gap-2 border-b bg-muted/50 px-4">
-        {["bg-red-400", "bg-yellow-400", "bg-green-400"].map((c, i) => (
-          <span key={i} className={cn("size-2.5 rounded-full", c)} />
-        ))}
-        <div className="mx-auto flex h-5 w-48 items-center justify-center rounded-sm bg-background/80 text-[10px] text-muted-foreground">
-          app.poolr.ng/dashboard
-        </div>
-      </div>
-      {/* Dashboard mock */}
-      <div className="grid grid-cols-4 divide-x">
-        {/* Sidebar */}
-        <div className="hidden p-4 md:block bg-sidebar">
-          <div className="mb-4 h-4 w-12 rounded bg-muted" />
-          {["Dashboard", "Groups", "Wallet", "History"].map((item) => (
-            <div
-              key={item}
-              className="mb-2 flex items-center gap-2 rounded-md px-2 py-1.5"
-            >
-              <div className="size-3 rounded-sm bg-muted" />
-              <div className="h-2.5 w-14 rounded bg-muted" />
-            </div>
-          ))}
-        </div>
-        {/* Main content */}
-        <div className="col-span-4 p-5 md:col-span-3">
-          <div className="mb-4 h-4 w-28 rounded bg-muted" />
-          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              {
-                label: "Balance",
-                value: "₦124,000",
-                color: "text-emerald-600",
-              },
-              {
-                label: "Next payout",
-                value: "Aug 15",
-                color: "text-foreground",
-              },
-              { label: "My groups", value: "3", color: "text-foreground" },
-              {
-                label: "This month",
-                value: "₦20,000",
-                color: "text-foreground",
-              },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="rounded-xl border bg-background p-3">
-                <p className="mb-1 text-[10px] text-muted-foreground">
-                  {label}
-                </p>
-                <p className={cn("text-sm font-bold", color)}>{value}</p>
+        <div className="my-6 rounded-xl bg-muted/60 p-4 sm:p-5">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">Contribution cycle</span>
+            <span className="text-xs text-muted-foreground">Each member</span>
+          </div>
+          <div className="flex items-center">
+            {[0, 1, 2, 3, 4].map((step, index) => (
+              <div
+                key={step}
+                className="flex min-w-0 flex-1 items-center last:flex-none"
+              >
+                <div
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
+                    index === 0
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground"
+                  }`}
+                >
+                  {index === 0 ? (
+                    <Check aria-hidden="true" className="size-4" />
+                  ) : (
+                    index + 1
+                  )}
+                </div>
+                {index < 4 && (
+                  <span className="h-px min-w-2 flex-1 bg-border" />
+                )}
               </div>
             ))}
           </div>
-          <div className="rounded-xl border bg-background p-4">
-            <div className="mb-3 h-3 w-24 rounded bg-muted" />
-            <div className="space-y-2">
-              {[95, 75, 100, 60].map((w, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="size-6 rounded-full bg-muted" />
-                  <div className="h-2 flex-1 rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-foreground/20"
-                      style={{ width: `${w}%` }}
-                    />
-                  </div>
-                  <div className="h-2 w-12 rounded bg-muted" />
-                </div>
-              ))}
+          <div className="mt-3 flex justify-between text-[11px] text-muted-foreground">
+            <span>Contribute</span>
+            <span>Take your turn</span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <ArrowDownLeft aria-hidden="true" className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Members contribute</p>
+              <p className="text-xs text-muted-foreground">
+                Follow the agreed schedule
+              </p>
             </div>
+            <CircleDollarSign
+              aria-hidden="true"
+              className="size-5 text-muted-foreground"
+            />
+          </div>
+          <Separator />
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">The pool goes to one member</p>
+              <p className="text-xs text-muted-foreground">
+                The group takes turns each cycle
+              </p>
+            </div>
+            <UsersRound
+              aria-hidden="true"
+              className="size-5 text-muted-foreground"
+            />
           </div>
         </div>
       </div>
+      <p className="relative mt-3 text-center text-xs text-muted-foreground">
+        A simple illustration of a rotating savings cycle
+      </p>
     </div>
   );
 }
 
-// ─── Stats ────────────────────────────────────────────────────────────────────
-
-const STATS = [
-  { value: "₦2.4B+", label: "Total saved by members" },
-  { value: "50,000+", label: "Active members" },
-  { value: "12,000+", label: "Completed circles" },
-  { value: "99.8%", label: "On-time payout rate" },
-];
-
-function StatsSection() {
+function HeroSection() {
   return (
-    <section className="border-y bg-muted/40">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
-          {STATS.map(({ value, label }) => (
-            <div key={label} className="text-center">
-              <p className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-                {value}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">{label}</p>
-            </div>
-          ))}
+    <section className="relative isolate overflow-hidden">
+      <Image
+        src="/images/group-color.jpg"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="pointer-events-none -z-20 object-cover object-[center_60%]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-background/40 lg:bg-gradient-to-r lg:from-background/90 lg:via-background/65 lg:via-[40%] lg:to-background/40"
+      />
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-24">
+        <div className="max-w-xl">
+          <Badge variant="secondary" className="mb-6">
+            Community savings, made clearer
+          </Badge>
+          <h1 className="text-4xl font-semibold leading-[1.08] tracking-[-0.04em] sm:text-5xl lg:text-[3.5rem]">
+            Save together.
+            <br />
+            <span className="text-primary">Take turns with confidence.</span>
+          </h1>
+          <p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+            Poolr helps groups organize ajo, esusu, and other rotating savings
+            circles. Keep contributions, payout order, and group activity
+            together in one place.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Button size="lg" className="h-11 px-5" asChild>
+              <Link href="/register">
+                Create an account <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" className="h-11 px-5" asChild>
+              <a href="#how-it-works">See how it works</a>
+            </Button>
+          </div>
+          <p className="mt-4 text-xs leading-5 text-muted-foreground">
+            Start a group or join one you have been invited to.
+          </p>
         </div>
+        {/* <CycleCard /> */}
       </div>
     </section>
   );
 }
-
-// ─── Features ─────────────────────────────────────────────────────────────────
-
-const FEATURES = [
-  {
-    icon: RefreshCw,
-    title: "Automated contributions",
-    description:
-      "No more chasing members. Set it up once and contributions are automatically collected and recorded on schedule.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Full transparency",
-    description:
-      "Every naira is accounted for in real time. See who has paid, who is next in the rotation, and your complete history.",
-  },
-  {
-    icon: Zap,
-    title: "Fast payouts",
-    description:
-      "When it is your turn, your payout is initiated instantly and lands in your account within minutes.",
-  },
-  {
-    icon: Lock,
-    title: "Secure & trustworthy",
-    description:
-      "Bank-grade encryption, BVN verification, and escrow-style fund handling keep every circle safe.",
-  },
-  {
-    icon: Users,
-    title: "Flexible group sizes",
-    description:
-      "Run intimate circles of 5 friends or large workplace pools of 50. Monthly, bi-weekly, or weekly — you decide.",
-  },
-  {
-    icon: Smartphone,
-    title: "Works everywhere",
-    description:
-      "Manage your circles from the web or our mobile app. Notifications keep everyone on the same page.",
-  },
-];
 
 function FeaturesSection() {
   return (
-    <section id="features" className="py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">
-            Features
-          </Badge>
-          <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Everything your circle needs
+    <section id="features" className="bg-muted/30">
+      <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-primary">Made for groups</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            The details of your circle, kept clear.
           </h2>
-          <p className="text-muted-foreground">
-            From creation to payout, Poolr handles the operational complexity so
-            you can focus on what matters — building trust and growing wealth
-            together.
+          <p className="mt-4 leading-7 text-muted-foreground">
+            Everyone can follow the plan and understand what is happening in the
+            cycle.
           </p>
         </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, description }) => (
-            <div
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {BENEFITS.map(({ icon: Icon, title, description }) => (
+            <article
               key={title}
-              className="group rounded-2xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
+              className="rounded-xl border bg-card p-5 sm:p-6"
             >
-              <div className="mb-4 flex size-10 items-center justify-center rounded-xl bg-muted">
-                <Icon className="size-5" />
-              </div>
-              <h3 className="mb-2 font-semibold">{title}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">
+              <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon aria-hidden="true" className="size-5" />
+              </span>
+              <h3 className="mt-5 font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {description}
               </p>
-            </div>
+            </article>
           ))}
         </div>
       </div>
     </section>
   );
 }
-
-// ─── How it works ─────────────────────────────────────────────────────────────
-
-const STEPS = [
-  {
-    step: "01",
-    icon: LayoutGrid,
-    title: "Create or join a circle",
-    description:
-      "Start a new savings circle and invite your friends, family, or colleagues — or join one you've been invited to.",
-  },
-  {
-    step: "02",
-    icon: CircleDollarSign,
-    title: "Make your contribution",
-    description:
-      "Pay your agreed amount on schedule. We remind you before it is due and accept payment via card, bank transfer, or Paystack.",
-  },
-  {
-    step: "03",
-    icon: Globe,
-    title: "The pool grows",
-    description:
-      "Every member's contribution is pooled together each cycle. The full amount goes to the designated recipient for that round.",
-  },
-  {
-    step: "04",
-    icon: Wallet,
-    title: "Receive your payout",
-    description:
-      "When it is your turn in the rotation, the total pool is sent directly to your bank account or Poolr wallet.",
-  },
-];
 
 function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="bg-muted/30 py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">
-            How it works
-          </Badge>
-          <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Simple as 1, 2, 3, 4
+    <section id="how-it-works">
+      <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-primary">How it works</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            A familiar way to save, with a clearer view.
           </h2>
-          <p className="text-muted-foreground">
-            Poolr takes the centuries-old tradition of community savings and
-            makes it effortless, fair, and fully digital.
-          </p>
         </div>
-
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map(({ step, icon: Icon, title, description }, i) => (
-            <div key={step} className="relative">
-              {/* Connector line */}
-              {i < STEPS.length - 1 && (
-                <span
-                  aria-hidden
-                  className="absolute left-[calc(50%+28px)] top-5 hidden h-px w-[calc(100%-56px)] border-t border-dashed border-border lg:block"
-                />
-              )}
-              <div className="flex flex-col items-center text-center">
-                <div className="relative mb-4 flex size-12 items-center justify-center rounded-2xl border bg-background shadow-sm">
-                  <Icon className="size-5" />
-                  <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                    {i + 1}
-                  </span>
-                </div>
-                <h3 className="mb-2 font-semibold">{title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {description}
-                </p>
-              </div>
-            </div>
+        <ol className="mt-10 grid gap-8 md:grid-cols-3 md:gap-6">
+          {STEPS.map(({ number, title, description }) => (
+            <li key={number}>
+              <span className="text-sm font-medium tabular-nums text-primary">
+                {number}
+              </span>
+              <h3 className="mt-4 font-semibold">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {description}
+              </p>
+            </li>
           ))}
-        </div>
+        </ol>
       </div>
     </section>
   );
 }
 
-// ─── Testimonials ─────────────────────────────────────────────────────────────
-
-const TESTIMONIALS = [
-  {
-    quote:
-      "I've been doing ajo with my market women for 20 years. Poolr made it digital and I never have to argue about who paid again.",
-    name: "Amaka O.",
-    role: "Market trader, Lagos",
-    initials: "AO",
-  },
-  {
-    quote:
-      "Our office ajo used to be a headache every month. Now Poolr handles everything and we all get notified automatically.",
-    name: "Chidi N.",
-    role: "Software engineer, Abuja",
-    initials: "CN",
-  },
-  {
-    quote:
-      "Received my first payout of ₦600,000 last month! The transparency is amazing — I could track every kobo.",
-    name: "Funke A.",
-    role: "Small business owner, Ibadan",
-    initials: "FA",
-  },
-];
-
-function TestimonialsSection() {
+function ClosingSection() {
   return (
-    <section className="py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">
-            Testimonials
-          </Badge>
-          <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Trusted by thousands
+    <section className="bg-muted/30">
+      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-5 py-12 sm:px-8 md:flex-row md:items-center">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Ready to organize your savings circle?
           </h2>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {TESTIMONIALS.map(({ quote, name, role, initials }) => (
-            <figure
-              key={name}
-              className="flex flex-col justify-between rounded-2xl border bg-card p-6 shadow-sm"
-            >
-              <blockquote className="mb-6 text-sm leading-relaxed text-muted-foreground">
-                &ldquo;{quote}&rdquo;
-              </blockquote>
-              <figcaption className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                  {initials}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{name}</p>
-                  <p className="text-xs text-muted-foreground">{role}</p>
-                </div>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Pricing ──────────────────────────────────────────────────────────────────
-
-const PLANS = [
-  {
-    name: "Starter",
-    price: "Free",
-    description: "Perfect for small friend and family circles.",
-    features: [
-      "Up to 5 members",
-      "Monthly cycles",
-      "Basic analytics",
-      "Email notifications",
-    ],
-    cta: "Get started free",
-    href: "/register",
-    highlighted: false,
-  },
-  {
-    name: "Community",
-    price: "₦2,500",
-    period: "/month",
-    description: "For larger groups and more flexible settings.",
-    features: [
-      "Up to 25 members",
-      "Weekly, bi-weekly, or monthly",
-      "Advanced analytics",
-      "SMS + push notifications",
-      "Priority support",
-    ],
-    cta: "Start free trial",
-    href: "/register?plan=community",
-    highlighted: true,
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    description: "For organisations running multiple large circles.",
-    features: [
-      "Unlimited members",
-      "Custom cycle frequency",
-      "White-label option",
-      "Dedicated account manager",
-      "SLA guarantee",
-    ],
-    cta: "Contact us",
-    href: "mailto:hello@poolr.ng",
-    highlighted: false,
-  },
-];
-
-function PricingSection() {
-  return (
-    <section id="pricing" className="bg-muted/30 py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mx-auto mb-14 max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-3">
-            Pricing
-          </Badge>
-          <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Transparent pricing
-          </h2>
-          <p className="text-muted-foreground">
-            Start free and scale as your circle grows. No hidden fees.
+          <p className="mt-2 text-sm text-muted-foreground">
+            Create a group or sign in to continue with yours.
           </p>
         </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {PLANS.map(
-            ({
-              name,
-              price,
-              period,
-              description,
-              features,
-              cta,
-              href,
-              highlighted,
-            }) => (
-              <div
-                key={name}
-                className={cn(
-                  "relative flex flex-col rounded-2xl border p-6",
-                  highlighted
-                    ? "border-primary bg-primary text-primary-foreground shadow-xl"
-                    : "bg-card shadow-sm",
-                )}
-              >
-                {highlighted && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary-foreground px-3 py-0.5 text-xs font-semibold text-primary">
-                    Most popular
-                  </span>
-                )}
-                <div className="mb-6">
-                  <p
-                    className={cn(
-                      "mb-1 text-sm font-medium",
-                      highlighted
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {name}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-extrabold">{price}</span>
-                    {period && (
-                      <span
-                        className={cn(
-                          "text-sm",
-                          highlighted
-                            ? "text-primary-foreground/60"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {period}
-                      </span>
-                    )}
-                  </div>
-                  <p
-                    className={cn(
-                      "mt-2 text-sm",
-                      highlighted
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {description}
-                  </p>
-                </div>
-
-                <ul className="mb-8 flex-1 space-y-2.5">
-                  {features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <BadgeCheck
-                        className={cn(
-                          "size-4 shrink-0",
-                          highlighted
-                            ? "text-primary-foreground/80"
-                            : "text-foreground",
-                        )}
-                      />
-                      <span
-                        className={
-                          highlighted ? "text-primary-foreground/90" : ""
-                        }
-                      >
-                        {f}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  variant={highlighted ? "secondary" : "default"}
-                  className={cn(
-                    "w-full",
-                    highlighted &&
-                      "bg-primary-foreground text-primary hover:bg-primary-foreground/90",
-                  )}
-                  asChild
-                >
-                  <Link href={href}>{cta}</Link>
-                </Button>
-              </div>
-            ),
-          )}
-        </div>
+        <Button size="lg" asChild>
+          <Link href="/register">
+            Get started <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
       </div>
     </section>
   );
 }
-
-// ─── CTA ──────────────────────────────────────────────────────────────────────
-
-function CTASection() {
-  return (
-    <section className="py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="overflow-hidden rounded-3xl bg-primary px-8 py-16 text-center text-primary-foreground sm:px-16">
-          <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Ready to start your circle?
-          </h2>
-          <p className="mx-auto mb-8 max-w-xl text-primary-foreground/70">
-            Join thousands of Nigerians already saving smarter with Poolr. Set
-            up your first circle in under two minutes.
-          </p>
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button
-              size="lg"
-              asChild
-              className="h-12 bg-primary-foreground px-8 text-base text-primary hover:bg-primary-foreground/90"
-            >
-              <Link href="/register">
-                Create your circle
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              asChild
-              className="h-12 border-primary-foreground/30 bg-transparent px-8 text-base text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            >
-              <Link href="/login">Sign in</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Footer ───────────────────────────────────────────────────────────────────
 
 function Footer() {
   return (
-    <footer className="border-t bg-muted/30">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <Link href="/" className="mb-3 flex items-center text-lg font-bold">
-              <Image
-                src="/favicon.png"
-                alt="Poolr Logo"
-                width={45}
-                height={45}
-              />
-              Poolr
-            </Link>
-            <p className="text-sm text-muted-foreground">
-              Rotating savings circles, reimagined for the modern age.
-            </p>
-          </div>
-
-          {[
-            {
-              title: "Product",
-              links: ["Features", "How it works", "Pricing", "Security"],
-            },
-            {
-              title: "Company",
-              links: ["About", "Blog", "Careers", "Contact"],
-            },
-            {
-              title: "Legal",
-              links: ["Privacy policy", "Terms of service", "Cookie policy"],
-            },
-          ].map(({ title, links }) => (
-            <div key={title}>
-              <p className="mb-3 text-sm font-semibold">{title}</p>
-              <ul className="space-y-2">
-                {links.map((link) => (
-                  <li key={link}>
-                    <a
-                      href="#"
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {link}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t pt-8 sm:flex-row">
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Poolr Technologies Ltd. All rights
-            reserved.
-          </p>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>Made with</span>
-            <span className="text-red-500">♥</span>
-            <span>in Nigeria</span>
-          </div>
+    <footer>
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-6 text-sm text-muted-foreground sm:px-8 md:flex-row md:items-center md:justify-between">
+        <Brand />
+        <p>Rotating savings circles for people who save together.</p>
+        <div className="flex items-center gap-5">
+          <Link
+            className="transition-colors hover:text-foreground"
+            href="/login"
+          >
+            Sign in
+          </Link>
+          <Link
+            className="transition-colors hover:text-foreground"
+            href="/register"
+          >
+            Create account
+          </Link>
         </div>
       </div>
     </footer>
   );
 }
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   return (
@@ -762,12 +380,9 @@ export default function LandingPage() {
       <LandingNav />
       <main>
         <HeroSection />
-        <StatsSection />
         <FeaturesSection />
         <HowItWorksSection />
-        <TestimonialsSection />
-        <PricingSection />
-        <CTASection />
+        <ClosingSection />
       </main>
       <Footer />
     </>

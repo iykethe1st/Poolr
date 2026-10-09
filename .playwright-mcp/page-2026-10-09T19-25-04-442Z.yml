@@ -1,0 +1,28 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img "Poolr Logo" [ref=e6]
+        - generic [ref=e7]: Poolr
+      - paragraph [ref=e8]: Rotating savings circles, reimagined.
+    - generic [ref=e9]:
+      - heading "Welcome back" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Sign in to your Poolr account
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - text: Email address
+          - textbox "Email address" [ref=e14]:
+            - /placeholder: amara@example.com
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: Password
+            - link "Forgot password?" [ref=e18] [cursor=pointer]:
+              - /url: /forgot-password
+          - textbox "Password" [ref=e19]:
+            - /placeholder: ••••••••
+        - button "Sign in" [ref=e20] [cursor=pointer]
+        - paragraph [ref=e21]:
+          - text: Don't have an account?
+          - link "Sign up" [ref=e22] [cursor=pointer]:
+            - /url: /register
+  - alert [ref=e23]

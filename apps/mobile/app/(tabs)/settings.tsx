@@ -6,16 +6,17 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { HTTPError } from "ky";
 import { router } from "expo-router";
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import { useAuth } from "@/context/auth-context";
 import { useCurrentUser } from "@/hooks/use-dashboard";
 import {
+  getBankAccountErrorMessage,
   useBanks,
   useMyBankAccount,
   useRemoveBankAccount,
@@ -27,12 +28,15 @@ import { initials } from "@/lib/format";
 import { tierConfig } from "@/lib/tier";
 import { StatusBadge } from "@/components/status-badge";
 import type { BadgeVariant } from "@/components/status-badge";
+import { Text } from "@/components/ui/text";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme, spacing, radii, typography } from "@/theme";
 
 export default function SettingsScreen() {
   const { logout } = useAuth();
-  const { data: me } = useCurrentUser();
+  const { data: me, isLoading: meLoading } = useCurrentUser();
   const { data: bankAccount } = useMyBankAccount();
-
+  const { preference, setTheme } = useTheme();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -48,18 +52,46 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      <View style={styles.screenHeader}>
+        <Text variant="title1">Settings</Text>
+        <Text variant="body" tone="secondary">
+          Your profile, security, and account preferences.
+        </Text>
+      </View>
+
       {/* Profile */}
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {me ? initials(me.fullName) : "—"}
-          </Text>
+          {meLoading ? (
+            <Skeleton style={styles.avatarSkeleton} />
+          ) : (
+            <Text variant="title2" tone="brand">
+              {me ? initials(me.fullName) : "—"}
+            </Text>
+          )}
         </View>
         <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>{me?.fullName ?? "—"}</Text>
-          <Text style={styles.profileEmail}>{me?.email ?? "—"}</Text>
+          {meLoading ? (
+            <>
+              <Skeleton style={styles.profileNameSkeleton} />
+              <Skeleton style={styles.profileEmailSkeleton} />
+            </>
+          ) : (
+            <>
+              <Text variant="headline" numberOfLines={1}>
+                {me?.fullName ?? "Profile unavailable"}
+              </Text>
+              <Text variant="caption" tone="secondary" numberOfLines={1}>
+                {me?.email ?? "Check your connection and refresh."}
+              </Text>
+            </>
+          )}
         </View>
-        <StatusBadge label={kycBadge.label} variant={kycBadge.variant} />
+        {me && !meLoading && (
+          <View style={styles.kycBadgeWrap}>
+            <StatusBadge label={kycBadge.label} variant={kycBadge.variant} />
+          </View>
+        )}
       </View>
 
       {/* Tier card */}
@@ -68,26 +100,23 @@ export default function SettingsScreen() {
           style={[
             styles.tierCard,
             {
-              backgroundColor: tierConfig(me.contributionStats.tier).bg,
-              borderColor: tierConfig(me.contributionStats.tier).color + "40",
+              backgroundColor: colors.primarySubtle,
+              borderColor: colors.borderInput,
             },
           ]}
         >
           <View style={styles.tierRow}>
-            <View style={[styles.tierIconWrap, { backgroundColor: tierConfig(me.contributionStats.tier).color + '20' }]}>
+            <View
+              style={[styles.tierIconWrap, { backgroundColor: colors.surface }]}
+            >
               <Feather
                 name={tierConfig(me.contributionStats.tier).icon}
                 size={18}
-                color={tierConfig(me.contributionStats.tier).color}
+                color={colors.primary}
               />
             </View>
             <View style={styles.tierInfo}>
-              <Text
-                style={[
-                  styles.tierLabel,
-                  { color: tierConfig(me.contributionStats.tier).color },
-                ]}
-              >
+              <Text style={styles.tierLabel}>
                 {tierConfig(me.contributionStats.tier).label} member
               </Text>
               {me.contributionStats.totalPaid > 0 ? (
@@ -105,14 +134,17 @@ export default function SettingsScreen() {
                 </Text>
               )}
             </View>
+            <View style={styles.trustScore}>
+              <Text variant="bodyStrong" tone="brand" tabularNumbers>
+                {me.contributionStats.trustScore}
+              </Text>
+              <Text variant="overline" tone="secondary">
+                Trust score
+              </Text>
+            </View>
           </View>
           {me.contributionStats.tier !== "Elite" && (
-            <Text
-              style={[
-                styles.tierNext,
-                { color: tierConfig(me.contributionStats.tier).color },
-              ]}
-            >
+            <Text style={styles.tierNext}>
               {me.contributionStats.tier === "New" &&
                 `Reach a trust score of 40 to become Trusted`}
               {me.contributionStats.tier === "Trusted" &&
@@ -124,14 +156,61 @@ export default function SettingsScreen() {
         </View>
       )}
 
+      <View style={styles.section}>
+        <Text variant="title2">Appearance</Text>
+        <Text variant="caption" tone="secondary">
+          Choose how Poolr looks on this device.
+        </Text>
+        <View style={styles.themeOptions}>
+          {(
+            [
+              ["system", "System", "smartphone"],
+              ["light", "Light", "sun"],
+              ["dark", "Dark", "moon"],
+            ] as const
+          ).map(([value, label, icon]) => {
+            const selected = preference === value;
+            return (
+              <TouchableOpacity
+                key={value}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={`${label} theme`}
+                style={[
+                  styles.themeOption,
+                  selected && styles.themeOptionSelected,
+                ]}
+                onPress={() => setTheme(value)}
+                activeOpacity={0.75}
+              >
+                <Feather
+                  name={icon}
+                  size={18}
+                  color={selected ? colors.primary : colors.iconMuted}
+                />
+                <Text variant="caption" tone={selected ? "brand" : "secondary"}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
       {/* KYC section */}
-      {kycStatus !== "VERIFIED" && (
+      {me && !meLoading && kycStatus !== "VERIFIED" && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Identity verification</Text>
           <Text style={styles.sectionDesc}>
             Required to create and join savings groups.
           </Text>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={
+              kycStatus === "PENDING"
+                ? "Identity verification in review"
+                : "Verify your identity"
+            }
             style={[
               styles.kycRow,
               kycStatus === "PENDING"
@@ -143,9 +222,11 @@ export default function SettingsScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.kycRowIcon}>
-              {kycStatus === "PENDING"
-                ? <Feather name="clock" size={20} color="#92400e" />
-                : <Feather name="shield" size={20} color={colors.primary} />}
+              {kycStatus === "PENDING" ? (
+                <Feather name="clock" size={20} color={colors.warning} />
+              ) : (
+                <Feather name="shield" size={20} color={colors.primary} />
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.kycRowTitle}>
@@ -160,7 +241,11 @@ export default function SettingsScreen() {
               </Text>
             </View>
             {kycStatus !== "PENDING" && (
-              <Text style={styles.kycRowArrow}>›</Text>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={colors.iconMuted}
+              />
             )}
           </TouchableOpacity>
         </View>
@@ -180,6 +265,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Help & Support</Text>
         <View style={styles.supportCard}>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Email Poolr support"
             style={styles.supportRow}
             onPress={() => void Linking.openURL("mailto:support@poolr.app")}
           >
@@ -189,10 +276,12 @@ export default function SettingsScreen() {
           </TouchableOpacity>
           <View style={styles.supportDivider} />
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Contact Poolr support on WhatsApp"
             style={styles.supportRow}
             onPress={() => void Linking.openURL("https://wa.me/2348000000000")}
           >
-            <FontAwesome5 name="whatsapp" size={16} color="#25D366" />
+            <FontAwesome5 name="whatsapp" size={16} color={colors.success} />
             <Text style={styles.supportRowText}>WhatsApp support</Text>
             <Feather name="chevron-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
@@ -202,6 +291,8 @@ export default function SettingsScreen() {
       {/* Sign out */}
       <View style={styles.section}>
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
           style={styles.signOutBtn}
           onPress={() => {
             Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -231,6 +322,7 @@ function BankAccountSection({
 }) {
   const remove = useRemoveBankAccount();
   const [showForm, setShowForm] = useState(false);
+  const [accountRevealed, setAccountRevealed] = useState(false);
 
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -240,15 +332,38 @@ function BankAccountSection({
       <View style={styles.bankCard}>
         <View style={styles.bankRow}>
           <View style={styles.bankCheckIcon}>
-            <Text style={{ color: "#166534", fontWeight: "700" }}>✓</Text>
+            <Feather name="check" size={18} color={colors.success} />
           </View>
           <View style={styles.bankInfo}>
             <Text style={styles.bankName}>{account.accountName}</Text>
-            <Text style={styles.bankSub}>
-              {account.bankName} · {account.accountNumber}
-            </Text>
+            <Text style={styles.bankSub}>{account.bankName}</Text>
+            <View style={styles.accountNumberRow}>
+              <Text variant="caption" tone="secondary" tabularNumbers>
+                {accountRevealed
+                  ? account.accountNumber
+                  : `•••• ${account.accountNumber.slice(-4)}`}
+              </Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={
+                  accountRevealed
+                    ? "Hide bank account number"
+                    : "Reveal bank account number"
+                }
+                onPress={() => setAccountRevealed((revealed) => !revealed)}
+                style={styles.accountRevealButton}
+              >
+                <Feather
+                  name={accountRevealed ? "eye-off" : "eye"}
+                  size={16}
+                  color={colors.iconMuted}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Remove linked bank account"
             onPress={() => {
               Alert.alert("Remove account", "Remove this bank account?", [
                 { text: "Cancel", style: "cancel" },
@@ -265,7 +380,7 @@ function BankAccountSection({
             {remove.isPending ? (
               <ActivityIndicator size="small" color={colors.destructive} />
             ) : (
-              <Text style={styles.removeBtnText}>✕</Text>
+              <Feather name="x" size={18} color={colors.danger} />
             )}
           </Pressable>
         </View>
@@ -277,7 +392,12 @@ function BankAccountSection({
     return (
       <View style={styles.emptyBank}>
         <Text style={styles.emptyBankText}>No bank account saved</Text>
-        <Pressable style={styles.addBankBtn} onPress={() => setShowForm(true)}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add bank account"
+          style={styles.addBankBtn}
+          onPress={() => setShowForm(true)}
+        >
           <Text style={styles.addBankBtnText}>Add bank account</Text>
         </Pressable>
       </View>
@@ -299,7 +419,13 @@ function AddBankForm({
   onSuccess: () => void;
   onCancel: () => void;
 }) {
-  const { data: banks = [], isLoading: banksLoading } = useBanks();
+  const {
+    data: banks = [],
+    isLoading: banksLoading,
+    isError: banksFailed,
+    error: banksError,
+    refetch: refetchBanks,
+  } = useBanks();
   const resolve = useResolveAccount();
   const save = useSaveBankAccount();
 
@@ -319,8 +445,13 @@ function AddBankForm({
     try {
       const result = await resolve.mutateAsync({ bankCode, accountNumber });
       setResolvedName(result.accountName);
-    } catch {
-      setError("Could not verify account. Check the details and try again.");
+    } catch (err) {
+      setError(
+        await getBankAccountErrorMessage(
+          err,
+          "Could not verify account. Check the details and try again.",
+        ),
+      );
     }
   }
 
@@ -334,8 +465,13 @@ function AddBankForm({
         accountName: resolvedName,
       });
       onSuccess();
-    } catch {
-      setError("Failed to save account. Please try again.");
+    } catch (err) {
+      setError(
+        await getBankAccountErrorMessage(
+          err,
+          "Failed to save account. Please try again.",
+        ),
+      );
     }
   }
 
@@ -355,33 +491,47 @@ function AddBankForm({
         <Text style={styles.fieldLabel}>Bank</Text>
         {banksLoading ? (
           <ActivityIndicator color={colors.primary} />
+        ) : banksFailed ? (
+          <View style={styles.bankLoadError}>
+            <Text style={styles.errorText}>
+              {banksError instanceof HTTPError
+                ? `Unable to load banks (server error ${banksError.response.status}).`
+                : "Unable to load banks. Check your connection and try again."}
+            </Text>
+            <Pressable onPress={() => void refetchBanks()}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={styles.pickerWrap}>
-            {banks.slice(0, 1).map(() => null)}
             <ScrollView style={styles.bankList} nestedScrollEnabled>
-              {banks.map((b) => (
-                <Pressable
-                  key={b.code}
-                  style={[
-                    styles.bankOption,
-                    bankCode === b.code && styles.bankOptionSelected,
-                  ]}
-                  onPress={() => {
-                    setBankCode(b.code);
-                    setResolvedName("");
-                    setError("");
-                  }}
-                >
-                  <Text
+              {banks.length === 0 ? (
+                <Text style={styles.emptyBanks}>No banks are available.</Text>
+              ) : (
+                banks.map((b) => (
+                  <Pressable
+                    key={b.code}
                     style={[
-                      styles.bankOptionText,
-                      bankCode === b.code && styles.bankOptionTextSelected,
+                      styles.bankOption,
+                      bankCode === b.code && styles.bankOptionSelected,
                     ]}
+                    onPress={() => {
+                      setBankCode(b.code);
+                      setResolvedName("");
+                      setError("");
+                    }}
                   >
-                    {b.name}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text
+                      style={[
+                        styles.bankOptionText,
+                        bankCode === b.code && styles.bankOptionTextSelected,
+                      ]}
+                    >
+                      {b.name}
+                    </Text>
+                  </Pressable>
+                ))
+              )}
             </ScrollView>
           </View>
         )}
@@ -422,7 +572,7 @@ function AddBankForm({
               disabled={save.isPending}
             >
               {save.isPending ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.textOnPrimary} size="small" />
               ) : (
                 <Text style={styles.saveBtnText}>Save account</Text>
               )}
@@ -445,7 +595,7 @@ function AddBankForm({
           disabled={!canResolve || resolve.isPending}
         >
           {resolve.isPending ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color={colors.textOnPrimary} size="small" />
           ) : (
             <Text style={styles.verifyBtnText}>Verify account</Text>
           )}
@@ -462,50 +612,107 @@ function AddBankForm({
 function createStyles(colors: import("@/lib/colors").Colors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 16, paddingTop: 56, gap: 20 },
+    content: {
+      padding: spacing[4],
+      paddingTop: spacing[6],
+      paddingBottom: spacing[8],
+      gap: spacing[6],
+    },
+    screenHeader: { gap: spacing[1] },
 
     profileCard: {
       backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 16,
+      borderRadius: radii.large,
+      padding: spacing[4],
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: spacing[3],
       borderWidth: 1,
       borderColor: colors.border,
     },
     avatar: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
+      width: spacing[10] + spacing[3],
+      height: spacing[10] + spacing[3],
+      borderRadius: radii.large,
       backgroundColor: colors.successBg,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
-    avatarText: { fontSize: 20, fontWeight: "700", color: colors.primary },
-    profileInfo: { flex: 1, gap: 2 },
-    profileName: { fontSize: 16, fontWeight: "700", color: colors.text },
-    profileEmail: { fontSize: 13, color: colors.textMuted },
-    tierCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
-    tierRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-    tierIconWrap: { width: 38, height: 38, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const },
-    tierInfo: { flex: 1, gap: 2 },
-    tierLabel: { fontSize: 15, fontWeight: "700" },
-    tierStats: { fontSize: 12, color: colors.textMuted },
-    tierNext: { fontSize: 12, fontWeight: "500", opacity: 0.75 },
+    avatarSkeleton: {
+      width: spacing[6],
+      height: spacing[6],
+      borderRadius: radii.small,
+    },
+    profileInfo: { flex: 1, gap: spacing[1] },
+    profileNameSkeleton: {
+      width: "78%",
+      height: spacing[4],
+      borderRadius: radii.small,
+    },
+    profileEmailSkeleton: {
+      width: "94%",
+      height: spacing[3],
+      borderRadius: radii.small,
+    },
+    kycBadgeWrap: { alignItems: "flex-end", flexShrink: 0 },
+    tierCard: {
+      borderRadius: radii.large,
+      padding: spacing[4],
+      borderWidth: 1,
+      gap: spacing[3],
+    },
+    tierRow: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
+    tierIconWrap: {
+      width: spacing[10],
+      height: spacing[10],
+      borderRadius: radii.medium,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    tierInfo: { flex: 1, gap: spacing[1] },
+    trustScore: {
+      alignItems: "flex-end",
+      gap: spacing[1],
+      paddingLeft: spacing[2],
+    },
+    tierLabel: { ...typography.bodyStrong, color: colors.primary },
+    tierStats: { ...typography.caption, color: colors.textSecondary },
+    tierNext: { ...typography.caption, color: colors.primary },
 
-    section: { gap: 10 },
-    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-    sectionDesc: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    section: { gap: spacing[2] },
+    sectionTitle: { ...typography.title2, color: colors.textPrimary },
+    sectionDesc: { ...typography.caption, color: colors.textSecondary },
+    themeOptions: {
+      flexDirection: "row",
+      gap: spacing[2],
+      padding: spacing[1],
+      borderRadius: radii.medium,
+      backgroundColor: colors.surfaceRaised,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    themeOption: {
+      flex: 1,
+      minHeight: spacing[10] + spacing[1],
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing[1],
+      borderRadius: radii.small,
+    },
+    themeOptionSelected: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderInput,
+    },
     kycRow: {
       flexDirection: "row",
       alignItems: "center",
-      borderRadius: 14,
-      padding: 14,
-      gap: 12,
+      borderRadius: radii.medium,
+      padding: spacing[4],
+      gap: spacing[3],
       borderWidth: 1,
-      marginTop: 6,
+      marginTop: spacing[1],
     },
     kycRowAction: {
       backgroundColor: colors.primaryBg,
@@ -513,15 +720,20 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     },
     kycRowPending: {
       backgroundColor: colors.warningBg,
-      borderColor: colors.warning + "40",
+      borderColor: colors.warning,
     },
-    kycRowIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' as const },
-    kycRowTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-    kycRowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    kycRowArrow: { fontSize: 22, color: colors.textMuted },
+    kycRowIcon: {
+      width: spacing[10],
+      height: spacing[10],
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    kycRowTitle: { ...typography.bodyStrong, color: colors.textPrimary },
+    kycRowSub: { ...typography.caption, color: colors.textSecondary },
+    kycRowArrow: { ...typography.title2, color: colors.textTertiary },
     supportCard: {
       backgroundColor: colors.card,
-      borderRadius: 14,
+      borderRadius: radii.medium,
       borderWidth: 1,
       borderColor: colors.border,
       overflow: "hidden",
@@ -529,85 +741,116 @@ function createStyles(colors: import("@/lib/colors").Colors) {
     supportRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
+      gap: spacing[3],
+      paddingHorizontal: spacing[4],
+      paddingVertical: spacing[4],
     },
-    supportRowText: { flex: 1, fontSize: 14, color: colors.text },
+    supportRowText: {
+      flex: 1,
+      ...typography.body,
+      color: colors.textPrimary,
+    },
     supportDivider: {
       height: 1,
       backgroundColor: colors.border,
-      marginHorizontal: 14,
+      marginHorizontal: spacing[4],
     },
 
     bankCard: {
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: radii.medium,
+      padding: spacing[4],
       borderWidth: 1,
       borderColor: colors.border,
     },
-    bankRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    bankRow: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
     bankCheckIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: spacing[10],
+      height: spacing[10],
+      borderRadius: radii.medium,
       backgroundColor: colors.successBg,
       alignItems: "center",
       justifyContent: "center",
     },
-    bankInfo: { flex: 1, gap: 2 },
-    bankName: { fontSize: 14, fontWeight: "700", color: colors.text },
-    bankSub: { fontSize: 12, color: colors.textMuted },
-    removeBtn: { padding: 8 },
-    removeBtnText: { fontSize: 16, color: colors.destructive },
+    bankInfo: { flex: 1, gap: spacing[1] },
+    bankName: { ...typography.bodyStrong, color: colors.textPrimary },
+    bankSub: { ...typography.caption, color: colors.textSecondary },
+    accountNumberRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing[2],
+    },
+    accountRevealButton: {
+      width: spacing[10] + spacing[1],
+      height: spacing[10] + spacing[1],
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radii.small,
+    },
+    removeBtn: {
+      width: spacing[10] + spacing[1],
+      height: spacing[10] + spacing[1],
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radii.medium,
+      backgroundColor: colors.dangerSubtle,
+    },
 
     emptyBank: {
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 20,
+      borderRadius: radii.medium,
+      padding: spacing[5],
       alignItems: "center",
-      gap: 12,
+      gap: spacing[3],
       borderWidth: 1,
       borderColor: colors.border,
       borderStyle: "dashed",
     },
-    emptyBankText: { fontSize: 14, color: colors.textMuted },
+    emptyBankText: { ...typography.body, color: colors.textSecondary },
     addBankBtn: {
       backgroundColor: colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      borderRadius: 10,
+      paddingHorizontal: spacing[5],
+      paddingVertical: spacing[3],
+      borderRadius: radii.small,
     },
-    addBankBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    addBankBtnText: {
+      ...typography.bodyStrong,
+      color: colors.textOnPrimary,
+    },
 
     formCard: {
       backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 16,
-      gap: 14,
+      borderRadius: radii.large,
+      padding: spacing[4],
+      gap: spacing[4],
       borderWidth: 1,
       borderColor: colors.border,
     },
-    formTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+    formTitle: { ...typography.bodyStrong, color: colors.textPrimary },
     warningBox: {
       backgroundColor: colors.warningBg + "10",
-      borderRadius: 10,
-      padding: 12,
+      borderRadius: radii.small,
+      padding: spacing[3],
       borderWidth: 1,
-      borderColor: colors.warningText + "90",
+      borderColor: colors.warning,
     },
     warningText: {
-      fontSize: 12,
-      color: colors.warningText + "90",
-      lineHeight: 17,
+      ...typography.caption,
+      color: colors.warningText,
     },
-    field: { gap: 6 },
-    fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
+    field: { gap: spacing[2] },
+    fieldLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+    bankLoadError: { gap: spacing[2] },
+    retryText: { ...typography.bodyStrong, color: colors.primary },
+    emptyBanks: {
+      padding: spacing[3],
+      ...typography.body,
+      color: colors.textSecondary,
+    },
     pickerWrap: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 10,
+      borderRadius: radii.small,
       overflow: "hidden",
     },
     bankList: { maxHeight: 160 },
@@ -618,81 +861,90 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderBottomColor: colors.border,
     },
     bankOptionSelected: { backgroundColor: colors.primaryBg },
-    bankOptionText: { fontSize: 14, color: colors.text },
+    bankOptionText: { ...typography.body, color: colors.textPrimary },
     bankOptionTextSelected: { color: colors.primary, fontWeight: "700" },
     input: {
-      height: 46,
+      minHeight: spacing[10] + spacing[2],
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      fontSize: 15,
+      borderRadius: radii.small,
+      paddingHorizontal: spacing[4],
+      ...typography.body,
       color: colors.text,
       backgroundColor: colors.inputBg,
     },
-    errorText: { fontSize: 13, color: colors.destructive },
+    errorText: { ...typography.caption, color: colors.danger },
     resolvedBox: {
       backgroundColor: colors.primaryBg,
-      borderRadius: 12,
-      padding: 14,
+      borderRadius: radii.medium,
+      padding: spacing[4],
       gap: 4,
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
     resolvedLabel: {
-      fontSize: 11,
+      ...typography.overline,
       color: colors.primaryTextMid,
       fontWeight: "600",
       textTransform: "uppercase",
     },
     resolvedName: {
-      fontSize: 15,
-      fontWeight: "700",
+      ...typography.bodyStrong,
       color: colors.primaryText,
     },
-    resolvedSub: { fontSize: 12, color: colors.primaryTextMid },
-    resolvedActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+    resolvedSub: { ...typography.caption, color: colors.primaryTextMid },
+    resolvedActions: {
+      flexDirection: "row",
+      gap: spacing[3],
+      marginTop: spacing[2],
+    },
     saveBtn: {
       flex: 1,
-      height: 42,
+      minHeight: spacing[10] + spacing[1],
       backgroundColor: colors.primary,
-      borderRadius: 10,
+      borderRadius: radii.small,
       alignItems: "center",
       justifyContent: "center",
     },
     saveBtnDisabled: { opacity: 0.6 },
-    saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    saveBtnText: {
+      ...typography.bodyStrong,
+      color: colors.textOnPrimary,
+    },
     changeBtn: {
-      paddingHorizontal: 14,
-      height: 42,
-      borderRadius: 10,
+      paddingHorizontal: spacing[4],
+      minHeight: spacing[10] + spacing[1],
+      borderRadius: radii.small,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: "center",
       justifyContent: "center",
     },
-    changeBtnText: { fontSize: 14, color: colors.textMuted },
+    changeBtnText: { ...typography.body, color: colors.textSecondary },
     verifyBtn: {
-      height: 46,
+      minHeight: spacing[10] + spacing[2],
       backgroundColor: colors.primary,
-      borderRadius: 10,
+      borderRadius: radii.small,
       alignItems: "center",
       justifyContent: "center",
     },
     verifyBtnDisabled: { opacity: 0.5 },
-    verifyBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-    cancelFormBtn: { alignItems: "center", paddingVertical: 8 },
-    cancelFormBtnText: { fontSize: 14, color: colors.textMuted },
+    verifyBtnText: {
+      ...typography.bodyStrong,
+      color: colors.textOnPrimary,
+    },
+    cancelFormBtn: { alignItems: "center", paddingVertical: spacing[2] },
+    cancelFormBtnText: { ...typography.body, color: colors.textSecondary },
 
     signOutBtn: {
-      height: 48,
+      minHeight: spacing[10] + spacing[2],
       backgroundColor: colors.card,
-      borderRadius: 12,
+      borderRadius: radii.medium,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
       borderColor: colors.dangerBorder,
     },
-    signOutText: { fontSize: 15, fontWeight: "700", color: colors.destructive },
+    signOutText: { ...typography.bodyStrong, color: colors.danger },
   });
 }

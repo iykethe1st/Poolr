@@ -13,10 +13,12 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
+  type StyleProp,
+  type TextProps as NativeTextProps,
+  type TextStyle,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -50,16 +52,94 @@ import {
 import { tierConfig } from "@/lib/tier";
 import { StatusBadge } from "@/components/status-badge";
 import type { BadgeVariant } from "@/components/status-badge";
+import { Text as ThemeText, type TextTone } from "@/components/ui/text";
 import type { Cycle, GroupMember, GroupHistory } from "@/hooks/use-group";
+import { radii, spacing, typography, type TypographyVariant } from "@/theme";
 
 type Tab = "cycles" | "members" | "activity" | "payouts" | "penalties";
+
+type GroupTextProps = NativeTextProps & {
+  tabularNumbers?: boolean;
+  tone?: TextTone;
+  variant?: TypographyVariant;
+};
+
+function Text({
+  style,
+  tabularNumbers,
+  tone,
+  variant,
+  ...props
+}: GroupTextProps) {
+  const colors = useColors();
+  const flattenedStyle = StyleSheet.flatten(style) ?? {};
+  const requestedVariant =
+    variant ?? variantForFontSize(flattenedStyle.fontSize);
+  const requestedTone =
+    tone ?? toneForColor(flattenedStyle.color, colors) ?? "primary";
+  const {
+    color: _color,
+    fontSize: _fontSize,
+    fontWeight: _fontWeight,
+    letterSpacing: _letterSpacing,
+    lineHeight: _lineHeight,
+    ...layoutStyle
+  } = flattenedStyle;
+
+  return (
+    <ThemeText
+      {...props}
+      variant={requestedVariant}
+      tone={requestedTone}
+      tabularNumbers={tabularNumbers}
+      style={layoutStyle}
+    />
+  );
+}
+
+function variantForFontSize(
+  fontSize: TextStyle["fontSize"],
+): TypographyVariant {
+  if (typeof fontSize !== "number") return "body";
+  if (fontSize <= 11) return "overline";
+  if (fontSize <= 13) return "caption";
+  if (fontSize <= 16) return "body";
+  if (fontSize <= 19) return "headline";
+  if (fontSize <= 22) return "title2";
+  if (fontSize <= 30) return "title1";
+  return "display";
+}
+
+function toneForColor(
+  color: TextStyle["color"],
+  colors: ReturnType<typeof useColors>,
+): TextTone | undefined {
+  if (typeof color !== "string") return;
+  if (color === colors.textPrimary) return "primary";
+  if (color === colors.textSecondary || color === colors.textMuted)
+    return "secondary";
+  if (color === colors.textTertiary) return "tertiary";
+  if (color === colors.textOnPrimary) return "onPrimary";
+  if (color === colors.textInverse) return "inverse";
+  if (color === colors.primary || color === colors.primaryText) return "brand";
+  if (color === colors.success || color === colors.successText)
+    return "success";
+  if (color === colors.warning || color === colors.warningText)
+    return "warning";
+  if (color === colors.danger || color === colors.dangerText) return "danger";
+}
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [tab, setTab] = useState<Tab>("cycles");
+  const [selectedCycle, setSelectedCycle] = useState<Cycle | null>(null);
 
   const { data: group, isLoading, refetch } = useGroupDetail(id);
-  const { data: history, refetch: refetchHistory } = useGroupHistory(id);
+  const {
+    data: history,
+    isLoading: historyLoading,
+    refetch: refetchHistory,
+  } = useGroupHistory(id);
   const { data: me } = useCurrentUser();
   const initContrib = useInitializeContribution();
   const verifyPayment = useVerifyPayment();
@@ -123,11 +203,7 @@ export default function GroupDetailScreen() {
       const result = await initContrib.mutateAsync({ cycleId, useWallet });
 
       if (useWallet || !result.authorizationUrl) {
-        await navigateToSuccess(
-          result.totalChargedNgn,
-          group?.id,
-          group?.name,
-        );
+        await navigateToSuccess(result.totalChargedNgn, group?.id, group?.name);
         return;
       }
 
@@ -351,23 +427,56 @@ export default function GroupDetailScreen() {
     <View style={styles.root}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.back} onPress={() => router.back()}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={styles.back}
+          onPress={() => router.back()}
+        >
           <Text style={styles.backText}>← Back</Text>
         </Pressable>
         <View style={styles.headerRow}>
           <View style={styles.headerInfo}>
-            <Text style={styles.groupName}>{group.name}</Text>
-            <Text style={styles.groupMeta}>
-              {group.members.length}/{group.maxMembers} members ·{" "}
-              {group.frequency.toLowerCase()} ·{" "}
-              {formatCurrency(group.contributionAmount)}
+            <Text variant="title1" style={styles.groupName}>
+              {group.name}
+            </Text>
+            <Text variant="body" tone="secondary" style={styles.groupMeta}>
+              {group.members.length} of {group.maxMembers} members
             </Text>
           </View>
           {canInvite && (
-            <TouchableOpacity style={styles.inviteBtn} onPress={openInvite}>
-              <Text style={styles.inviteBtnText}>+ Invite</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Invite a member"
+              style={styles.inviteBtn}
+              onPress={openInvite}
+            >
+              <Text
+                variant="bodyStrong"
+                tone="brand"
+                style={styles.inviteBtnText}
+              >
+                + Invite
+              </Text>
             </TouchableOpacity>
           )}
+        </View>
+        <View style={styles.groupSummary}>
+          <View style={styles.groupSummaryItem}>
+            <Text variant="caption" tone="secondary">
+              Contribution
+            </Text>
+            <Text variant="bodyStrong" tabularNumbers>
+              {formatCurrency(group.contributionAmount)}
+            </Text>
+          </View>
+          <View style={styles.groupSummaryDivider} />
+          <View style={styles.groupSummaryItem}>
+            <Text variant="caption" tone="secondary">
+              Schedule
+            </Text>
+            <Text variant="bodyStrong">{group.frequency.toLowerCase()}</Text>
+          </View>
         </View>
       </View>
 
@@ -396,7 +505,17 @@ export default function GroupDetailScreen() {
                 >
                   <Text style={styles.payBtnText}>Pay Now</Text>
                 </TouchableOpacity>
-                <Text style={styles.paystackBadge}>🔒 Secured by Paystack</Text>
+                <View style={styles.paystackBadgeRow}>
+                  <Feather
+                    name="lock"
+                    size={12}
+                    color={colors.iconMuted}
+                    accessibilityElementsHidden
+                  />
+                  <Text variant="caption" tone="secondary">
+                    Secured by Paystack
+                  </Text>
+                </View>
               </View>
             </View>
           );
@@ -445,13 +564,13 @@ export default function GroupDetailScreen() {
                   <View style={styles.feeBreakdown}>
                     <View style={styles.feeRow}>
                       <Text style={styles.feeRowLabel}>Contribution</Text>
-                      <Text style={styles.feeRowValue}>
+                      <Text style={styles.feeRowValue} tabularNumbers>
                         {formatCurrency(group.contributionAmount)}
                       </Text>
                     </View>
                     <View style={styles.feeRow}>
                       <Text style={styles.feeRowLabel}>Platform fee</Text>
-                      <Text style={styles.feeRowValue}>
+                      <Text style={styles.feeRowValue} tabularNumbers>
                         {formatCurrency(feeAmountNgn)}
                       </Text>
                     </View>
@@ -470,6 +589,7 @@ export default function GroupDetailScreen() {
                             styles.feeRowValue,
                             { color: colors.destructive },
                           ]}
+                          tabularNumbers
                         >
                           {formatCurrency(penaltyAmountNgn)}
                         </Text>
@@ -491,11 +611,11 @@ export default function GroupDetailScreen() {
                       <Text style={styles.methodName}>
                         Card / Bank transfer
                       </Text>
-                      <Text style={styles.methodAmount}>
+                      <Text style={styles.methodAmount} tabularNumbers>
                         {formatCurrency(cardTotal)}
                       </Text>
                     </View>
-                    <Text style={styles.methodSub}>
+                    <Text style={styles.methodSub} tabularNumbers>
                       Includes ~{formatCurrency(processingFee)} Paystack
                       processing fee
                     </Text>
@@ -524,11 +644,12 @@ export default function GroupDetailScreen() {
                           styles.methodAmount,
                           !canWallet && { color: colors.textMuted },
                         ]}
+                        tabularNumbers
                       >
                         {formatCurrency(totalAmountNgn)}
                       </Text>
                     </View>
-                    <Text style={styles.methodSub}>
+                    <Text style={styles.methodSub} tabularNumbers>
                       {canWallet
                         ? "No processing fee"
                         : shortfallNgn > 0
@@ -549,7 +670,10 @@ export default function GroupDetailScreen() {
                       disabled={isBusy}
                     >
                       {isBusy ? (
-                        <ActivityIndicator color="#fff" size="small" />
+                        <ActivityIndicator
+                          color={colors.textOnPrimary}
+                          size="small"
+                        />
                       ) : (
                         <Text style={styles.feeConfirmBtnText}>
                           Continue to payment
@@ -637,7 +761,10 @@ export default function GroupDetailScreen() {
                   activeOpacity={0.7}
                 >
                   {isLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.textOnPrimary}
+                    />
                   ) : (
                     <>
                       <Text
@@ -825,7 +952,7 @@ export default function GroupDetailScreen() {
             activeOpacity={0.8}
           >
             {startGroup.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.textOnPrimary} size="small" />
             ) : (
               <Text style={styles.startGroupBtnText}>
                 {!group.startDate
@@ -856,29 +983,37 @@ export default function GroupDetailScreen() {
       )}
 
       {/* Tabs */}
-      <View style={styles.tabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+        contentContainerStyle={styles.tabs}
+        accessibilityRole="tablist"
+      >
         {(
           ["cycles", "members", "activity", "payouts", "penalties"] as Tab[]
-        ).map((t) => (
-          <Pressable
-            key={t}
-            style={[styles.tabItem, tab === t && styles.tabItemActive]}
-            onPress={() => setTab(t)}
-          >
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
-              {t === "cycles"
-                ? "Cycles"
-                : t === "members"
-                  ? "Members"
-                  : t === "activity"
-                    ? "Activity"
-                    : t === "payouts"
-                      ? "Payouts"
-                      : "Penalties"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+        ).map((t) => {
+          const label = t.charAt(0).toUpperCase() + t.slice(1);
+          return (
+            <Pressable
+              key={t}
+              accessibilityRole="tab"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: tab === t }}
+              style={[styles.tabItem, tab === t && styles.tabItemActive]}
+              onPress={() => setTab(t)}
+            >
+              <Text
+                variant="bodyStrong"
+                tone={tab === t ? "brand" : "secondary"}
+                style={styles.tabText}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {/* Content */}
       <ScrollView
@@ -896,7 +1031,11 @@ export default function GroupDetailScreen() {
         }
       >
         {tab === "cycles" && (
-          <CyclesTab cycles={group.cycles} myMemberId={myMember?.id} />
+          <CyclesTab
+            cycles={group.cycles}
+            myMemberId={myMember?.id}
+            onSelectCycle={setSelectedCycle}
+          />
         )}
         {tab === "members" && (
           <MembersTab
@@ -944,12 +1083,20 @@ export default function GroupDetailScreen() {
             }}
           />
         )}
-        {tab === "activity" && <ActivityTab history={history} />}
+        {tab === "activity" && (
+          <ActivityTab history={history} isLoading={historyLoading} />
+        )}
         {tab === "payouts" && <PayoutsTab payouts={history?.payouts ?? []} />}
         {tab === "penalties" && (
           <PenaltiesTab penalties={history?.penalties ?? []} />
         )}
       </ScrollView>
+
+      <CycleActivitySheet
+        cycle={selectedCycle}
+        members={group.members}
+        onClose={() => setSelectedCycle(null)}
+      />
 
       {/* Date picker — Android shows system dialog, iOS shows bottom sheet */}
       {datePickerOpen && Platform.OS === "android" && (
@@ -975,10 +1122,7 @@ export default function GroupDetailScreen() {
         onRequestClose={() => setDatePickerOpen(false)}
       >
         <TouchableOpacity
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: "rgba(0,0,0,0.4)" },
-          ]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay }]}
           activeOpacity={1}
           onPress={() => setDatePickerOpen(false)}
         />
@@ -1004,7 +1148,7 @@ export default function GroupDetailScreen() {
               disabled={updateGroup.isPending}
             >
               {updateGroup.isPending ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={colors.textOnPrimary} size="small" />
               ) : (
                 <Text style={styles.datePickerSaveText}>Save</Text>
               )}
@@ -1120,7 +1264,10 @@ export default function GroupDetailScreen() {
                   disabled={!inviteValue.trim() || inviteMember.isPending}
                 >
                   {inviteMember.isPending ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator
+                      color={colors.textOnPrimary}
+                      size="small"
+                    />
                   ) : (
                     <Text style={styles.sheetBtnText}>Send invite</Text>
                   )}
@@ -1154,9 +1301,11 @@ export default function GroupDetailScreen() {
 function CyclesTab({
   cycles,
   myMemberId,
+  onSelectCycle,
 }: {
   cycles: Cycle[];
   myMemberId?: string;
+  onSelectCycle: (cycle: Cycle) => void;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -1195,8 +1344,11 @@ function CyclesTab({
           cycle.status === "ACTIVE" || cycle.status === "IN_PROGRESS";
 
         return (
-          <View
+          <Pressable
             key={cycle.id}
+            accessibilityRole="button"
+            accessibilityLabel={`View activity for cycle ${cycle.cycleNumber}`}
+            onPress={() => onSelectCycle(cycle)}
             style={[styles.cycleCard, isActive && styles.cycleCardActive]}
           >
             <View style={styles.cycleHeader}>
@@ -1253,7 +1405,13 @@ function CyclesTab({
                 </View>
               </View>
             )}
-          </View>
+            <View style={styles.cycleActivityLink}>
+              <Text variant="caption" tone="brand">
+                View contribution activity
+              </Text>
+              <Feather name="chevron-right" size={18} color={colors.primary} />
+            </View>
+          </Pressable>
         );
       })}
     </View>
@@ -1273,6 +1431,187 @@ function CycleBadge({ status }: { status: string }) {
     label: status,
   };
   return <StatusBadge label={label} variant={variant} />;
+}
+
+function CycleActivitySheet({
+  cycle,
+  members,
+  onClose,
+}: {
+  cycle: Cycle | null;
+  members: GroupMember[];
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  if (!cycle) return null;
+
+  const paidCount =
+    cycle.contributions?.filter(
+      (contribution) => contribution.status === "PAID",
+    ).length ?? 0;
+  const contributions = cycle.contributions ?? [];
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={styles.cycleSheetRoot}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close cycle activity"
+          style={styles.cycleSheetBackdrop}
+          onPress={onClose}
+        />
+        <View style={styles.cycleSheet}>
+          <View style={styles.cycleSheetHandle} />
+          <View style={styles.cycleSheetHeader}>
+            <View style={styles.cycleSheetTitleGroup}>
+              <Text variant="title2">Cycle {cycle.cycleNumber}</Text>
+              <Text variant="caption" tone="secondary">
+                Due {formatDate(cycle.dueDate)}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close cycle activity"
+              hitSlop={8}
+              style={styles.cycleSheetClose}
+              onPress={onClose}
+            >
+              <Feather name="x" size={20} color={colors.icon} />
+            </Pressable>
+          </View>
+
+          <View style={styles.cycleSheetSummary}>
+            <View style={styles.cycleSheetSummaryItem}>
+              <Text variant="caption" tone="secondary">
+                Contributions received
+              </Text>
+              <Text variant="title2" tabularNumbers>
+                {paidCount} of {contributions.length}
+              </Text>
+            </View>
+            <StatusBadge
+              label={cycle.status.replace("_", " ")}
+              variant={
+                cycle.status === "COMPLETED"
+                  ? "completed"
+                  : cycle.status === "ACTIVE" || cycle.status === "IN_PROGRESS"
+                    ? "success"
+                    : "neutral"
+              }
+            />
+          </View>
+
+          {cycle.recipientMember && (
+            <View style={styles.cycleRecipientBanner}>
+              <Feather
+                name="corner-down-right"
+                size={18}
+                color={colors.primary}
+              />
+              <Text
+                variant="body"
+                tone="secondary"
+                style={styles.cycleRecipientText}
+              >
+                Payout recipient
+              </Text>
+              <Text variant="bodyStrong" style={styles.cycleRecipientName}>
+                {cycle.recipientMember.user.fullName}
+              </Text>
+            </View>
+          )}
+
+          <Text variant="headline" style={styles.cycleActivityHeading}>
+            Member activity
+          </Text>
+
+          <ScrollView
+            style={styles.cycleActivityList}
+            contentContainerStyle={styles.cycleActivityListContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {contributions.length === 0 ? (
+              <View style={styles.cycleActivityEmpty}>
+                <Text variant="body" tone="secondary">
+                  No contribution activity is available for this cycle yet.
+                </Text>
+              </View>
+            ) : (
+              contributions.map((contribution) => {
+                const member = members.find(
+                  (candidate) => candidate.id === contribution.memberId,
+                );
+                const paid = contribution.status === "PAID";
+                const statusTone: TextTone = paid
+                  ? "success"
+                  : contribution.status === "OVERDUE"
+                    ? "danger"
+                    : "secondary";
+                return (
+                  <View key={contribution.id} style={styles.cycleActivityRow}>
+                    <View
+                      style={[
+                        styles.cycleActivityIcon,
+                        paid
+                          ? styles.cycleActivityIconPaid
+                          : styles.cycleActivityIconPending,
+                      ]}
+                    >
+                      <Feather
+                        name={paid ? "check" : "clock"}
+                        size={17}
+                        color={paid ? colors.success : colors.iconMuted}
+                      />
+                    </View>
+                    <View style={styles.cycleActivityMember}>
+                      <Text variant="bodyStrong" numberOfLines={1}>
+                        {member?.user.fullName ?? "Group member"}
+                      </Text>
+                      <Text variant="caption" tone="secondary">
+                        {paid && contribution.paidAt
+                          ? `Paid ${formatActivityTimestamp(contribution.paidAt)}`
+                          : `Due ${formatDate(cycle.dueDate)}`}
+                      </Text>
+                    </View>
+                    <View style={styles.cycleActivityAmount}>
+                      <Text variant="bodyStrong" tabularNumbers>
+                        {formatCurrency(contribution.amount)}
+                      </Text>
+                      <Text variant="caption" tone={statusTone}>
+                        {paid
+                          ? "Paid"
+                          : contribution.status === "OVERDUE"
+                            ? "Overdue"
+                            : contribution.status.toLowerCase()}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function formatActivityTimestamp(date: string): string {
+  return new Date(date).toLocaleString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function MembersTab({
@@ -1520,7 +1859,12 @@ function MemberProfileSheet({
                     size={13}
                     color={colors.primary}
                   />
-                  <Text style={[styles.slotsBadgeText, { fontSize: 12 }]}>
+                  <Text
+                    style={[
+                      styles.slotsBadgeText,
+                      { fontSize: typography.caption.fontSize },
+                    ]}
+                  >
                     {slots} slots
                   </Text>
                 </View>
@@ -1530,7 +1874,8 @@ function MemberProfileSheet({
                   style={[
                     styles.tierBadge,
                     {
-                      backgroundColor: tc.bg,
+                      backgroundColor: colors.primarySubtle,
+                      borderColor: colors.borderInput,
                       paddingHorizontal: 8,
                       paddingVertical: 3,
                       flexDirection: "row",
@@ -1539,12 +1884,9 @@ function MemberProfileSheet({
                     },
                   ]}
                 >
-                  <Feather name={tc.icon} size={11} color={tc.color} />
+                  <Feather name={tc.icon} size={14} color={colors.primary} />
                   <Text
-                    style={[
-                      styles.tierBadgeText,
-                      { color: tc.color, fontSize: 12 },
-                    ]}
+                    style={[styles.tierBadgeText, { color: colors.primary }]}
                   >
                     {tc.label}
                   </Text>
@@ -1558,7 +1900,12 @@ function MemberProfileSheet({
             <Text style={styles.profileSectionTitle}>Details</Text>
             {member.user.phone && (
               <View style={styles.profileRow}>
-                <Text style={styles.profileRowIcon}>📞</Text>
+                <Feather
+                  name="phone"
+                  size={16}
+                  color={colors.iconMuted}
+                  style={styles.profileRowIcon}
+                />
                 <TouchableOpacity
                   onPress={() => Linking.openURL(`tel:${member.user.phone}`)}
                   onLongPress={() =>
@@ -1578,7 +1925,12 @@ function MemberProfileSheet({
               </View>
             )}
             <View style={styles.profileRow}>
-              <Text style={styles.profileRowIcon}>✉️</Text>
+              <Feather
+                name="mail"
+                size={16}
+                color={colors.iconMuted}
+                style={styles.profileRowIcon}
+              />
               <TouchableOpacity
                 onPress={() => Share.share({ message: member.user.email })}
                 activeOpacity={0.7}
@@ -1594,7 +1946,12 @@ function MemberProfileSheet({
               </TouchableOpacity>
             </View>
             <View style={styles.profileRow}>
-              <Text style={styles.profileRowIcon}>📅</Text>
+              <Feather
+                name="calendar"
+                size={16}
+                color={colors.iconMuted}
+                style={styles.profileRowIcon}
+              />
               <Text style={styles.profileRowText}>
                 Joined {formatDate(member.joinedAt)}
               </Text>
@@ -1616,7 +1973,12 @@ function MemberProfileSheet({
             ) : (
               <>
                 <View style={styles.profileRow}>
-                  <Text style={styles.profileRowIcon}>💳</Text>
+                  <Feather
+                    name="credit-card"
+                    size={16}
+                    color={colors.iconMuted}
+                    style={styles.profileRowIcon}
+                  />
                   <Text style={styles.profileRowText}>
                     {paid.length} contribution{paid.length !== 1 ? "s" : ""}{" "}
                     paid
@@ -1624,18 +1986,22 @@ function MemberProfileSheet({
                 </View>
                 {onTimeRate !== null && (
                   <View style={styles.profileRow}>
-                    <Text style={styles.profileRowIcon}>⏱</Text>
+                    <Feather
+                      name="clock"
+                      size={16}
+                      color={colors.iconMuted}
+                      style={styles.profileRowIcon}
+                    />
                     <Text
                       style={[
                         styles.profileRowText,
                         {
                           color:
                             onTimeRate === 100
-                              ? "#166534"
+                              ? colors.success
                               : onTimeRate >= 75
-                                ? "#854d0e"
-                                : "#b91c1c",
-                          fontWeight: "600",
+                                ? colors.warning
+                                : colors.danger,
                         },
                       ]}
                     >
@@ -1645,8 +2011,15 @@ function MemberProfileSheet({
                 )}
                 {penalties.length > 0 && (
                   <View style={styles.profileRow}>
-                    <Text style={styles.profileRowIcon}>⚠️</Text>
-                    <Text style={[styles.profileRowText, { color: "#b91c1c" }]}>
+                    <Feather
+                      name="alert-triangle"
+                      size={16}
+                      color={colors.danger}
+                      style={styles.profileRowIcon}
+                    />
+                    <Text
+                      style={[styles.profileRowText, { color: colors.danger }]}
+                    >
                       {penalties.length} penalt
                       {penalties.length !== 1 ? "ies" : "y"}
                     </Text>
@@ -1665,32 +2038,77 @@ function MemberProfileSheet({
   );
 }
 
-function ActivityTab({ history }: { history: GroupHistory | undefined }) {
+function ActivityTab({
+  history,
+  isLoading,
+}: {
+  history: GroupHistory | undefined;
+  isLoading: boolean;
+}) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingRoot}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
   const contribs = history?.contributions ?? [];
   const payouts = history?.payouts ?? [];
+  const penalties = history?.penalties ?? [];
 
   type ActivityItem = {
     id: string;
     label: string;
     amount: string;
     date: string;
+    kind: "contribution" | "payout" | "penalty";
   };
   const items: ActivityItem[] = [
-    ...contribs.map((c) => ({
-      id: c.id,
-      label: `${c.member.user.fullName} contributed ${formatCurrency(c.amount)}`,
-      amount: c.amount,
-      date: c.createdAt,
-    })),
+    ...contribs.flatMap((c) =>
+      c.status === "PAID" && c.paidAt
+        ? [
+            {
+              id: `contribution-${c.id}`,
+              label: `${c.member.user.fullName} contributed`,
+              amount: c.amount,
+              date: c.paidAt,
+              kind: "contribution" as const,
+            },
+          ]
+        : [],
+    ),
     ...payouts.map((p) => ({
-      id: p.id,
-      label: `${p.recipient.fullName} received ${formatCurrency(p.amount)}`,
+      id: `payout-${p.id}`,
+      label:
+        p.status === "COMPLETED"
+          ? `${p.recipient.fullName} received a payout`
+          : p.status === "FAILED"
+            ? `Payout to ${p.recipient.fullName} failed`
+            : p.status === "INITIATED"
+              ? `Payout initiated for ${p.recipient.fullName}`
+              : p.status === "PENDING"
+                ? `Payout pending for ${p.recipient.fullName}`
+                : `Payout status: ${p.status.toLowerCase()}`,
       amount: p.amount,
-      date: p.createdAt,
+      date:
+        p.status === "COMPLETED"
+          ? (p.completedAt ?? p.initiatedAt ?? p.createdAt)
+          : (p.initiatedAt ?? p.createdAt),
+      kind: "payout" as const,
     })),
+    ...penalties
+      .filter((p) => p.status === "APPLIED")
+      .map((p) => ({
+        id: `penalty-${p.id}`,
+        label: `Penalty applied to ${p.member.user.fullName}`,
+        amount: p.penaltyAmount,
+        date: p.appliedAt ?? p.createdAt,
+        kind: "penalty" as const,
+      })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (items.length === 0) {
@@ -1700,10 +2118,42 @@ function ActivityTab({ history }: { history: GroupHistory | undefined }) {
     <View style={styles.list}>
       {items.map((item) => (
         <View key={item.id} style={styles.activityRow}>
-          <View style={styles.activityInfo}>
-            <Text style={styles.activityDesc}>{item.label}</Text>
-            <Text style={styles.activityDate}>{timeAgo(item.date)}</Text>
+          <View
+            style={[
+              styles.activityIcon,
+              item.kind === "penalty"
+                ? styles.activityIconDebit
+                : styles.activityIconCredit,
+            ]}
+          >
+            <Feather
+              name={
+                item.kind === "penalty" ? "alert-circle" : "arrow-down-left"
+              }
+              size={18}
+              color={item.kind === "penalty" ? colors.danger : colors.success}
+            />
           </View>
+          <View style={styles.activityInfo}>
+            <Text variant="bodyStrong" style={styles.activityDesc}>
+              {item.label}
+            </Text>
+            <Text
+              variant="caption"
+              tone="secondary"
+              style={styles.activityDate}
+            >
+              {formatActivityTimestamp(item.date)}
+            </Text>
+          </View>
+          <Text
+            variant="bodyStrong"
+            tone={item.kind === "penalty" ? "danger" : "success"}
+            tabularNumbers
+            style={styles.activityAmount}
+          >
+            {formatCurrency(item.amount)}
+          </Text>
         </View>
       ))}
     </View>
@@ -1739,7 +2189,10 @@ function PayoutsTab({ payouts }: { payouts: GroupHistory["payouts"] }) {
               </Text>
             </View>
             <View style={{ alignItems: "flex-end", gap: 4 }}>
-              <Text style={[styles.activityAmount, styles.credit]}>
+              <Text
+                style={[styles.activityAmount, styles.credit]}
+                tabularNumbers
+              >
                 {formatCurrency(p.amount)}
               </Text>
               <StatusBadge label={cfg.label} variant={cfg.variant} />
@@ -1782,7 +2235,10 @@ function PenaltiesTab({ penalties }: { penalties: GroupHistory["penalties"] }) {
               </Text>
             </View>
             <View style={{ alignItems: "flex-end", gap: 4 }}>
-              <Text style={[styles.activityAmount, styles.debit]}>
+              <Text
+                style={[styles.activityAmount, styles.debit]}
+                tabularNumbers
+              >
                 {formatCurrency(p.penaltyAmount)}
               </Text>
               <StatusBadge label={cfg.label} variant={cfg.variant} />
@@ -1814,17 +2270,34 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       paddingTop: 56,
     },
     header: {
-      paddingHorizontal: 16,
+      paddingHorizontal: spacing[5],
       paddingTop: 56,
-      paddingBottom: 16,
+      paddingBottom: spacing[5],
       backgroundColor: colors.card,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    back: { marginBottom: 8 },
-    backText: { fontSize: 15, color: colors.primary, fontWeight: "600" },
-    headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-    headerInfo: { flex: 1, gap: 3 },
+    back: { minHeight: 44, justifyContent: "center", marginBottom: spacing[2] },
+    backText: { color: colors.primary },
+    headerRow: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
+    headerInfo: { flex: 1, gap: spacing[1] },
+    groupName: { flexShrink: 1 },
+    groupMeta: { marginTop: spacing[1] },
+    groupSummary: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing[5],
+      marginTop: spacing[5],
+      padding: spacing[4],
+      borderRadius: radii.medium,
+      backgroundColor: colors.surfaceRaised,
+    },
+    groupSummaryItem: { flex: 1, gap: spacing[1] },
+    groupSummaryDivider: {
+      width: 1,
+      height: spacing[8],
+      backgroundColor: colors.border,
+    },
     inviteBanner: {
       marginHorizontal: 16,
       marginBottom: 8,
@@ -1841,12 +2314,12 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       justifyContent: "space-between",
     },
     inviteBannerTitle: {
-      fontSize: 14,
+      fontSize: typography.body.fontSize,
       fontWeight: "700",
       color: colors.primaryText,
     },
     inviteBannerSub: {
-      fontSize: 12,
+      fontSize: typography.caption.fontSize,
       color: colors.primaryTextMid,
       marginTop: 2,
     },
@@ -1856,7 +2329,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       paddingVertical: 9,
       borderRadius: 10,
     },
-    inviteBannerBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+    inviteBannerBtnText: { color: colors.textOnPrimary },
     inviteProgress: {
       height: 6,
       backgroundColor: colors.primaryBorder,
@@ -1875,10 +2348,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderWidth: 1.5,
       borderColor: colors.primary,
     },
-    inviteBtnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
-    groupName: { fontSize: 22, fontWeight: "600", color: colors.text },
-    groupMeta: { fontSize: 13, color: colors.textMuted },
-
+    inviteBtnText: {
+      fontSize: typography.caption.fontSize,
+      fontWeight: "700",
+      color: colors.primary,
+    },
     payCta: {
       flexDirection: "row",
       alignItems: "center",
@@ -1889,8 +2363,16 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.primaryBorder,
     },
-    payCtaTitle: { fontSize: 13, fontWeight: "700", color: colors.primaryText },
-    payCtaDate: { fontSize: 12, color: colors.primaryTextMid, marginTop: 1 },
+    payCtaTitle: {
+      fontSize: typography.caption.fontSize,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    payCtaDate: {
+      fontSize: typography.caption.fontSize,
+      color: colors.primaryTextMid,
+      marginTop: 1,
+    },
     payBtn: {
       backgroundColor: colors.primary,
       paddingHorizontal: 16,
@@ -1898,20 +2380,24 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderRadius: 10,
     },
     payBtnDisabled: { opacity: 0.6 },
-    payBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-    payCtaFee: { fontSize: 11, color: colors.primaryTextMid, marginTop: 2 },
+    payBtnText: { color: colors.textOnPrimary },
+    payCtaFee: {
+      fontSize: typography.overline.fontSize,
+      color: colors.primaryTextMid,
+      marginTop: 2,
+    },
     walletBtn: {
-      backgroundColor: "rgba(255,255,255,0.15)",
+      backgroundColor: colors.primaryPressed,
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: 10,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.25)",
+      borderColor: colors.borderInput,
     },
     walletBtnDisabled: { opacity: 0.45 },
-    walletBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+    walletBtnText: { color: colors.textOnPrimary },
     walletBtnTextDisabled: { opacity: 0.6 },
-    feeModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+    feeModalBackdrop: { flex: 1, backgroundColor: colors.overlay },
     feeModalSheet: {
       backgroundColor: colors.background,
       borderTopLeftRadius: 20,
@@ -1929,7 +2415,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       marginBottom: 8,
     },
     feeModalTitle: {
-      fontSize: 17,
+      fontSize: typography.headline.fontSize,
       fontWeight: "700",
       color: colors.text,
       textAlign: "center",
@@ -1947,22 +2433,33 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       justifyContent: "space-between",
       alignItems: "center",
     },
-    feeRowLabel: { fontSize: 14, color: colors.textMuted },
-    feeRowValue: { fontSize: 14, fontWeight: "500", color: colors.text },
+    feeRowLabel: {
+      fontSize: typography.body.fontSize,
+      color: colors.textMuted,
+    },
+    feeRowValue: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "500",
+      color: colors.text,
+    },
     feeRowTotal: {
       borderTopWidth: 1,
       borderTopColor: colors.border,
       paddingTop: 10,
       marginTop: 2,
     },
-    feeRowTotalLabel: { fontSize: 15, fontWeight: "700", color: colors.text },
+    feeRowTotalLabel: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
     feeRowTotalValue: {
-      fontSize: 15,
+      fontSize: typography.body.fontSize,
       fontWeight: "700",
       color: colors.primary,
     },
     methodLabel: {
-      fontSize: 12,
+      fontSize: typography.caption.fontSize,
       fontWeight: "600",
       color: colors.textMuted,
       textTransform: "uppercase",
@@ -1986,9 +2483,20 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       justifyContent: "space-between",
       alignItems: "center",
     },
-    methodName: { fontSize: 14, fontWeight: "600", color: colors.text },
-    methodAmount: { fontSize: 14, fontWeight: "700", color: colors.text },
-    methodSub: { fontSize: 12, color: colors.textMuted },
+    methodName: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    methodAmount: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    methodSub: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+    },
     feeModalActions: { flexDirection: "row", gap: 12, marginTop: 4 },
     feeCancelBtn: {
       flex: 1,
@@ -1998,7 +2506,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderColor: colors.border,
       alignItems: "center",
     },
-    feeCancelBtnText: { fontSize: 15, fontWeight: "600", color: colors.text },
+    feeCancelBtnText: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "600",
+      color: colors.text,
+    },
     feeConfirmBtn: {
       flex: 2,
       paddingVertical: 13,
@@ -2006,11 +2518,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       backgroundColor: colors.primary,
       alignItems: "center",
     },
-    feeConfirmBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
-    paystackBadge: {
-      fontSize: 10,
-      color: colors.primaryTextMid,
-      fontWeight: "500",
+    feeConfirmBtnText: { color: colors.textOnPrimary },
+    paystackBadgeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing[1],
     },
 
     vaCard: {
@@ -2022,83 +2534,110 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       gap: 2,
     },
     vaLabel: {
-      fontSize: 11,
+      fontSize: typography.overline.fontSize,
       color: colors.primaryTextMid,
       fontWeight: "600",
       textTransform: "uppercase",
       letterSpacing: 0.5,
     },
-    vaAccount: { fontSize: 14, fontWeight: "700", color: colors.primaryText },
-    vaSub: { fontSize: 12, color: colors.primaryTextMid },
+    vaAccount: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    vaSub: {
+      fontSize: typography.caption.fontSize,
+      color: colors.primaryTextMid,
+    },
 
-    tabs: {
-      flexDirection: "row",
+    tabsScroll: {
+      flexGrow: 0,
       backgroundColor: colors.card,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    tabItem: { flex: 1, paddingVertical: 10, alignItems: "center" },
-    tabItemActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-    tabText: { fontSize: 11, fontWeight: "600", color: colors.textMuted },
-    tabTextActive: { color: colors.primary },
+    tabs: {
+      flexDirection: "row",
+      paddingHorizontal: spacing[3],
+    },
+    tabItem: {
+      minHeight: spacing[10] + spacing[1],
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: spacing[4],
+      borderBottomWidth: 2,
+      borderBottomColor: colors.surface,
+    },
+    tabItemActive: { borderBottomColor: colors.primary },
+    tabText: { textAlign: "center" },
 
     scrollView: { flex: 1 },
-    scrollContent: { padding: 16, gap: 10 },
-    list: { gap: 10 },
+    scrollContent: { padding: spacing[5], gap: spacing[4] },
+    list: { gap: spacing[3] },
 
     cycleCard: {
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 14,
+      borderRadius: radii.large,
+      padding: spacing[5],
       borderWidth: 1,
       borderColor: colors.border,
-      gap: 10,
+      gap: spacing[4],
     },
     cycleCardActive: {
-      borderColor: colors.primary + "60",
+      borderColor: colors.borderInput,
       backgroundColor: colors.primaryBg,
     },
-    cycleHeader: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+    cycleHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing[4],
+    },
     cycleNumber: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: colors.border,
+      width: spacing[10] + spacing[2],
+      height: spacing[10] + spacing[2],
+      borderRadius: radii.medium,
+      backgroundColor: colors.surfaceRaised,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
     cycleNumberActive: { backgroundColor: colors.primary },
-    cycleNumberText: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: colors.textMuted,
-    },
-    cycleNumberTextActive: { color: "#fff" },
-    cycleMeta: { flex: 1, gap: 2 },
-    cycleTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
-    cycleDue: { fontSize: 12, color: colors.textMuted },
-    cycleRecipient: { fontSize: 12, color: colors.primary, fontWeight: "600" },
-    myStatus: { fontSize: 11, color: colors.successText, fontWeight: "700" },
+    cycleNumberText: { color: colors.textSecondary },
+    cycleNumberTextActive: { color: colors.textOnPrimary },
+    cycleMeta: { flex: 1, gap: spacing[1] },
+    cycleTitle: {},
+    cycleDue: {},
+    cycleRecipient: {},
+    myStatus: {},
     miniPayBtn: {
       backgroundColor: colors.primary,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 7,
+      paddingHorizontal: spacing[3],
+      paddingVertical: spacing[1],
+      borderRadius: radii.small,
     },
-    miniPayBtnText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+    miniPayBtnText: { color: colors.textOnPrimary },
 
-    contribProgress: { gap: 5 },
-    contribProgressText: { fontSize: 11, color: colors.textMuted },
+    contribProgress: { gap: spacing[2] },
+    contribProgressText: {},
     progressBar: {
-      height: 4,
+      height: spacing[1],
       backgroundColor: colors.border,
       borderRadius: 99,
+      overflow: "hidden",
     },
     progressFill: {
-      height: 4,
+      height: "100%",
       backgroundColor: colors.primary,
       borderRadius: 99,
+    },
+    cycleActivityLink: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      minHeight: spacing[10],
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: spacing[2],
     },
 
     memberRow: {
@@ -2121,16 +2660,29 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       flexShrink: 0,
     },
     memberAvatarText: {
-      fontSize: 14,
+      fontSize: typography.body.fontSize,
       fontWeight: "700",
       color: colors.primary,
     },
     memberInfo: { flex: 1, gap: 2 },
-    memberName: { fontSize: 14, fontWeight: "600", color: colors.text },
-    memberEmail: { fontSize: 12, color: colors.textMuted },
-    memberPhone: { fontSize: 12, color: colors.textMuted },
+    memberName: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    memberEmail: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+    },
+    memberPhone: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+    },
     tierBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 99 },
-    tierBadgeText: { fontSize: 10, fontWeight: "700" },
+    tierBadgeText: {
+      fontSize: typography.overline.fontSize,
+      fontWeight: "700",
+    },
     slotsBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -2143,7 +2695,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderColor: colors.primaryBorder,
     },
     slotsBadgeText: {
-      fontSize: 11,
+      fontSize: typography.overline.fontSize,
       fontWeight: "700",
       color: colors.primary,
     },
@@ -2159,7 +2711,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       backgroundColor: colors.primaryBg,
     },
     offerSlotBtnText: {
-      fontSize: 11,
+      fontSize: typography.overline.fontSize,
       fontWeight: "700",
       color: colors.primary,
     },
@@ -2171,7 +2723,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderWidth: 1,
       borderColor: colors.primaryBorder,
     },
-    adminBadgeText: { fontSize: 10, fontWeight: "700", color: colors.primary },
+    adminBadgeText: {
+      fontSize: typography.overline.fontSize,
+      fontWeight: "700",
+      color: colors.primary,
+    },
 
     profileHeader: { alignItems: "center", gap: 8, paddingBottom: 4 },
     profileAvatarLg: {
@@ -2183,22 +2739,30 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       justifyContent: "center",
     },
     profileAvatarLgText: {
-      fontSize: 24,
+      fontSize: typography.title1.fontSize,
       fontWeight: "700",
       color: colors.primary,
     },
-    profileNameLg: { fontSize: 20, fontWeight: "700", color: colors.text },
+    profileNameLg: {
+      fontSize: typography.title2.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
     profileSection: { gap: 8 },
     profileSectionTitle: {
-      fontSize: 11,
+      fontSize: typography.overline.fontSize,
       fontWeight: "700",
       color: colors.textMuted,
       textTransform: "uppercase",
       letterSpacing: 0.8,
     },
     profileRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-    profileRowIcon: { fontSize: 15, width: 22, textAlign: "center" },
-    profileRowText: { fontSize: 14, color: colors.text, flex: 1 },
+    profileRowIcon: { width: 22, textAlign: "center" },
+    profileRowText: {
+      fontSize: typography.body.fontSize,
+      color: colors.text,
+      flex: 1,
+    },
     cyclesSummary: {
       backgroundColor: colors.card,
       borderRadius: 12,
@@ -2207,7 +2771,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderColor: colors.border,
       gap: 8,
     },
-    cyclesSummaryText: { fontSize: 13, fontWeight: "600", color: colors.text },
+    cyclesSummaryText: {
+      fontSize: typography.caption.fontSize,
+      fontWeight: "600",
+      color: colors.text,
+    },
     cyclesProgressBar: {
       height: 5,
       backgroundColor: colors.border,
@@ -2219,30 +2787,118 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderRadius: 99,
     },
 
-    activityRow: {
+    cycleSheetRoot: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: colors.overlay,
+    },
+    cycleSheetBackdrop: { ...StyleSheet.absoluteFill },
+    cycleSheet: {
+      maxHeight: "88%",
+      minHeight: "62%",
+      paddingTop: spacing[3],
+      paddingHorizontal: spacing[5],
+      paddingBottom: spacing[6],
+      gap: spacing[4],
+      backgroundColor: colors.background,
+      borderTopLeftRadius: radii.large,
+      borderTopRightRadius: radii.large,
+    },
+    cycleSheetHandle: {
+      width: spacing[10],
+      height: spacing[1],
+      borderRadius: radii.small,
+      alignSelf: "center",
+      backgroundColor: colors.borderInput,
+    },
+    cycleSheetHeader: {
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing[4],
+    },
+    cycleSheetTitleGroup: { flex: 1, gap: spacing[1] },
+    cycleSheetClose: {
+      width: spacing[10] + spacing[1],
+      height: spacing[10] + spacing[1],
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radii.medium,
+      backgroundColor: colors.surfaceRaised,
+    },
+    cycleSheetSummary: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing[4],
+      padding: spacing[4],
+      borderRadius: radii.medium,
+      backgroundColor: colors.surfaceRaised,
+    },
+    cycleSheetSummaryItem: { gap: spacing[1] },
+    cycleRecipientBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: spacing[2],
+      padding: spacing[3],
+      borderRadius: radii.medium,
+      backgroundColor: colors.primarySubtle,
+    },
+    cycleRecipientText: { flexShrink: 0 },
+    cycleRecipientName: { flexShrink: 1 },
+    cycleActivityHeading: { marginTop: spacing[1] },
+    cycleActivityList: { flex: 1 },
+    cycleActivityListContent: { paddingBottom: spacing[3] },
+    cycleActivityEmpty: {
+      paddingVertical: spacing[6],
+      alignItems: "center",
+    },
+    cycleActivityRow: {
+      minHeight: spacing[10] + spacing[5],
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing[3],
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingVertical: spacing[3],
+    },
+    cycleActivityIcon: {
+      width: spacing[10],
+      height: spacing[10],
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: radii.medium,
+    },
+    cycleActivityIconPaid: { backgroundColor: colors.successSubtle },
+    cycleActivityIconPending: { backgroundColor: colors.surfaceRaised },
+    cycleActivityMember: { flex: 1, gap: spacing[1] },
+    cycleActivityAmount: { alignItems: "flex-end", gap: spacing[1] },
+
+    activityRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
       backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 12,
+      borderRadius: radii.large,
+      padding: spacing[4],
       borderWidth: 1,
       borderColor: colors.border,
-      gap: 12,
+      gap: spacing[3],
     },
     activityIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
+      width: spacing[10],
+      height: spacing[10],
+      borderRadius: radii.medium,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
     activityIconCredit: { backgroundColor: colors.successBg },
     activityIconDebit: { backgroundColor: colors.dangerBg },
-    activityInfo: { flex: 1, gap: 2 },
-    activityDesc: { fontSize: 13, fontWeight: "600", color: colors.text },
-    activityDate: { fontSize: 12, color: colors.textMuted },
-    activityAmount: { fontSize: 14, fontWeight: "700" },
+    activityInfo: { flex: 1, gap: spacing[1] },
+    activityDesc: { flexShrink: 1 },
+    activityDate: { flexShrink: 1 },
+    activityAmount: { flexShrink: 0 },
     credit: { color: colors.successText },
     debit: { color: colors.dangerText },
 
@@ -2255,8 +2911,15 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    payoutRecipient: { fontSize: 14, fontWeight: "600", color: colors.text },
-    payoutMeta: { fontSize: 12, color: colors.textMuted },
+    payoutRecipient: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    payoutMeta: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+    },
 
     slotControlCard: {
       marginHorizontal: 16,
@@ -2277,8 +2940,16 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    slotControlTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-    slotControlSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    slotControlTitle: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    slotControlSub: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+      marginTop: 1,
+    },
     slotControlRow: { flexDirection: "row", gap: 10 },
     slotOption: {
       flex: 1,
@@ -2295,14 +2966,22 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       backgroundColor: colors.primary,
     },
     slotOptionDisabled: { opacity: 0.35 },
-    slotOptionNum: { fontSize: 20, fontWeight: "800", color: colors.text },
+    slotOptionNum: {
+      fontSize: typography.title2.fontSize,
+      fontWeight: "800",
+      color: colors.text,
+    },
     slotOptionLabel: {
-      fontSize: 11,
+      fontSize: typography.overline.fontSize,
       fontWeight: "500",
       color: colors.textMuted,
     },
-    slotOptionText: { fontSize: 15, fontWeight: "700", color: colors.text },
-    slotOptionTextSelected: { color: "#fff" },
+    slotOptionText: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    slotOptionTextSelected: { color: colors.textOnPrimary },
     slotOptionTextDisabled: { color: colors.textMuted },
     slotControlFooter: { flexDirection: "row", alignItems: "center", gap: 10 },
     slotControlProgress: {
@@ -2317,7 +2996,10 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderRadius: 2,
       backgroundColor: colors.primary,
     },
-    slotControlHint: { fontSize: 11, color: colors.textMuted },
+    slotControlHint: {
+      fontSize: typography.overline.fontSize,
+      color: colors.textMuted,
+    },
 
     slotOfferBanner: {
       flexDirection: "row",
@@ -2341,11 +3023,14 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       flexShrink: 0,
     },
     slotOfferTitle: {
-      fontSize: 13,
+      fontSize: typography.caption.fontSize,
       fontWeight: "700",
       color: colors.primaryText,
     },
-    slotOfferSub: { fontSize: 12, color: colors.primaryTextMid },
+    slotOfferSub: {
+      fontSize: typography.caption.fontSize,
+      color: colors.primaryTextMid,
+    },
     slotOfferBtn: {
       backgroundColor: colors.primary,
       paddingHorizontal: 14,
@@ -2353,17 +3038,20 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderRadius: 8,
       alignItems: "center",
     },
-    slotOfferBtnText: { fontSize: 13, fontWeight: "700", color: "#fff" },
+    slotOfferBtnText: { color: colors.textOnPrimary },
     slotOfferDecline: {
-      fontSize: 12,
+      fontSize: typography.caption.fontSize,
       color: colors.textMuted,
       textAlign: "center",
     },
 
     emptyState: { paddingVertical: 40, alignItems: "center" },
-    emptyStateText: { fontSize: 14, color: colors.textMuted },
+    emptyStateText: {
+      fontSize: typography.body.fontSize,
+      color: colors.textMuted,
+    },
 
-    modalRoot: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+    modalRoot: { flex: 1, backgroundColor: colors.overlay },
     backdropArea: { flex: 1 },
     sheet: {
       backgroundColor: colors.card,
@@ -2382,8 +3070,16 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignSelf: "center",
       marginBottom: 4,
     },
-    sheetTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
-    sheetSub: { fontSize: 14, color: colors.textMuted, marginTop: -8 },
+    sheetTitle: {
+      fontSize: typography.headline.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    sheetSub: {
+      fontSize: typography.body.fontSize,
+      color: colors.textMuted,
+      marginTop: -8,
+    },
     modeToggle: {
       flexDirection: "row",
       gap: 8,
@@ -2400,15 +3096,19 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       borderRadius: 9,
     },
     modeBtnActive: { backgroundColor: colors.primary },
-    modeBtnText: { fontSize: 14, fontWeight: "600", color: colors.textMuted },
-    modeBtnTextActive: { color: "#fff" },
+    modeBtnText: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "600",
+      color: colors.textMuted,
+    },
+    modeBtnTextActive: { color: colors.textOnPrimary },
     inviteInput: {
       height: 46,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 10,
       paddingHorizontal: 14,
-      fontSize: 15,
+      fontSize: typography.body.fontSize,
       color: colors.text,
       backgroundColor: colors.inputBg,
     },
@@ -2420,12 +3120,22 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       justifyContent: "center",
     },
     sheetBtnDisabled: { opacity: 0.5 },
-    sheetBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+    sheetBtnText: { color: colors.textOnPrimary },
     cancelBtn: { alignItems: "center", paddingVertical: 4 },
-    cancelBtnText: { fontSize: 14, color: colors.textMuted },
+    cancelBtnText: {
+      fontSize: typography.body.fontSize,
+      color: colors.textMuted,
+    },
     successBox: { gap: 12 },
-    successMsg: { fontSize: 14, fontWeight: "700", color: colors.successText },
-    successHint: { fontSize: 13, color: colors.textMuted },
+    successMsg: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.successText,
+    },
+    successHint: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+    },
     shareBtn: {
       height: 44,
       backgroundColor: colors.primaryBg,
@@ -2435,10 +3145,14 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    shareBtnText: { fontSize: 14, fontWeight: "700", color: colors.primary },
+    shareBtnText: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "700",
+      color: colors.primary,
+    },
     inviteAnother: { alignItems: "center", paddingVertical: 4 },
     inviteAnotherText: {
-      fontSize: 13,
+      fontSize: typography.caption.fontSize,
       color: colors.textMuted,
       textDecorationLine: "underline",
     },
@@ -2459,8 +3173,16 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignItems: "center",
       justifyContent: "space-between",
     },
-    startCardLabel: { fontSize: 12, color: colors.textMuted, marginBottom: 2 },
-    startCardValue: { fontSize: 15, fontWeight: "600", color: colors.text },
+    startCardLabel: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+      marginBottom: 2,
+    },
+    startCardValue: {
+      fontSize: typography.body.fontSize,
+      fontWeight: "600",
+      color: colors.text,
+    },
     startCardEditBtn: {
       paddingHorizontal: 12,
       paddingVertical: 6,
@@ -2470,7 +3192,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       backgroundColor: colors.primaryBg,
     },
     startCardEditBtnText: {
-      fontSize: 13,
+      fontSize: typography.caption.fontSize,
       fontWeight: "600",
       color: colors.primaryText,
     },
@@ -2482,7 +3204,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       justifyContent: "center",
     },
     startGroupBtnDisabled: { opacity: 0.45 },
-    startGroupBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+    startGroupBtnText: { color: colors.textOnPrimary },
     deleteGroupBtn: {
       marginHorizontal: 16,
       marginBottom: 8,
@@ -2495,7 +3217,7 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       backgroundColor: colors.dangerBg + "20",
     },
     deleteGroupBtnText: {
-      fontSize: 15,
+      fontSize: typography.body.fontSize,
       fontWeight: "700",
       color: colors.dangerText,
     },
@@ -2518,19 +3240,27 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       padding: 24,
       gap: 16,
     },
-    datePickerTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
+    datePickerTitle: {
+      fontSize: typography.headline.fontSize,
+      fontWeight: "700",
+      color: colors.text,
+    },
     datePickerInput: {
       height: 48,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 10,
       paddingHorizontal: 14,
-      fontSize: 16,
+      fontSize: typography.body.fontSize,
       color: colors.text,
       backgroundColor: colors.inputBg,
       letterSpacing: 1,
     },
-    datePickerHint: { fontSize: 12, color: colors.textMuted, marginTop: -8 },
+    datePickerHint: {
+      fontSize: typography.caption.fontSize,
+      color: colors.textMuted,
+      marginTop: -8,
+    },
     datePickerSave: {
       height: 46,
       borderRadius: 10,
@@ -2538,8 +3268,11 @@ function createStyles(colors: import("@/lib/colors").Colors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    datePickerSaveText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+    datePickerSaveText: { color: colors.textOnPrimary },
     datePickerCancel: { alignItems: "center", paddingVertical: 8 },
-    datePickerCancelText: { fontSize: 14, color: colors.textMuted },
+    datePickerCancelText: {
+      fontSize: typography.body.fontSize,
+      color: colors.textMuted,
+    },
   });
 }

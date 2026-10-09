@@ -1,5 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 export interface InitializeParams {
   email: string;
@@ -15,7 +19,7 @@ export interface InitializeResult {
 }
 
 export interface VerifyResult {
-  status: 'success' | 'failed' | 'pending' | 'abandoned';
+  status: "success" | "failed" | "pending" | "abandoned";
   amountKobo: number;
   reference: string;
   metadata?: Record<string, unknown>;
@@ -49,7 +53,7 @@ export class PaystackService {
   private readonly baseUrl: string;
 
   constructor(private readonly config: ConfigService) {
-    this.baseUrl = config.get('PAYSTACK_BASE_URL', 'https://api.paystack.co');
+    this.baseUrl = config.get("PAYSTACK_BASE_URL", "https://api.paystack.co");
   }
 
   /**
@@ -59,16 +63,18 @@ export class PaystackService {
    * Formula: https://support.paystack.com/en/articles/2130306
    */
   grossUpAmount(amountNgn: number): number {
-    const PCT  = 0.015;
+    const PCT = 0.015;
     const FLAT = amountNgn < 2_500 ? 0 : 100;
-    const CAP  = 2_000;
+    const CAP = 2_000;
 
     if (PCT * amountNgn + FLAT >= CAP) return amountNgn + CAP;
     return (amountNgn + FLAT) / (1 - PCT) + 0.01;
   }
 
-  async initializeTransaction(params: InitializeParams): Promise<InitializeResult> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+  async initializeTransaction(
+    params: InitializeParams,
+  ): Promise<InitializeResult> {
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       this.logger.debug(`[DEV] Paystack mock init → ${params.reference}`);
@@ -78,28 +84,29 @@ export class PaystackService {
       };
     }
 
-    const data = await this.request<{ authorization_url: string; reference: string }>(
-      '/transaction/initialize',
-      'POST',
-      secretKey,
-      {
-        email: params.email,
-        amount: Math.round(params.amountNgn * 100),
-        reference: params.reference,
-        callback_url: params.callbackUrl,
-        metadata: params.metadata,
-      },
-    );
+    const data = await this.request<{
+      authorization_url: string;
+      reference: string;
+    }>("/transaction/initialize", "POST", secretKey, {
+      email: params.email,
+      amount: Math.round(params.amountNgn * 100),
+      reference: params.reference,
+      callback_url: params.callbackUrl,
+      metadata: params.metadata,
+    });
 
-    return { authorizationUrl: data.authorization_url, reference: data.reference };
+    return {
+      authorizationUrl: data.authorization_url,
+      reference: data.reference,
+    };
   }
 
   async verifyTransaction(reference: string): Promise<VerifyResult> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       this.logger.debug(`[DEV] Paystack mock verify → ${reference}: success`);
-      return { status: 'success', amountKobo: 0, reference };
+      return { status: "success", amountKobo: 0, reference };
     }
 
     const data = await this.request<{
@@ -107,10 +114,14 @@ export class PaystackService {
       amount: number;
       reference: string;
       metadata?: Record<string, unknown>;
-    }>(`/transaction/verify/${encodeURIComponent(reference)}`, 'GET', secretKey);
+    }>(
+      `/transaction/verify/${encodeURIComponent(reference)}`,
+      "GET",
+      secretKey,
+    );
 
     return {
-      status: data.status as VerifyResult['status'],
+      status: data.status as VerifyResult["status"],
       amountKobo: data.amount,
       reference: data.reference,
       metadata: data.metadata,
@@ -118,27 +129,32 @@ export class PaystackService {
   }
 
   async initiateTransfer(params: TransferParams): Promise<TransferResult> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
-    const isDev = this.config.get<string>('NODE_ENV', 'development') === 'development';
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
+    const isProduction =
+      this.config.get<string>("NODE_ENV", "development") === "production";
+    const transfersEnabled = this.config.get<boolean>(
+      "PAYSTACK_TRANSFERS_ENABLED",
+      isProduction,
+    );
 
-    if (!secretKey || isDev) {
-      const mockCode = `TRF_mock_${Date.now()}`;
-      this.logger.debug(`[DEV] Paystack mock transfer ${params.reference} → ${mockCode}`);
-      return { transferCode: mockCode, reference: params.reference };
+    if (!secretKey || !transfersEnabled) {
+      throw new ServiceUnavailableException(
+        !secretKey
+          ? "Paystack transfers are unavailable because PAYSTACK_SECRET_KEY is not configured."
+          : "Paystack transfers are disabled. Enable PAYSTACK_TRANSFERS_ENABLED to initiate a real transfer.",
+      );
     }
 
-    const data = await this.request<{ transfer_code: string; reference: string }>(
-      '/transfer',
-      'POST',
-      secretKey,
-      {
-        source: 'balance',
-        amount: Math.round(params.amountNgn * 100),
-        recipient: params.recipientCode,
-        reason: params.reason ?? 'Poolr payout',
-        reference: params.reference,
-      },
-    );
+    const data = await this.request<{
+      transfer_code: string;
+      reference: string;
+    }>("/transfer", "POST", secretKey, {
+      source: "balance",
+      amount: Math.round(params.amountNgn * 100),
+      recipient: params.recipientCode,
+      reason: params.reason ?? "Poolr payout",
+      reference: params.reference,
+    });
 
     return { transferCode: data.transfer_code, reference: data.reference };
   }
@@ -148,7 +164,7 @@ export class PaystackService {
     firstName: string;
     lastName: string;
   }): Promise<CustomerResult> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       const mockCode = `CUS_mock_${Date.now()}`;
@@ -157,8 +173,8 @@ export class PaystackService {
     }
 
     const data = await this.request<{ customer_code: string }>(
-      '/customer',
-      'POST',
+      "/customer",
+      "POST",
       secretKey,
       {
         email: params.email,
@@ -171,23 +187,27 @@ export class PaystackService {
   }
 
   async createDedicatedAccount(customerCode: string): Promise<DvaResult> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       const mock = `91${Math.floor(Math.random() * 100_000_000)
         .toString()
-        .padStart(8, '0')}`;
+        .padStart(8, "0")}`;
       this.logger.debug(`[DEV] Paystack mock DVA → ${mock}`);
-      return { accountNumber: mock, accountName: 'PAYSTACK-POOLR TEST', bankName: 'Wema Bank' };
+      return {
+        accountNumber: mock,
+        accountName: "PAYSTACK-POOLR TEST",
+        bankName: "Wema Bank",
+      };
     }
 
     const data = await this.request<{
       account_number: string;
       account_name: string;
       bank: { name: string };
-    }>('/dedicated_account', 'POST', secretKey, {
+    }>("/dedicated_account", "POST", secretKey, {
       customer: customerCode,
-      preferred_bank: 'wema-bank',
+      preferred_bank: "wema-bank",
     });
 
     return {
@@ -197,44 +217,53 @@ export class PaystackService {
     };
   }
 
-  async listBanks(): Promise<Array<{ name: string; code: string; slug: string }>> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+  async listBanks(): Promise<
+    Array<{ name: string; code: string; slug: string }>
+  > {
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       return [
-        { name: 'Access Bank', code: '044', slug: 'access-bank' },
-        { name: 'GTBank', code: '058', slug: 'guaranty-trust-bank' },
-        { name: 'First Bank', code: '011', slug: 'first-bank-of-nigeria' },
-        { name: 'Zenith Bank', code: '057', slug: 'zenith-bank' },
-        { name: 'UBA', code: '033', slug: 'united-bank-for-africa' },
-        { name: 'Wema Bank', code: '035', slug: 'wema-bank' },
-        { name: 'Opay', code: '999992', slug: 'paycom' },
-        { name: 'Kuda Bank', code: '090267', slug: 'kuda-bank' },
+        { name: "Access Bank", code: "044", slug: "access-bank" },
+        { name: "GTBank", code: "058", slug: "guaranty-trust-bank" },
+        { name: "First Bank", code: "011", slug: "first-bank-of-nigeria" },
+        { name: "Zenith Bank", code: "057", slug: "zenith-bank" },
+        { name: "UBA", code: "033", slug: "united-bank-for-africa" },
+        { name: "Wema Bank", code: "035", slug: "wema-bank" },
+        { name: "Opay", code: "999992", slug: "paycom" },
+        { name: "Kuda Bank", code: "090267", slug: "kuda-bank" },
       ];
     }
 
-    const data = await this.request<Array<{ name: string; code: string; slug: string }>>(
-      '/bank?currency=NGN&perPage=100',
-      'GET',
-      secretKey,
-    );
+    const data = await this.request<
+      Array<{ name: string; code: string; slug: string }>
+    >("/bank?currency=NGN&perPage=100", "GET", secretKey);
     return data;
   }
 
-  async resolveAccount(bankCode: string, accountNumber: string): Promise<{ accountName: string; accountNumber: string }> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+  async resolveAccount(
+    bankCode: string,
+    accountNumber: string,
+  ): Promise<{ accountName: string; accountNumber: string }> {
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       this.logger.debug(`[DEV] Paystack mock resolve → ${accountNumber}`);
-      return { accountName: 'MOCK ACCOUNT HOLDER', accountNumber };
+      return { accountName: "MOCK ACCOUNT HOLDER", accountNumber };
     }
 
-    const data = await this.request<{ account_name: string; account_number: string }>(
+    const data = await this.request<{
+      account_name: string;
+      account_number: string;
+    }>(
       `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
-      'GET',
+      "GET",
       secretKey,
     );
-    return { accountName: data.account_name, accountNumber: data.account_number };
+    return {
+      accountName: data.account_name,
+      accountNumber: data.account_number,
+    };
   }
 
   async createTransferRecipient(params: {
@@ -242,7 +271,7 @@ export class PaystackService {
     accountNumber: string;
     bankCode: string;
   }): Promise<{ recipientCode: string }> {
-    const secretKey = this.config.get<string>('PAYSTACK_SECRET_KEY', '');
+    const secretKey = this.config.get<string>("PAYSTACK_SECRET_KEY", "");
 
     if (!secretKey) {
       const mockCode = `RCP_mock_${Date.now()}`;
@@ -251,15 +280,15 @@ export class PaystackService {
     }
 
     const data = await this.request<{ recipient_code: string }>(
-      '/transferrecipient',
-      'POST',
+      "/transferrecipient",
+      "POST",
       secretKey,
       {
-        type: 'nuban',
+        type: "nuban",
         name: params.name,
         account_number: params.accountNumber,
         bank_code: params.bankCode,
-        currency: 'NGN',
+        currency: "NGN",
       },
     );
     return { recipientCode: data.recipient_code };
@@ -267,17 +296,24 @@ export class PaystackService {
 
   private async request<T>(
     path: string,
-    method: 'GET' | 'POST',
+    method: "GET" | "POST",
     secretKey: string,
     body?: unknown,
   ): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const json = (await res.json()) as { status: boolean; data: T; message?: string };
+    const json = (await res.json()) as {
+      status: boolean;
+      data: T;
+      message?: string;
+    };
 
     if (!res.ok || !json.status) {
       const msg = json.message ?? res.statusText;
